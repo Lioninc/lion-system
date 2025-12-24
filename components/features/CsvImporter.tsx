@@ -5,6 +5,17 @@ import { Button, Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead
 import { parseCsv, getPreviewData, importCsv, CsvRow, ImportResult } from '@/lib/csv-import'
 import { createClient } from '@/lib/supabase/client'
 
+// テンプレートCSVのヘッダー
+const TEMPLATE_HEADERS = [
+  'NO', '年月日', '時間帯', '日付', '状態', '備考', '応募対応媒体', '職種', '記事勤務地',
+  '氏名(姓)', '氏名(名)', '氏名カナ(姓)', 'カナ(名)カナ', '電話番号', '生年月日', '年齢', '年代',
+  '郵便番号', '都道府県', '市区町村群', '性別', 'タトゥー', '障害者手帳', '持病', '配偶者', '子供',
+  '身長', '体重', 'BMI', '問い合わせ状態', '就業時期_年', '就業時期_月', '就業時期', '回数',
+  '最終連絡日', '連絡時間', '経過日数', '状態', '最終対応者', '備考', '日程_年', '日程_月',
+  '日程_日', '日程_時間', '面談日程状態', '辞退理由', '担当CD', '種類', '対応時間', '求職者状態',
+  '繋ぎ状況', '紹介先'
+]
+
 interface PreviewRow {
   name: string
   phone: string
@@ -115,11 +126,36 @@ export default function CsvImporter() {
     }
   }
 
+  const handleDownloadTemplate = () => {
+    // BOM付きUTF-8でCSVを作成（Excelで文字化けしないように）
+    const bom = '\uFEFF'
+    const csvContent = bom + TEMPLATE_HEADERS.join(',')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'import-template.csv'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="space-y-6">
       {/* ドロップゾーン */}
       {(status === 'idle' || status === 'error') && (
         <Card>
+          {/* テンプレートダウンロードボタン */}
+          <div className="mb-4 flex justify-end">
+            <Button variant="ghost" size="sm" onClick={handleDownloadTemplate}>
+              <span className="mr-1">📄</span>
+              テンプレートをダウンロード
+            </Button>
+          </div>
+
           <div
             onDrop={handleDrop}
             onDragOver={handleDragOver}
