@@ -232,7 +232,7 @@ function buildCandidateData(row: CsvRow) {
     gender: row['性別'] || null,
     address: address || null,
     desired_occupation: row['職種'] || null,       // 職種 → desired_occupation
-    desired_location: row['記事勤務地'] || null,   // 記事勤務地 → desired_location
+    preferred_location: row['記事勤務地'] || null,   // 記事勤務地 → preferred_location
     status: mapStatus(row['状態']),
     notes: row['備考'] || null,
     // staff_id は使わない（NULL）
