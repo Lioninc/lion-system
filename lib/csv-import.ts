@@ -199,13 +199,11 @@ export async function importCsv(
 
 // candidatesデータを構築
 function buildCandidateData(row: CsvRow) {
-  const lastName = row['氏名(姓)'] || row['姓'] || ''
-  const firstName = row['氏名(名)'] || row['名'] || ''
-  const name = `${lastName} ${firstName}`.trim() || row['氏名'] || row['名前'] || ''
+  // 氏名: 「氏名」列をそのまま使用
+  const name = row['氏名'] || row['名前'] || ''
 
-  const lastNameKana = row['氏名カナ(姓)'] || row['姓カナ'] || ''
-  const firstNameKana = row['カナ(名)カナ'] || row['氏名カナ(名)'] || row['名カナ'] || ''
-  const furigana = `${lastNameKana} ${firstNameKana}`.trim() || row['ふりがな'] || ''
+  // 氏名カナ: 「氏名カナ」列をそのまま使用
+  const furigana = row['氏名カナ'] || row['ふりがな'] || ''
 
   const prefecture = row['都道府県'] || ''
   const city = row['市区町村群'] || row['市区町村'] || ''
@@ -270,9 +268,8 @@ function buildInterviewData(row: CsvRow, candidateId: string, interviewDate: str
 // プレビュー用に最初の10件を取得
 export function getPreviewData(rows: CsvRow[], limit = 10) {
   return rows.slice(0, limit).map(row => {
-    const lastName = row['氏名(姓)'] || row['姓'] || ''
-    const firstName = row['氏名(名)'] || row['名'] || ''
-    const name = `${lastName} ${firstName}`.trim() || row['氏名'] || row['名前'] || ''
+    // 氏名: 「氏名」列をそのまま使用
+    const name = row['氏名'] || row['名前'] || ''
 
     return {
       name,
