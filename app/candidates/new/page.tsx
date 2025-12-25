@@ -47,7 +47,7 @@ export default function NewCandidatePage() {
     phone: '',
     email: '',
     address: '',
-    desired_occupation: '',
+    preferred_job: '',
     preferred_location: '',
     desired_salary: '',
     available_date: '',
@@ -145,8 +145,8 @@ export default function NewCandidatePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="希望職種"
-              name="desired_occupation"
-              value={formData.desired_occupation}
+              name="preferred_job"
+              value={formData.preferred_job}
               onChange={handleChange}
             />
             <Input

@@ -11,7 +11,7 @@ const demoCandidates = [
     applied_date: '2024/12/20',
     source: 'Indeed',
     status: '有効応募',
-    desired_occupation: '製造業',
+    preferred_job: '製造業',
     name: '田中太郎',
     age: 28,
     employee_name: '山田花子',
@@ -21,7 +21,7 @@ const demoCandidates = [
     applied_date: '2024/12/19',
     source: 'タウンワーク',
     status: '電話出ず',
-    desired_occupation: '軽作業',
+    preferred_job: '軽作業',
     name: '佐藤次郎',
     age: 35,
     employee_name: '鈴木一郎',
@@ -31,7 +31,7 @@ const demoCandidates = [
     applied_date: '2024/12/18',
     source: 'リクナビ',
     status: '無効応募',
-    desired_occupation: '事務',
+    preferred_job: '事務',
     name: '高橋三郎',
     age: 42,
     employee_name: '山田花子',
@@ -41,7 +41,7 @@ const demoCandidates = [
     applied_date: '2024/12/17',
     source: 'Indeed',
     status: '就業時期が先',
-    desired_occupation: '倉庫作業',
+    preferred_job: '倉庫作業',
     name: '伊藤四郎',
     age: 25,
     employee_name: '佐藤美咲',
@@ -51,7 +51,7 @@ const demoCandidates = [
     applied_date: '2024/12/16',
     source: 'マイナビ',
     status: '有効応募',
-    desired_occupation: '製造業',
+    preferred_job: '製造業',
     name: '渡辺五郎',
     age: 31,
     employee_name: '鈴木一郎',
@@ -118,7 +118,7 @@ export default function CandidatesPage() {
     const matchesSource = !sourceFilter || candidate.source === sourceFilter
     const matchesStatus = !statusFilter || candidate.status === statusFilter
     const matchesOccupation =
-      !occupationFilter || candidate.desired_occupation === occupationFilter
+      !occupationFilter || candidate.preferred_job === occupationFilter
     const matchesEmployee =
       !employeeFilter || candidate.employee_name === employeeFilter
 
@@ -222,7 +222,7 @@ export default function CandidatesPage() {
                     href={`/candidates/${candidate.id}`}
                     className="block w-full"
                   >
-                    {candidate.desired_occupation}
+                    {candidate.preferred_job}
                   </Link>
                 </TableCell>
                 <TableCell>
