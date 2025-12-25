@@ -262,9 +262,10 @@ function buildCandidateData(row: CsvRow) {
 function buildApplicationData(row: CsvRow, candidateId: string) {
   return {
     candidate_id: candidateId,
-    applied_date: parseDate(row['年月日']) || new Date().toISOString().split('T')[0],
+    application_date: parseDate(row['年月日']) || new Date().toISOString().split('T')[0],
     source: row['応募対応媒体'] || 'その他',
     status: row['状態'] || '有効応募',
+    job_article: row['職種'] || null,
     notes: null,
   }
 }

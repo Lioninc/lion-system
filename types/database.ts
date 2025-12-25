@@ -216,7 +216,7 @@ export interface Database {
           id: string
           candidate_id: string
           source: string
-          applied_date: string
+          application_date: string
           status: string
           notes: string | null
           created_at: string
@@ -226,7 +226,7 @@ export interface Database {
           id?: string
           candidate_id: string
           source: string
-          applied_date?: string
+          application_date?: string
           status?: string
           notes?: string | null
           created_at?: string
@@ -236,7 +236,7 @@ export interface Database {
           id?: string
           candidate_id?: string
           source?: string
-          applied_date?: string
+          application_date?: string
           status?: string
           notes?: string | null
           created_at?: string

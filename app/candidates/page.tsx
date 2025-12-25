@@ -8,7 +8,7 @@ import { Button, Input, Select, Card, Badge, Table, TableHeader, TableBody, Tabl
 const demoCandidates = [
   {
     id: '1',
-    applied_date: '2024/12/20',
+    application_date: '2024/12/20',
     source: 'Indeed',
     status: '有効応募',
     preferred_job: '製造業',
@@ -18,7 +18,7 @@ const demoCandidates = [
   },
   {
     id: '2',
-    applied_date: '2024/12/19',
+    application_date: '2024/12/19',
     source: 'タウンワーク',
     status: '電話出ず',
     preferred_job: '軽作業',
@@ -28,7 +28,7 @@ const demoCandidates = [
   },
   {
     id: '3',
-    applied_date: '2024/12/18',
+    application_date: '2024/12/18',
     source: 'リクナビ',
     status: '無効応募',
     preferred_job: '事務',
@@ -38,7 +38,7 @@ const demoCandidates = [
   },
   {
     id: '4',
-    applied_date: '2024/12/17',
+    application_date: '2024/12/17',
     source: 'Indeed',
     status: '就業時期が先',
     preferred_job: '倉庫作業',
@@ -48,7 +48,7 @@ const demoCandidates = [
   },
   {
     id: '5',
-    applied_date: '2024/12/16',
+    application_date: '2024/12/16',
     source: 'マイナビ',
     status: '有効応募',
     preferred_job: '製造業',
@@ -198,7 +198,7 @@ export default function CandidatesPage() {
                     href={`/candidates/${candidate.id}`}
                     className="block w-full"
                   >
-                    {candidate.applied_date}
+                    {candidate.application_date}
                   </Link>
                 </TableCell>
                 <TableCell>

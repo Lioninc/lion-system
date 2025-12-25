@@ -26,8 +26,8 @@ const demoCandidate = {
 }
 
 const demoApplications = [
-  { id: '1', applied_date: '2024/12/20', source: 'Indeed', status: '有効応募' },
-  { id: '2', applied_date: '2024/11/15', source: 'タウンワーク', status: '無効応募' },
+  { id: '1', application_date: '2024/12/20', source: 'Indeed', status: '有効応募' },
+  { id: '2', application_date: '2024/11/15', source: 'タウンワーク', status: '無効応募' },
 ]
 
 const demoInterviews = [
@@ -265,7 +265,7 @@ export default function CandidateDetailPage() {
             <TableBody>
               {demoApplications.map((app) => (
                 <TableRow key={app.id}>
-                  <TableCell>{app.applied_date}</TableCell>
+                  <TableCell>{app.application_date}</TableCell>
                   <TableCell>{app.source}</TableCell>
                   <TableCell>{getStatusBadge(app.status)}</TableCell>
                 </TableRow>
