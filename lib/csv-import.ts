@@ -224,18 +224,37 @@ function buildCandidateData(row: CsvRow) {
   const city = row['市区町村群'] || ''
   const address = `${prefecture}${city}`.trim()
 
+  // 年齢を計算（生年月日がある場合）
+  const birthDate = parseDate(row['生年月日'])
+  let age: number | null = null
+  if (row['年齢']) {
+    age = parseInt(row['年齢']) || null
+  }
+
+  // 身長・体重
+  const height = row['身長'] ? parseInt(row['身長']) || null : null
+  const weight = row['体重'] ? parseInt(row['体重']) || null : null
+
   return {
     name,
-    name_kana: furigana || null,
+    furigana: furigana || null,              // furigana → furigana
     phone: normalizePhone(row['電話番号']),
-    birth_date: parseDate(row['生年月日']),
+    birth_date: birthDate,
+    age: age,
     gender: row['性別'] || null,
+    postal_code: row['郵便番号'] || null,
     address: address || null,
-    preferred_job: row['職種'] || null,       // 職種 → preferred_job
-    preferred_location: row['記事勤務地'] || null,   // 記事勤務地 → preferred_location
+    preferred_job: row['職種'] || null,
+    preferred_location: row['記事勤務地'] || null,
+    height: height,
+    weight: weight,
+    tattoo: row['タトゥー'] || null,
+    disability_certificate: row['障害者手帳'] || null,
+    medical_condition: row['持病'] || null,
+    has_spouse: row['配偶者'] === '有' || row['配偶者'] === 'あり',
+    has_children: row['子供'] === '有' || row['子供'] === 'あり',
     status: mapStatus(row['状態']),
     notes: row['備考'] || null,
-    // staff_id は使わない（NULL）
   }
 }
 

@@ -9,7 +9,7 @@ import { Button, Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead
 const demoCandidate = {
   id: '1',
   name: '田中太郎',
-  name_kana: 'タナカタロウ',
+  furigana: 'タナカタロウ',
   gender: '男性',
   birth_date: '1996/05/15',
   age: 28,
@@ -137,7 +137,7 @@ export default function CandidateDetailPage() {
             <dl className="space-y-3">
               <div className="flex">
                 <dt className="w-32 text-sm text-slate-500">氏名</dt>
-                <dd className="text-sm text-slate-800">{demoCandidate.name}（{demoCandidate.name_kana}）</dd>
+                <dd className="text-sm text-slate-800">{demoCandidate.name}（{demoCandidate.furigana}）</dd>
               </div>
               <div className="flex">
                 <dt className="w-32 text-sm text-slate-500">性別・年齢</dt>
@@ -194,7 +194,7 @@ export default function CandidateDetailPage() {
             </div>
             <div className="p-3 bg-slate-50 rounded">
               <dt className="text-xs text-slate-500">ふりがな</dt>
-              <dd className="text-sm text-slate-800 mt-1">{demoCandidate.name_kana}</dd>
+              <dd className="text-sm text-slate-800 mt-1">{demoCandidate.furigana}</dd>
             </div>
             <div className="p-3 bg-slate-50 rounded">
               <dt className="text-xs text-slate-500">性別</dt>

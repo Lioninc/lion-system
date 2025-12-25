@@ -41,7 +41,7 @@ export default function NewCandidatePage() {
   const router = useRouter()
   const [formData, setFormData] = useState({
     name: '',
-    name_kana: '',
+    furigana: '',
     gender: '',
     birth_date: '',
     phone: '',
@@ -97,8 +97,8 @@ export default function NewCandidatePage() {
             />
             <Input
               label="ふりがな"
-              name="name_kana"
-              value={formData.name_kana}
+              name="furigana"
+              value={formData.furigana}
               onChange={handleChange}
             />
             <Select

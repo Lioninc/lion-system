@@ -157,7 +157,7 @@ export interface Database {
           id: string
           employee_id: string | null
           name: string
-          name_kana: string | null
+          furigana: string | null
           gender: string | null
           birth_date: string | null
           phone: string | null
@@ -176,7 +176,7 @@ export interface Database {
           id?: string
           employee_id?: string | null
           name: string
-          name_kana?: string | null
+          furigana?: string | null
           gender?: string | null
           birth_date?: string | null
           phone?: string | null
@@ -195,7 +195,7 @@ export interface Database {
           id?: string
           employee_id?: string | null
           name?: string
-          name_kana?: string | null
+          furigana?: string | null
           gender?: string | null
           birth_date?: string | null
           phone?: string | null
