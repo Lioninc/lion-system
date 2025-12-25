@@ -126,6 +126,13 @@ function formatDate(dateStr: string | null): string {
   return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`
 }
 
+function calculateBMI(height: number | null, weight: number | null): string {
+  if (!height || !weight) return '-'
+  const heightInMeters = height / 100
+  const bmi = weight / (heightInMeters * heightInMeters)
+  return bmi.toFixed(1)
+}
+
 export default function CandidateDetailPage() {
   const params = useParams()
   const candidateId = params.id as string
@@ -420,6 +427,10 @@ export default function CandidateDetailPage() {
             <div className="p-3 bg-slate-50 rounded">
               <dt className="text-xs text-slate-500">体重</dt>
               <dd className="text-sm text-slate-800 mt-1">{candidate.weight ? `${candidate.weight}kg` : '-'}</dd>
+            </div>
+            <div className="p-3 bg-slate-50 rounded">
+              <dt className="text-xs text-slate-500">BMI</dt>
+              <dd className="text-sm text-slate-800 mt-1">{calculateBMI(candidate.height, candidate.weight)}</dd>
             </div>
             <div className="p-3 bg-slate-50 rounded">
               <dt className="text-xs text-slate-500">タトゥー</dt>
