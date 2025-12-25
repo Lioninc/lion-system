@@ -158,15 +158,44 @@ export default function CandidateDetailPage() {
       .eq('id', candidateId)
       .single()
 
-    if (candidateError) {
+    if (candidateError || !candidateData) {
       console.error('Error fetching candidate:', candidateError)
       setLoading(false)
       return
     }
 
+    const data = candidateData as any
     setCandidate({
-      ...candidateData,
-      employee_name: candidateData.employees?.name || null,
+      id: data.id,
+      name: data.name,
+      furigana: data.furigana,
+      gender: data.gender,
+      birth_date: data.birth_date,
+      age: data.age,
+      phone: data.phone,
+      phone_2: data.phone_2,
+      email: data.email,
+      line_id: data.line_id,
+      postal_code: data.postal_code,
+      address: data.address,
+      nearest_station: data.nearest_station,
+      preferred_job: data.preferred_job,
+      preferred_location: data.preferred_location,
+      preferred_salary_min: data.preferred_salary_min,
+      preferred_salary_max: data.preferred_salary_max,
+      available_date: data.available_date,
+      height: data.height,
+      weight: data.weight,
+      tattoo: data.tattoo,
+      disability_certificate: data.disability_certificate,
+      medical_condition: data.medical_condition,
+      has_spouse: data.has_spouse,
+      has_children: data.has_children,
+      status: data.status,
+      current_stage: data.current_stage,
+      notes: data.notes,
+      staff_id: data.staff_id,
+      employee_name: data.employees?.name || null,
     })
 
     // 応募履歴を取得
