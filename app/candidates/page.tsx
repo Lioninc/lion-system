@@ -1,62 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button, Input, Select, Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui'
+import { createClient } from '@/lib/supabase/client'
 
-// デモデータ
-const demoCandidates = [
-  {
-    id: '1',
-    application_date: '2024/12/20',
-    source: 'Indeed',
-    status: '有効応募',
-    preferred_job: '製造業',
-    name: '田中太郎',
-    age: 28,
-    employee_name: '山田花子',
-  },
-  {
-    id: '2',
-    application_date: '2024/12/19',
-    source: 'タウンワーク',
-    status: '電話出ず',
-    preferred_job: '軽作業',
-    name: '佐藤次郎',
-    age: 35,
-    employee_name: '鈴木一郎',
-  },
-  {
-    id: '3',
-    application_date: '2024/12/18',
-    source: 'リクナビ',
-    status: '無効応募',
-    preferred_job: '事務',
-    name: '高橋三郎',
-    age: 42,
-    employee_name: '山田花子',
-  },
-  {
-    id: '4',
-    application_date: '2024/12/17',
-    source: 'Indeed',
-    status: '就業時期が先',
-    preferred_job: '倉庫作業',
-    name: '伊藤四郎',
-    age: 25,
-    employee_name: '佐藤美咲',
-  },
-  {
-    id: '5',
-    application_date: '2024/12/16',
-    source: 'マイナビ',
-    status: '有効応募',
-    preferred_job: '製造業',
-    name: '渡辺五郎',
-    age: 31,
-    employee_name: '鈴木一郎',
-  },
-]
+interface CandidateWithApplication {
+  id: string
+  name: string
+  age: number | null
+  status: string
+  preferred_job: string | null
+  phone: string | null
+  staff_id: string | null
+  application_date: string | null
+  source: string | null
+  employee_name: string | null
+}
 
 const sourceOptions = [
   { value: '', label: 'すべて' },
@@ -64,6 +24,8 @@ const sourceOptions = [
   { value: 'タウンワーク', label: 'タウンワーク' },
   { value: 'リクナビ', label: 'リクナビ' },
   { value: 'マイナビ', label: 'マイナビ' },
+  { value: 'バイトル', label: 'バイトル' },
+  { value: 'その他', label: 'その他' },
 ]
 
 const statusOptions = [
@@ -82,13 +44,6 @@ const occupationOptions = [
   { value: '倉庫作業', label: '倉庫作業' },
 ]
 
-const employeeOptions = [
-  { value: '', label: 'すべて' },
-  { value: '山田花子', label: '山田花子' },
-  { value: '鈴木一郎', label: '鈴木一郎' },
-  { value: '佐藤美咲', label: '佐藤美咲' },
-]
-
 function getStatusBadge(status: string) {
   switch (status) {
     case '有効応募':
@@ -105,16 +60,98 @@ function getStatusBadge(status: string) {
 }
 
 export default function CandidatesPage() {
+  const [candidates, setCandidates] = useState<CandidateWithApplication[]>([])
+  const [employees, setEmployees] = useState<{ value: string; label: string }[]>([{ value: '', label: 'すべて' }])
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [sourceFilter, setSourceFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [occupationFilter, setOccupationFilter] = useState('')
   const [employeeFilter, setEmployeeFilter] = useState('')
 
-  const filteredCandidates = demoCandidates.filter((candidate) => {
+  useEffect(() => {
+    fetchCandidates()
+    fetchEmployees()
+  }, [])
+
+  async function fetchCandidates() {
+    const supabase = createClient()
+
+    // candidatesテーブルから取得し、最新の応募情報と担当者情報を結合
+    const { data, error } = await supabase
+      .from('candidates')
+      .select(`
+        id,
+        name,
+        age,
+        status,
+        preferred_job,
+        phone,
+        staff_id,
+        applications (
+          application_date,
+          source
+        ),
+        employees:staff_id (
+          name
+        )
+      `)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching candidates:', error)
+      setLoading(false)
+      return
+    }
+
+    // データを整形
+    const formattedData: CandidateWithApplication[] = (data || []).map((candidate: any) => {
+      // 最新の応募情報を取得
+      const latestApplication = candidate.applications?.[0] || {}
+
+      return {
+        id: candidate.id,
+        name: candidate.name,
+        age: candidate.age,
+        status: candidate.status,
+        preferred_job: candidate.preferred_job,
+        phone: candidate.phone,
+        staff_id: candidate.staff_id,
+        application_date: latestApplication.application_date || null,
+        source: latestApplication.source || null,
+        employee_name: candidate.employees?.name || null,
+      }
+    })
+
+    setCandidates(formattedData)
+    setLoading(false)
+  }
+
+  async function fetchEmployees() {
+    const supabase = createClient()
+
+    const { data, error } = await supabase
+      .from('employees')
+      .select('id, name')
+      .order('name')
+
+    if (error) {
+      console.error('Error fetching employees:', error)
+      return
+    }
+
+    const options = [
+      { value: '', label: 'すべて' },
+      ...(data || []).map((emp: any) => ({ value: emp.name, label: emp.name }))
+    ]
+    setEmployees(options)
+  }
+
+  const filteredCandidates = candidates.filter((candidate) => {
     const matchesSearch =
-      candidate.name.includes(searchQuery) ||
-      candidate.id.includes(searchQuery)
+      candidate.name?.includes(searchQuery) ||
+      candidate.id?.includes(searchQuery) ||
+      candidate.phone?.includes(searchQuery)
     const matchesSource = !sourceFilter || candidate.source === sourceFilter
     const matchesStatus = !statusFilter || candidate.status === statusFilter
     const matchesOccupation =
@@ -130,6 +167,13 @@ export default function CandidatesPage() {
       matchesEmployee
     )
   })
+
+  // 日付フォーマット
+  function formatDate(dateStr: string | null): string {
+    if (!dateStr) return '-'
+    const date = new Date(dateStr)
+    return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -169,7 +213,7 @@ export default function CandidatesPage() {
             onChange={(e) => setOccupationFilter(e.target.value)}
           />
           <Select
-            options={employeeOptions}
+            options={employees}
             value={employeeFilter}
             onChange={(e) => setEmployeeFilter(e.target.value)}
           />
@@ -178,85 +222,93 @@ export default function CandidatesPage() {
 
       {/* テーブル */}
       <Card padding="none">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>応募日</TableHead>
-              <TableHead>応募媒体</TableHead>
-              <TableHead>応募状態</TableHead>
-              <TableHead>希望職種</TableHead>
-              <TableHead>名前</TableHead>
-              <TableHead>年齢</TableHead>
-              <TableHead>担当者</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredCandidates.map((candidate) => (
-              <TableRow key={candidate.id} className="cursor-pointer">
-                <TableCell>
-                  <Link
-                    href={`/candidates/${candidate.id}`}
-                    className="block w-full"
-                  >
-                    {candidate.application_date}
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  <Link
-                    href={`/candidates/${candidate.id}`}
-                    className="block w-full"
-                  >
-                    {candidate.source}
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  <Link
-                    href={`/candidates/${candidate.id}`}
-                    className="block w-full"
-                  >
-                    {getStatusBadge(candidate.status)}
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  <Link
-                    href={`/candidates/${candidate.id}`}
-                    className="block w-full"
-                  >
-                    {candidate.preferred_job}
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  <Link
-                    href={`/candidates/${candidate.id}`}
-                    className="block w-full font-medium text-blue-600 hover:underline"
-                  >
-                    {candidate.name}
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  <Link
-                    href={`/candidates/${candidate.id}`}
-                    className="block w-full"
-                  >
-                    {candidate.age}歳
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  <Link
-                    href={`/candidates/${candidate.id}`}
-                    className="block w-full"
-                  >
-                    {candidate.employee_name}
-                  </Link>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        {filteredCandidates.length === 0 && (
+        {loading ? (
           <div className="p-8 text-center text-slate-500">
-            該当する求職者が見つかりません
+            読み込み中...
           </div>
+        ) : (
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>応募日</TableHead>
+                  <TableHead>応募媒体</TableHead>
+                  <TableHead>応募状態</TableHead>
+                  <TableHead>希望職種</TableHead>
+                  <TableHead>名前</TableHead>
+                  <TableHead>年齢</TableHead>
+                  <TableHead>担当者</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredCandidates.map((candidate) => (
+                  <TableRow key={candidate.id} className="cursor-pointer">
+                    <TableCell>
+                      <Link
+                        href={`/candidates/${candidate.id}`}
+                        className="block w-full"
+                      >
+                        {formatDate(candidate.application_date)}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        href={`/candidates/${candidate.id}`}
+                        className="block w-full"
+                      >
+                        {candidate.source || '-'}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        href={`/candidates/${candidate.id}`}
+                        className="block w-full"
+                      >
+                        {getStatusBadge(candidate.status)}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        href={`/candidates/${candidate.id}`}
+                        className="block w-full"
+                      >
+                        {candidate.preferred_job || '-'}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        href={`/candidates/${candidate.id}`}
+                        className="block w-full font-medium text-blue-600 hover:underline"
+                      >
+                        {candidate.name}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        href={`/candidates/${candidate.id}`}
+                        className="block w-full"
+                      >
+                        {candidate.age ? `${candidate.age}歳` : '-'}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        href={`/candidates/${candidate.id}`}
+                        className="block w-full"
+                      >
+                        {candidate.employee_name || '-'}
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {filteredCandidates.length === 0 && (
+              <div className="p-8 text-center text-slate-500">
+                該当する求職者が見つかりません
+              </div>
+            )}
+          </>
         )}
       </Card>
     </div>
