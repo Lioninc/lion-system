@@ -17,7 +17,7 @@ const demoCandidate = {
   email: 'tanaka@example.com',
   address: '東京都新宿区西新宿1-1-1',
   desired_occupation: '製造業',
-  desired_location: '東京都、埼玉県',
+  preferred_location: '東京都、埼玉県',
   desired_salary: 250000,
   available_date: '即日',
   status: '有効応募',
@@ -163,7 +163,7 @@ export default function CandidateDetailPage() {
               </div>
               <div className="flex">
                 <dt className="w-32 text-sm text-slate-500">希望勤務地</dt>
-                <dd className="text-sm text-slate-800">{demoCandidate.desired_location}</dd>
+                <dd className="text-sm text-slate-800">{demoCandidate.preferred_location}</dd>
               </div>
               <div className="flex">
                 <dt className="w-32 text-sm text-slate-500">希望給与</dt>
@@ -222,7 +222,7 @@ export default function CandidateDetailPage() {
             </div>
             <div className="p-3 bg-slate-50 rounded">
               <dt className="text-xs text-slate-500">希望勤務地</dt>
-              <dd className="text-sm text-slate-800 mt-1">{demoCandidate.desired_location}</dd>
+              <dd className="text-sm text-slate-800 mt-1">{demoCandidate.preferred_location}</dd>
             </div>
             <div className="p-3 bg-slate-50 rounded">
               <dt className="text-xs text-slate-500">希望給与</dt>

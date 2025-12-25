@@ -48,7 +48,7 @@ export default function NewCandidatePage() {
     email: '',
     address: '',
     desired_occupation: '',
-    desired_location: '',
+    preferred_location: '',
     desired_salary: '',
     available_date: '',
     status: '',
@@ -151,8 +151,8 @@ export default function NewCandidatePage() {
             />
             <Input
               label="希望勤務地"
-              name="desired_location"
-              value={formData.desired_location}
+              name="preferred_location"
+              value={formData.preferred_location}
               onChange={handleChange}
             />
             <Input

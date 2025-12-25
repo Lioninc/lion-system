@@ -164,7 +164,7 @@ export interface Database {
           email: string | null
           address: string | null
           desired_occupation: string | null
-          desired_location: string | null
+          preferred_location: string | null
           desired_salary: number | null
           available_date: string | null
           status: string
@@ -183,7 +183,7 @@ export interface Database {
           email?: string | null
           address?: string | null
           desired_occupation?: string | null
-          desired_location?: string | null
+          preferred_location?: string | null
           desired_salary?: number | null
           available_date?: string | null
           status?: string
@@ -202,7 +202,7 @@ export interface Database {
           email?: string | null
           address?: string | null
           desired_occupation?: string | null
-          desired_location?: string | null
+          preferred_location?: string | null
           desired_salary?: number | null
           available_date?: string | null
           status?: string
