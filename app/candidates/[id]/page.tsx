@@ -1,43 +1,74 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { Button, Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui'
+import { createClient } from '@/lib/supabase/client'
 
-// デモデータ
-const demoCandidate = {
-  id: '1',
-  name: '田中太郎',
-  furigana: 'タナカタロウ',
-  gender: '男性',
-  birth_date: '1996/05/15',
-  age: 28,
-  phone: '090-1234-5678',
-  email: 'tanaka@example.com',
-  address: '東京都新宿区西新宿1-1-1',
-  preferred_job: '製造業',
-  preferred_location: '東京都、埼玉県',
-  desired_salary: 250000,
-  available_date: '即日',
-  status: '有効応募',
-  employee_name: '山田花子',
-  notes: '経験豊富で即戦力となりうる。コミュニケーション能力が高い。',
+interface Candidate {
+  id: string
+  name: string
+  furigana: string | null
+  gender: string | null
+  birth_date: string | null
+  age: number | null
+  phone: string | null
+  phone_2: string | null
+  email: string | null
+  line_id: string | null
+  postal_code: string | null
+  address: string | null
+  nearest_station: string | null
+  preferred_job: string | null
+  preferred_location: string | null
+  preferred_salary_min: number | null
+  preferred_salary_max: number | null
+  available_date: string | null
+  height: number | null
+  weight: number | null
+  tattoo: string | null
+  disability_certificate: string | null
+  medical_condition: string | null
+  has_spouse: boolean | null
+  has_children: boolean | null
+  status: string
+  current_stage: string | null
+  notes: string | null
+  staff_id: string | null
+  employee_name: string | null
 }
 
-const demoApplications = [
-  { id: '1', application_date: '2024/12/20', source: 'Indeed', status: '有効応募' },
-  { id: '2', application_date: '2024/11/15', source: 'タウンワーク', status: '無効応募' },
-]
+interface Application {
+  id: string
+  application_date: string
+  source: string
+  status: string
+  job_article: string | null
+  notes: string | null
+}
 
-const demoInterviews = [
-  { id: '1', date: '2024/12/22', time: '10:00', employee: '山田花子', result: '繋ぎ', notes: '製造業に興味あり' },
-  { id: '2', date: '2024/12/21', time: '14:00', employee: '鈴木一郎', result: '繋げず', notes: '電話つながらず' },
-]
+interface Interview {
+  id: string
+  interview_date: string
+  interview_time: string | null
+  interview_type: string | null
+  result: string | null
+  notes: string | null
+  employee_name: string | null
+}
 
-const demoIntroductions = [
-  { id: '1', date: '2024/12/23', company: '株式会社ABC', job: '製造スタッフ', status: '面接予定', interview_date: '2024/12/25' },
-]
+interface Introduction {
+  id: string
+  introduced_date: string
+  status: string
+  interview_date: string | null
+  hire_date: string | null
+  fee_amount: number | null
+  notes: string | null
+  company_name: string | null
+  job_title: string | null
+}
 
 const tabs = [
   { id: 'summary', label: '詳細' },
@@ -62,7 +93,8 @@ function getStatusBadge(status: string) {
   }
 }
 
-function getResultBadge(result: string) {
+function getResultBadge(result: string | null) {
+  if (!result) return <Badge>-</Badge>
   switch (result) {
     case '繋ぎ':
       return <Badge variant="success">{result}</Badge>
@@ -88,9 +120,125 @@ function getIntroductionStatusBadge(status: string) {
   }
 }
 
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`
+}
+
 export default function CandidateDetailPage() {
   const params = useParams()
+  const candidateId = params.id as string
+
+  const [candidate, setCandidate] = useState<Candidate | null>(null)
+  const [applications, setApplications] = useState<Application[]>([])
+  const [interviews, setInterviews] = useState<Interview[]>([])
+  const [introductions, setIntroductions] = useState<Introduction[]>([])
+  const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('summary')
+
+  useEffect(() => {
+    if (candidateId) {
+      fetchCandidateData()
+    }
+  }, [candidateId])
+
+  async function fetchCandidateData() {
+    const supabase = createClient()
+
+    // 求職者情報を取得
+    const { data: candidateData, error: candidateError } = await supabase
+      .from('candidates')
+      .select(`
+        *,
+        employees:staff_id (
+          name
+        )
+      `)
+      .eq('id', candidateId)
+      .single()
+
+    if (candidateError) {
+      console.error('Error fetching candidate:', candidateError)
+      setLoading(false)
+      return
+    }
+
+    setCandidate({
+      ...candidateData,
+      employee_name: candidateData.employees?.name || null,
+    })
+
+    // 応募履歴を取得
+    const { data: applicationsData } = await supabase
+      .from('applications')
+      .select('*')
+      .eq('candidate_id', candidateId)
+      .order('application_date', { ascending: false })
+
+    setApplications(applicationsData || [])
+
+    // 面談履歴を取得
+    const { data: interviewsData } = await supabase
+      .from('interviews')
+      .select(`
+        *,
+        employees:employee_id (
+          name
+        )
+      `)
+      .eq('candidate_id', candidateId)
+      .order('interview_date', { ascending: false })
+
+    setInterviews((interviewsData || []).map((i: any) => ({
+      ...i,
+      employee_name: i.employees?.name || null,
+    })))
+
+    // 企業紹介履歴を取得
+    const { data: introductionsData } = await supabase
+      .from('introductions')
+      .select(`
+        *,
+        companies:company_id (
+          name
+        ),
+        jobs:job_id (
+          title
+        )
+      `)
+      .eq('candidate_id', candidateId)
+      .order('introduced_date', { ascending: false })
+
+    setIntroductions((introductionsData || []).map((i: any) => ({
+      ...i,
+      company_name: i.companies?.name || null,
+      job_title: i.jobs?.title || null,
+    })))
+
+    setLoading(false)
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="text-center text-slate-500">読み込み中...</div>
+      </div>
+    )
+  }
+
+  if (!candidate) {
+    return (
+      <div className="p-6">
+        <div className="text-center text-slate-500">求職者が見つかりません</div>
+        <div className="text-center mt-4">
+          <Link href="/candidates">
+            <Button variant="secondary">一覧に戻る</Button>
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -104,8 +252,8 @@ export default function CandidateDetailPage() {
             <span>←</span>
             <span>一覧に戻る</span>
           </Link>
-          <h1 className="text-2xl font-bold text-slate-800">{demoCandidate.name}</h1>
-          {getStatusBadge(demoCandidate.status)}
+          <h1 className="text-2xl font-bold text-slate-800">{candidate.name}</h1>
+          {getStatusBadge(candidate.status)}
         </div>
         <Button>編集</Button>
       </div>
@@ -137,19 +285,19 @@ export default function CandidateDetailPage() {
             <dl className="space-y-3">
               <div className="flex">
                 <dt className="w-32 text-sm text-slate-500">氏名</dt>
-                <dd className="text-sm text-slate-800">{demoCandidate.name}（{demoCandidate.furigana}）</dd>
+                <dd className="text-sm text-slate-800">{candidate.name}{candidate.furigana ? `（${candidate.furigana}）` : ''}</dd>
               </div>
               <div className="flex">
                 <dt className="w-32 text-sm text-slate-500">性別・年齢</dt>
-                <dd className="text-sm text-slate-800">{demoCandidate.gender} / {demoCandidate.age}歳</dd>
+                <dd className="text-sm text-slate-800">{candidate.gender || '-'} / {candidate.age ? `${candidate.age}歳` : '-'}</dd>
               </div>
               <div className="flex">
                 <dt className="w-32 text-sm text-slate-500">電話番号</dt>
-                <dd className="text-sm text-slate-800">{demoCandidate.phone}</dd>
+                <dd className="text-sm text-slate-800">{candidate.phone || '-'}</dd>
               </div>
               <div className="flex">
                 <dt className="w-32 text-sm text-slate-500">担当者</dt>
-                <dd className="text-sm text-slate-800">{demoCandidate.employee_name}</dd>
+                <dd className="text-sm text-slate-800">{candidate.employee_name || '-'}</dd>
               </div>
             </dl>
           </Card>
@@ -159,26 +307,30 @@ export default function CandidateDetailPage() {
             <dl className="space-y-3">
               <div className="flex">
                 <dt className="w-32 text-sm text-slate-500">希望職種</dt>
-                <dd className="text-sm text-slate-800">{demoCandidate.preferred_job}</dd>
+                <dd className="text-sm text-slate-800">{candidate.preferred_job || '-'}</dd>
               </div>
               <div className="flex">
                 <dt className="w-32 text-sm text-slate-500">希望勤務地</dt>
-                <dd className="text-sm text-slate-800">{demoCandidate.preferred_location}</dd>
+                <dd className="text-sm text-slate-800">{candidate.preferred_location || '-'}</dd>
               </div>
               <div className="flex">
                 <dt className="w-32 text-sm text-slate-500">希望給与</dt>
-                <dd className="text-sm text-slate-800">¥{demoCandidate.desired_salary?.toLocaleString()}</dd>
+                <dd className="text-sm text-slate-800">
+                  {candidate.preferred_salary_min || candidate.preferred_salary_max
+                    ? `¥${candidate.preferred_salary_min?.toLocaleString() || '?'} 〜 ¥${candidate.preferred_salary_max?.toLocaleString() || '?'}`
+                    : '-'}
+                </dd>
               </div>
               <div className="flex">
                 <dt className="w-32 text-sm text-slate-500">就業可能日</dt>
-                <dd className="text-sm text-slate-800">{demoCandidate.available_date}</dd>
+                <dd className="text-sm text-slate-800">{candidate.available_date || '-'}</dd>
               </div>
             </dl>
           </Card>
 
           <Card className="lg:col-span-2">
             <h2 className="text-lg font-semibold text-slate-800 mb-4">備考</h2>
-            <p className="text-sm text-slate-700">{demoCandidate.notes}</p>
+            <p className="text-sm text-slate-700">{candidate.notes || '備考はありません'}</p>
           </Card>
         </div>
       )}
@@ -190,59 +342,91 @@ export default function CandidateDetailPage() {
           <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="p-3 bg-slate-50 rounded">
               <dt className="text-xs text-slate-500">氏名</dt>
-              <dd className="text-sm text-slate-800 mt-1">{demoCandidate.name}</dd>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.name}</dd>
             </div>
             <div className="p-3 bg-slate-50 rounded">
               <dt className="text-xs text-slate-500">ふりがな</dt>
-              <dd className="text-sm text-slate-800 mt-1">{demoCandidate.furigana}</dd>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.furigana || '-'}</dd>
             </div>
             <div className="p-3 bg-slate-50 rounded">
               <dt className="text-xs text-slate-500">性別</dt>
-              <dd className="text-sm text-slate-800 mt-1">{demoCandidate.gender}</dd>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.gender || '-'}</dd>
             </div>
             <div className="p-3 bg-slate-50 rounded">
               <dt className="text-xs text-slate-500">生年月日</dt>
-              <dd className="text-sm text-slate-800 mt-1">{demoCandidate.birth_date}（{demoCandidate.age}歳）</dd>
+              <dd className="text-sm text-slate-800 mt-1">{formatDate(candidate.birth_date)}{candidate.age ? `（${candidate.age}歳）` : ''}</dd>
             </div>
             <div className="p-3 bg-slate-50 rounded">
               <dt className="text-xs text-slate-500">電話番号</dt>
-              <dd className="text-sm text-slate-800 mt-1">{demoCandidate.phone}</dd>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.phone || '-'}</dd>
+            </div>
+            <div className="p-3 bg-slate-50 rounded">
+              <dt className="text-xs text-slate-500">電話番号2</dt>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.phone_2 || '-'}</dd>
             </div>
             <div className="p-3 bg-slate-50 rounded">
               <dt className="text-xs text-slate-500">メールアドレス</dt>
-              <dd className="text-sm text-slate-800 mt-1">{demoCandidate.email}</dd>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.email || '-'}</dd>
+            </div>
+            <div className="p-3 bg-slate-50 rounded">
+              <dt className="text-xs text-slate-500">LINE ID</dt>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.line_id || '-'}</dd>
+            </div>
+            <div className="p-3 bg-slate-50 rounded">
+              <dt className="text-xs text-slate-500">郵便番号</dt>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.postal_code || '-'}</dd>
+            </div>
+            <div className="p-3 bg-slate-50 rounded">
+              <dt className="text-xs text-slate-500">最寄り駅</dt>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.nearest_station || '-'}</dd>
             </div>
             <div className="p-3 bg-slate-50 rounded md:col-span-2">
               <dt className="text-xs text-slate-500">住所</dt>
-              <dd className="text-sm text-slate-800 mt-1">{demoCandidate.address}</dd>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.address || '-'}</dd>
             </div>
             <div className="p-3 bg-slate-50 rounded">
-              <dt className="text-xs text-slate-500">希望職種</dt>
-              <dd className="text-sm text-slate-800 mt-1">{demoCandidate.preferred_job}</dd>
+              <dt className="text-xs text-slate-500">身長</dt>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.height ? `${candidate.height}cm` : '-'}</dd>
             </div>
             <div className="p-3 bg-slate-50 rounded">
-              <dt className="text-xs text-slate-500">希望勤務地</dt>
-              <dd className="text-sm text-slate-800 mt-1">{demoCandidate.preferred_location}</dd>
+              <dt className="text-xs text-slate-500">体重</dt>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.weight ? `${candidate.weight}kg` : '-'}</dd>
             </div>
             <div className="p-3 bg-slate-50 rounded">
-              <dt className="text-xs text-slate-500">希望給与</dt>
-              <dd className="text-sm text-slate-800 mt-1">¥{demoCandidate.desired_salary?.toLocaleString()}</dd>
+              <dt className="text-xs text-slate-500">タトゥー</dt>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.tattoo || '-'}</dd>
             </div>
             <div className="p-3 bg-slate-50 rounded">
-              <dt className="text-xs text-slate-500">就業可能日</dt>
-              <dd className="text-sm text-slate-800 mt-1">{demoCandidate.available_date}</dd>
+              <dt className="text-xs text-slate-500">障害者手帳</dt>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.disability_certificate || '-'}</dd>
+            </div>
+            <div className="p-3 bg-slate-50 rounded">
+              <dt className="text-xs text-slate-500">持病</dt>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.medical_condition || '-'}</dd>
+            </div>
+            <div className="p-3 bg-slate-50 rounded">
+              <dt className="text-xs text-slate-500">配偶者</dt>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.has_spouse === true ? 'あり' : candidate.has_spouse === false ? 'なし' : '-'}</dd>
+            </div>
+            <div className="p-3 bg-slate-50 rounded">
+              <dt className="text-xs text-slate-500">子供</dt>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.has_children === true ? 'あり' : candidate.has_children === false ? 'なし' : '-'}</dd>
             </div>
             <div className="p-3 bg-slate-50 rounded">
               <dt className="text-xs text-slate-500">ステータス</dt>
-              <dd className="text-sm text-slate-800 mt-1">{getStatusBadge(demoCandidate.status)}</dd>
+              <dd className="text-sm text-slate-800 mt-1">{getStatusBadge(candidate.status)}</dd>
+            </div>
+            <div className="p-3 bg-slate-50 rounded">
+              <dt className="text-xs text-slate-500">現在のステージ</dt>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.current_stage || '-'}</dd>
             </div>
             <div className="p-3 bg-slate-50 rounded">
               <dt className="text-xs text-slate-500">担当者</dt>
-              <dd className="text-sm text-slate-800 mt-1">{demoCandidate.employee_name}</dd>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.employee_name || '-'}</dd>
             </div>
             <div className="p-3 bg-slate-50 rounded md:col-span-2">
               <dt className="text-xs text-slate-500">備考</dt>
-              <dd className="text-sm text-slate-800 mt-1">{demoCandidate.notes}</dd>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.notes || '-'}</dd>
             </div>
           </dl>
         </Card>
@@ -254,24 +438,32 @@ export default function CandidateDetailPage() {
           <div className="p-4 border-b border-slate-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-800">応募履歴</h2>
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>応募日</TableHead>
-                <TableHead>応募媒体</TableHead>
-                <TableHead>ステータス</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {demoApplications.map((app) => (
-                <TableRow key={app.id}>
-                  <TableCell>{app.application_date}</TableCell>
-                  <TableCell>{app.source}</TableCell>
-                  <TableCell>{getStatusBadge(app.status)}</TableCell>
+          {applications.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>応募日</TableHead>
+                  <TableHead>応募媒体</TableHead>
+                  <TableHead>職種</TableHead>
+                  <TableHead>ステータス</TableHead>
+                  <TableHead>備考</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {applications.map((app) => (
+                  <TableRow key={app.id}>
+                    <TableCell>{formatDate(app.application_date)}</TableCell>
+                    <TableCell>{app.source}</TableCell>
+                    <TableCell>{app.job_article || '-'}</TableCell>
+                    <TableCell>{getStatusBadge(app.status)}</TableCell>
+                    <TableCell className="max-w-xs truncate">{app.notes || '-'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="p-8 text-center text-slate-500">応募履歴はありません</div>
+          )}
         </Card>
       )}
 
@@ -282,28 +474,34 @@ export default function CandidateDetailPage() {
             <h2 className="text-lg font-semibold text-slate-800">面談履歴</h2>
             <Button size="sm">新規面談</Button>
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>日付</TableHead>
-                <TableHead>時間</TableHead>
-                <TableHead>担当</TableHead>
-                <TableHead>結果</TableHead>
-                <TableHead>備考</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {demoInterviews.map((interview) => (
-                <TableRow key={interview.id}>
-                  <TableCell>{interview.date}</TableCell>
-                  <TableCell>{interview.time}</TableCell>
-                  <TableCell>{interview.employee}</TableCell>
-                  <TableCell>{getResultBadge(interview.result)}</TableCell>
-                  <TableCell className="max-w-xs truncate">{interview.notes}</TableCell>
+          {interviews.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>日付</TableHead>
+                  <TableHead>時間</TableHead>
+                  <TableHead>種類</TableHead>
+                  <TableHead>担当</TableHead>
+                  <TableHead>結果</TableHead>
+                  <TableHead>備考</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {interviews.map((interview) => (
+                  <TableRow key={interview.id}>
+                    <TableCell>{formatDate(interview.interview_date)}</TableCell>
+                    <TableCell>{interview.interview_time || '-'}</TableCell>
+                    <TableCell>{interview.interview_type || '-'}</TableCell>
+                    <TableCell>{interview.employee_name || '-'}</TableCell>
+                    <TableCell>{getResultBadge(interview.result)}</TableCell>
+                    <TableCell className="max-w-xs truncate">{interview.notes || '-'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="p-8 text-center text-slate-500">面談履歴はありません</div>
+          )}
         </Card>
       )}
 
@@ -314,28 +512,34 @@ export default function CandidateDetailPage() {
             <h2 className="text-lg font-semibold text-slate-800">企業紹介</h2>
             <Button size="sm">新規紹介</Button>
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>紹介日</TableHead>
-                <TableHead>企業名</TableHead>
-                <TableHead>案件</TableHead>
-                <TableHead>ステータス</TableHead>
-                <TableHead>面接日</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {demoIntroductions.map((intro) => (
-                <TableRow key={intro.id}>
-                  <TableCell>{intro.date}</TableCell>
-                  <TableCell>{intro.company}</TableCell>
-                  <TableCell>{intro.job}</TableCell>
-                  <TableCell>{getIntroductionStatusBadge(intro.status)}</TableCell>
-                  <TableCell>{intro.interview_date || '-'}</TableCell>
+          {introductions.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>紹介日</TableHead>
+                  <TableHead>企業名</TableHead>
+                  <TableHead>案件</TableHead>
+                  <TableHead>ステータス</TableHead>
+                  <TableHead>面接日</TableHead>
+                  <TableHead>採用日</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {introductions.map((intro) => (
+                  <TableRow key={intro.id}>
+                    <TableCell>{formatDate(intro.introduced_date)}</TableCell>
+                    <TableCell>{intro.company_name || '-'}</TableCell>
+                    <TableCell>{intro.job_title || '-'}</TableCell>
+                    <TableCell>{getIntroductionStatusBadge(intro.status)}</TableCell>
+                    <TableCell>{formatDate(intro.interview_date)}</TableCell>
+                    <TableCell>{formatDate(intro.hire_date)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="p-8 text-center text-slate-500">企業紹介履歴はありません</div>
+          )}
         </Card>
       )}
     </div>
