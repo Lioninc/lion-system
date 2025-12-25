@@ -5,15 +5,12 @@ import { Button, Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead
 import { parseCsv, getPreviewData, importCsv, CsvRow, ImportResult } from '@/lib/csv-import'
 import { createClient } from '@/lib/supabase/client'
 
-// テンプレートCSVのヘッダー
+// テンプレートCSVのヘッダー（26列）
 const TEMPLATE_HEADERS = [
-  'NO', '年月日', '時間帯', '日付', '状態', '備考', '応募対応媒体', '職種', '記事勤務地',
-  '氏名', '氏名カナ', '電話番号', '生年月日', '年齢', '年代',
+  '年月日', '状態', '備考', '応募対応媒体', '職種', '記事勤務地',
+  '氏名', '氏名カナ', '電話番号', '生年月日', '年齢',
   '郵便番号', '都道府県', '市区町村群', '性別', 'タトゥー', '障害者手帳', '持病', '配偶者', '子供',
-  '身長', '体重', 'BMI', '問い合わせ状態', '就業時期_年', '就業時期_月', '就業時期', '回数',
-  '最終連絡日', '連絡時間', '経過日数', '状態', '最終対応者', '備考', '日程_年', '日程_月',
-  '日程_日', '日程_時間', '面談日程状態', '辞退理由', '担当CD', '種類', '対応時間', '求職者状態',
-  '繋ぎ状況', '紹介先'
+  '身長', '体重', '面談日', '担当CD', '繋ぎ状況', '紹介先'
 ]
 
 interface PreviewRow {

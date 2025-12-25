@@ -25,7 +25,7 @@ export function normalizePhone(phone: string): string {
   return phone?.replace(/[-\s　]/g, '') || ''
 }
 
-// 日付パース
+// 日付パース（YYYY/MM/DD, YYYY-MM-DD, YYYY年MM月DD日 などに対応）
 export function parseDate(dateStr: string): string | null {
   if (!dateStr || dateStr.trim() === '') return null
 
@@ -104,6 +104,9 @@ export async function importCsv(
   const batchSize = 100
   const total = rows.length
 
+  // 既に処理した電話番号を記録（同じ人の重複行対応）
+  const processedPhones = new Map<string, string>() // phone -> candidateId
+
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]
 
@@ -115,39 +118,50 @@ export async function importCsv(
         continue
       }
 
-      const { data: existing } = await supabase
-        .from('candidates')
-        .select('id')
-        .eq('phone', phone)
-        .maybeSingle()
-
       let candidateId: string
+      let isNewCandidate = false
 
-      if (existing) {
-        // 既存の場合 → IDを取得
-        candidateId = existing.id
-        results.updatedCandidates++
+      // 既にこのインポートで処理済みの電話番号かチェック
+      if (processedPhones.has(phone)) {
+        candidateId = processedPhones.get(phone)!
       } else {
-        // 新規の場合 → candidates作成
-        const candidateData = buildCandidateData(row)
-
-        const { data: newCandidate, error: insertError } = await supabase
+        // DBで既存チェック
+        const { data: existing } = await supabase
           .from('candidates')
-          .insert(candidateData)
           .select('id')
-          .single()
+          .eq('phone', phone)
+          .maybeSingle()
 
-        if (insertError || !newCandidate) {
-          results.errors.push({ row: i + 2, message: insertError?.message || '求職者の作成に失敗' })
-          continue
+        if (existing) {
+          // 既存の場合 → IDを取得
+          candidateId = existing.id
+          results.updatedCandidates++
+        } else {
+          // 新規の場合 → candidates作成
+          const candidateData = buildCandidateData(row)
+
+          const { data: newCandidate, error: insertError } = await supabase
+            .from('candidates')
+            .insert(candidateData)
+            .select('id')
+            .single()
+
+          if (insertError || !newCandidate) {
+            results.errors.push({ row: i + 2, message: insertError?.message || '求職者の作成に失敗' })
+            continue
+          }
+
+          candidateId = newCandidate.id
+          results.newCandidates++
+          isNewCandidate = true
         }
 
-        candidateId = newCandidate.id
-        results.newCandidates++
+        // 処理済みとして記録
+        processedPhones.set(phone, candidateId)
       }
 
-      // 2. applications作成
-      if (row['年月日'] || row['応募日']) {
+      // 2. applications作成（行ごとに作成）
+      if (row['年月日']) {
         const applicationData = buildApplicationData(row, candidateId)
 
         const { error: appError } = await supabase
@@ -161,8 +175,8 @@ export async function importCsv(
         }
       }
 
-      // 3. interviews作成（面談日がある場合のみ）
-      const interviewDate = buildInterviewDate(row)
+      // 3. interviews作成（面談日がある場合のみ、行ごとに作成）
+      const interviewDate = parseDate(row['面談日'])
       if (interviewDate) {
         const interviewData = buildInterviewData(row, candidateId, interviewDate)
 
@@ -200,27 +214,28 @@ export async function importCsv(
 // candidatesデータを構築
 function buildCandidateData(row: CsvRow) {
   // 氏名: 「氏名」列をそのまま使用
-  const name = row['氏名'] || row['名前'] || ''
+  const name = row['氏名'] || ''
 
-  // 氏名カナ: 「氏名カナ」列をそのまま使用
-  const furigana = row['氏名カナ'] || row['ふりがな'] || ''
+  // 氏名カナ: 「氏名カナ」列をそのまま使用 → furigana
+  const furigana = row['氏名カナ'] || ''
 
+  // 住所
   const prefecture = row['都道府県'] || ''
-  const city = row['市区町村群'] || row['市区町村'] || ''
-  const address = `${prefecture}${city}`.trim() || row['住所'] || ''
+  const city = row['市区町村群'] || ''
+  const address = `${prefecture}${city}`.trim()
 
   return {
     name,
     name_kana: furigana || null,
     phone: normalizePhone(row['電話番号']),
-    email: row['メールアドレス'] || row['メール'] || null,
     birth_date: parseDate(row['生年月日']),
     gender: row['性別'] || null,
     address: address || null,
-    desired_occupation: row['職種'] || row['希望職種'] || null,
-    desired_location: row['勤務地'] || row['希望勤務地'] || null,
+    desired_occupation: row['職種'] || null,       // 職種 → desired_occupation
+    desired_location: row['記事勤務地'] || null,   // 記事勤務地 → desired_location
     status: mapStatus(row['状態']),
     notes: row['備考'] || null,
+    // staff_id は使わない（NULL）
   }
 }
 
@@ -228,29 +243,11 @@ function buildCandidateData(row: CsvRow) {
 function buildApplicationData(row: CsvRow, candidateId: string) {
   return {
     candidate_id: candidateId,
-    applied_date: parseDate(row['年月日'] || row['応募日']) || new Date().toISOString().split('T')[0],
-    source: row['応募対応媒体'] || row['媒体'] || row['応募媒体'] || 'その他',
+    applied_date: parseDate(row['年月日']) || new Date().toISOString().split('T')[0],
+    source: row['応募対応媒体'] || 'その他',
     status: row['状態'] || '有効応募',
-    notes: row['勤務地'] ? `勤務地: ${row['勤務地']}` : null,
+    notes: null,
   }
-}
-
-// 面談日を構築
-function buildInterviewDate(row: CsvRow): string | null {
-  // パターン1: 年月日が別カラム
-  if (row['日程_年'] && row['日程_月'] && row['日程_日']) {
-    const year = row['日程_年']
-    const month = row['日程_月'].padStart(2, '0')
-    const day = row['日程_日'].padStart(2, '0')
-    return `${year}-${month}-${day}`
-  }
-
-  // パターン2: 面談日カラム
-  if (row['面談日']) {
-    return parseDate(row['面談日'])
-  }
-
-  return null
 }
 
 // interviewsデータを構築
@@ -258,24 +255,23 @@ function buildInterviewData(row: CsvRow, candidateId: string, interviewDate: str
   return {
     candidate_id: candidateId,
     interview_date: interviewDate,
-    interview_time: row['日程_時間'] || row['面談時間'] || null,
+    interview_time: null,
     interview_type: '面談',
-    result: row['繋ぎ状況'] || row['結果'] || null,
-    notes: row['備考'] || null,
+    result: row['繋ぎ状況'] || null,
+    // 担当CD → interviewer_id（将来的にemployeesテーブルと紐付け）
+    // 紹介先 → referred_company（将来的にcompaniesテーブルと紐付け）
+    notes: row['紹介先'] ? `紹介先: ${row['紹介先']}` : null,
   }
 }
 
 // プレビュー用に最初の10件を取得
 export function getPreviewData(rows: CsvRow[], limit = 10) {
   return rows.slice(0, limit).map(row => {
-    // 氏名: 「氏名」列をそのまま使用
-    const name = row['氏名'] || row['名前'] || ''
-
     return {
-      name,
+      name: row['氏名'] || '',
       phone: row['電話番号'] || '',
-      date: row['年月日'] || row['応募日'] || '',
-      source: row['応募対応媒体'] || row['媒体'] || row['応募媒体'] || '',
+      date: row['年月日'] || '',
+      source: row['応募対応媒体'] || '',
       status: row['状態'] || '',
     }
   })
