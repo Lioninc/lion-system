@@ -12,12 +12,24 @@ const genderOptions = [
   { value: 'その他', label: 'その他' },
 ]
 
-const statusOptions = [
+const stageOptions = [
   { value: '', label: '選択してください' },
-  { value: '有効応募', label: '有効応募' },
-  { value: '無効応募', label: '無効応募' },
+  { value: '新規', label: '新規' },
   { value: '電話出ず', label: '電話出ず' },
+  { value: '連絡済み', label: '連絡済み' },
+  { value: '面談予定', label: '面談予定' },
+  { value: '面談済み', label: '面談済み' },
+  { value: '紹介済み', label: '紹介済み' },
+  { value: '面接予定', label: '面接予定' },
+  { value: '面接済み', label: '面接済み' },
+  { value: '採用決定', label: '採用決定' },
+  { value: '稼働中', label: '稼働中' },
+  { value: '保留', label: '保留' },
   { value: '就業時期が先', label: '就業時期が先' },
+  { value: '不採用', label: '不採用' },
+  { value: '辞退', label: '辞退' },
+  { value: '飛び', label: '飛び' },
+  { value: 'NG', label: 'NG' },
 ]
 
 const sourceOptions = [
@@ -51,7 +63,7 @@ export default function NewCandidatePage() {
     preferred_location: '',
     desired_salary: '',
     available_date: '',
-    status: '',
+    stage: '',
     source: '',
     employee_id: '',
     notes: '',
@@ -183,10 +195,10 @@ export default function NewCandidatePage() {
               onChange={handleChange}
             />
             <Select
-              label="応募状態"
-              name="status"
-              options={statusOptions}
-              value={formData.status}
+              label="ステージ"
+              name="stage"
+              options={stageOptions}
+              value={formData.stage}
               onChange={handleChange}
             />
             <Select

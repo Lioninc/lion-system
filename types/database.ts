@@ -167,7 +167,8 @@ export interface Database {
           preferred_location: string | null
           desired_salary: number | null
           available_date: string | null
-          status: string
+          stage: string
+          stage_reason: string | null
           notes: string | null
           created_at: string
           updated_at: string
@@ -186,7 +187,8 @@ export interface Database {
           preferred_location?: string | null
           desired_salary?: number | null
           available_date?: string | null
-          status?: string
+          stage?: string
+          stage_reason?: string | null
           notes?: string | null
           created_at?: string
           updated_at?: string
@@ -205,7 +207,8 @@ export interface Database {
           preferred_location?: string | null
           desired_salary?: number | null
           available_date?: string | null
-          status?: string
+          stage?: string
+          stage_reason?: string | null
           notes?: string | null
           created_at?: string
           updated_at?: string

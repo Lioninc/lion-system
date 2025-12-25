@@ -12,12 +12,27 @@ export interface ImportResult {
   errors: { row: number; message: string }[]
 }
 
-// ステータスマッピング
-const statusMap: Record<string, string> = {
-  '有効': '有効応募',
-  '無効': '無効応募',
+// ステージマッピング（CSVの状態からDBのstageへ）
+const stageMap: Record<string, string> = {
+  '有効': '新規',
+  '無効': 'NG',
   '電話出ず': '電話出ず',
   '時期先': '就業時期が先',
+  '新規': '新規',
+  '連絡済み': '連絡済み',
+  '面談予定': '面談予定',
+  '面談済み': '面談済み',
+  '紹介済み': '紹介済み',
+  '面接予定': '面接予定',
+  '面接済み': '面接済み',
+  '採用決定': '採用決定',
+  '稼働中': '稼働中',
+  '保留': '保留',
+  '就業時期が先': '就業時期が先',
+  '不採用': '不採用',
+  '辞退': '辞退',
+  '飛び': '飛び',
+  'NG': 'NG',
 }
 
 // 電話番号正規化
@@ -37,9 +52,9 @@ export function parseDate(dateStr: string): string | null {
   return date.toISOString().split('T')[0]
 }
 
-// ステータスマッピング
-export function mapStatus(status: string): string {
-  return statusMap[status] || status || '有効応募'
+// ステージマッピング
+export function mapStage(stage: string): string {
+  return stageMap[stage] || stage || '新規'
 }
 
 // CSVテキストをパース
@@ -253,7 +268,7 @@ function buildCandidateData(row: CsvRow) {
     medical_condition: row['持病'] || null,
     has_spouse: row['配偶者'] === '有' || row['配偶者'] === 'あり',
     has_children: row['子供'] === '有' || row['子供'] === 'あり',
-    status: mapStatus(row['状態']),
+    stage: mapStage(row['状態']),
     notes: row['備考'] || null,
   }
 }

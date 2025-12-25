@@ -32,8 +32,8 @@ interface Candidate {
   medical_condition: string | null
   has_spouse: boolean | null
   has_children: boolean | null
-  status: string
-  current_stage: string | null
+  stage: string
+  stage_reason: string | null
   notes: string | null
   staff_id: string | null
   employee_name: string | null
@@ -78,16 +78,43 @@ const tabs = [
   { id: 'introductions', label: '企業紹介' },
 ]
 
-function getStatusBadge(status: string) {
+function getStageBadge(stage: string) {
+  switch (stage) {
+    case '新規':
+      return <Badge variant="info">{stage}</Badge>
+    case '電話出ず':
+      return <Badge variant="warning">{stage}</Badge>
+    case '連絡済み':
+      return <Badge variant="info">{stage}</Badge>
+    case '面談予定':
+    case '面談済み':
+      return <Badge variant="purple">{stage}</Badge>
+    case '紹介済み':
+    case '面接予定':
+    case '面接済み':
+      return <Badge variant="info">{stage}</Badge>
+    case '採用決定':
+    case '稼働中':
+      return <Badge variant="success">{stage}</Badge>
+    case '保留':
+    case '就業時期が先':
+      return <Badge variant="warning">{stage}</Badge>
+    case '不採用':
+    case '辞退':
+    case '飛び':
+    case 'NG':
+      return <Badge variant="danger">{stage}</Badge>
+    default:
+      return <Badge>{stage}</Badge>
+  }
+}
+
+function getApplicationStatusBadge(status: string) {
   switch (status) {
     case '有効応募':
       return <Badge variant="success">{status}</Badge>
     case '無効応募':
       return <Badge variant="danger">{status}</Badge>
-    case '電話出ず':
-      return <Badge variant="warning">{status}</Badge>
-    case '就業時期が先':
-      return <Badge variant="purple">{status}</Badge>
     default:
       return <Badge>{status}</Badge>
   }
@@ -198,8 +225,8 @@ export default function CandidateDetailPage() {
       medical_condition: data.medical_condition,
       has_spouse: data.has_spouse,
       has_children: data.has_children,
-      status: data.status,
-      current_stage: data.current_stage,
+      stage: data.stage,
+      stage_reason: data.stage_reason,
       notes: data.notes,
       staff_id: data.staff_id,
       employee_name: data.employees?.name || null,
@@ -289,7 +316,7 @@ export default function CandidateDetailPage() {
             <span>一覧に戻る</span>
           </Link>
           <h1 className="text-2xl font-bold text-slate-800">{candidate.name}</h1>
-          {getStatusBadge(candidate.status)}
+          {getStageBadge(candidate.stage)}
         </div>
         <Button>編集</Button>
       </div>
@@ -453,12 +480,12 @@ export default function CandidateDetailPage() {
               <dd className="text-sm text-slate-800 mt-1">{candidate.has_children === true ? 'あり' : candidate.has_children === false ? 'なし' : '-'}</dd>
             </div>
             <div className="p-3 bg-slate-50 rounded">
-              <dt className="text-xs text-slate-500">ステータス</dt>
-              <dd className="text-sm text-slate-800 mt-1">{getStatusBadge(candidate.status)}</dd>
+              <dt className="text-xs text-slate-500">ステージ</dt>
+              <dd className="text-sm text-slate-800 mt-1">{getStageBadge(candidate.stage)}</dd>
             </div>
             <div className="p-3 bg-slate-50 rounded">
-              <dt className="text-xs text-slate-500">現在のステージ</dt>
-              <dd className="text-sm text-slate-800 mt-1">{candidate.current_stage || '-'}</dd>
+              <dt className="text-xs text-slate-500">ステージ理由</dt>
+              <dd className="text-sm text-slate-800 mt-1">{candidate.stage_reason || '-'}</dd>
             </div>
             <div className="p-3 bg-slate-50 rounded">
               <dt className="text-xs text-slate-500">担当者</dt>
@@ -495,7 +522,7 @@ export default function CandidateDetailPage() {
                     <TableCell>{formatDate(app.application_date)}</TableCell>
                     <TableCell>{app.source}</TableCell>
                     <TableCell>{app.job_article || '-'}</TableCell>
-                    <TableCell>{getStatusBadge(app.status)}</TableCell>
+                    <TableCell>{getApplicationStatusBadge(app.status)}</TableCell>
                     <TableCell className="max-w-xs truncate">{app.notes || '-'}</TableCell>
                   </TableRow>
                 ))}

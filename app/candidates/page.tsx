@@ -9,7 +9,7 @@ interface CandidateWithApplication {
   id: string
   name: string
   age: number | null
-  status: string
+  stage: string
   preferred_job: string | null
   phone: string | null
   staff_id: string | null
@@ -28,12 +28,24 @@ const sourceOptions = [
   { value: 'その他', label: 'その他' },
 ]
 
-const statusOptions = [
+const stageOptions = [
   { value: '', label: 'すべて' },
-  { value: '有効応募', label: '有効応募' },
-  { value: '無効応募', label: '無効応募' },
+  { value: '新規', label: '新規' },
   { value: '電話出ず', label: '電話出ず' },
+  { value: '連絡済み', label: '連絡済み' },
+  { value: '面談予定', label: '面談予定' },
+  { value: '面談済み', label: '面談済み' },
+  { value: '紹介済み', label: '紹介済み' },
+  { value: '面接予定', label: '面接予定' },
+  { value: '面接済み', label: '面接済み' },
+  { value: '採用決定', label: '採用決定' },
+  { value: '稼働中', label: '稼働中' },
+  { value: '保留', label: '保留' },
   { value: '就業時期が先', label: '就業時期が先' },
+  { value: '不採用', label: '不採用' },
+  { value: '辞退', label: '辞退' },
+  { value: '飛び', label: '飛び' },
+  { value: 'NG', label: 'NG' },
 ]
 
 const occupationOptions = [
@@ -44,18 +56,34 @@ const occupationOptions = [
   { value: '倉庫作業', label: '倉庫作業' },
 ]
 
-function getStatusBadge(status: string) {
-  switch (status) {
-    case '有効応募':
-      return <Badge variant="success">{status}</Badge>
-    case '無効応募':
-      return <Badge variant="danger">{status}</Badge>
+function getStageBadge(stage: string) {
+  switch (stage) {
+    case '新規':
+      return <Badge variant="info">{stage}</Badge>
     case '電話出ず':
-      return <Badge variant="warning">{status}</Badge>
+      return <Badge variant="warning">{stage}</Badge>
+    case '連絡済み':
+      return <Badge variant="info">{stage}</Badge>
+    case '面談予定':
+    case '面談済み':
+      return <Badge variant="purple">{stage}</Badge>
+    case '紹介済み':
+    case '面接予定':
+    case '面接済み':
+      return <Badge variant="info">{stage}</Badge>
+    case '採用決定':
+    case '稼働中':
+      return <Badge variant="success">{stage}</Badge>
+    case '保留':
     case '就業時期が先':
-      return <Badge variant="purple">{status}</Badge>
+      return <Badge variant="warning">{stage}</Badge>
+    case '不採用':
+    case '辞退':
+    case '飛び':
+    case 'NG':
+      return <Badge variant="danger">{stage}</Badge>
     default:
-      return <Badge>{status}</Badge>
+      return <Badge>{stage}</Badge>
   }
 }
 
@@ -65,7 +93,7 @@ export default function CandidatesPage() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [sourceFilter, setSourceFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [stageFilter, setStageFilter] = useState('')
   const [occupationFilter, setOccupationFilter] = useState('')
   const [employeeFilter, setEmployeeFilter] = useState('')
 
@@ -84,7 +112,7 @@ export default function CandidatesPage() {
         id,
         name,
         age,
-        status,
+        stage,
         preferred_job,
         phone,
         staff_id,
@@ -113,7 +141,7 @@ export default function CandidatesPage() {
         id: candidate.id,
         name: candidate.name,
         age: candidate.age,
-        status: candidate.status,
+        stage: candidate.stage,
         preferred_job: candidate.preferred_job,
         phone: candidate.phone,
         staff_id: candidate.staff_id,
@@ -153,7 +181,7 @@ export default function CandidatesPage() {
       candidate.id?.includes(searchQuery) ||
       candidate.phone?.includes(searchQuery)
     const matchesSource = !sourceFilter || candidate.source === sourceFilter
-    const matchesStatus = !statusFilter || candidate.status === statusFilter
+    const matchesStage = !stageFilter || candidate.stage === stageFilter
     const matchesOccupation =
       !occupationFilter || candidate.preferred_job === occupationFilter
     const matchesEmployee =
@@ -162,7 +190,7 @@ export default function CandidatesPage() {
     return (
       matchesSearch &&
       matchesSource &&
-      matchesStatus &&
+      matchesStage &&
       matchesOccupation &&
       matchesEmployee
     )
@@ -203,9 +231,9 @@ export default function CandidatesPage() {
             onChange={(e) => setSourceFilter(e.target.value)}
           />
           <Select
-            options={statusOptions}
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            options={stageOptions}
+            value={stageFilter}
+            onChange={(e) => setStageFilter(e.target.value)}
           />
           <Select
             options={occupationOptions}
@@ -264,7 +292,7 @@ export default function CandidatesPage() {
                         href={`/candidates/${candidate.id}`}
                         className="block w-full"
                       >
-                        {getStatusBadge(candidate.status)}
+                        {getStageBadge(candidate.stage)}
                       </Link>
                     </TableCell>
                     <TableCell>
