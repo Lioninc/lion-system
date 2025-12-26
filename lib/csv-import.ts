@@ -41,15 +41,32 @@ export function normalizePhone(phone: string): string {
 }
 
 // 日付パース（YYYY/MM/DD, YYYY-MM-DD, YYYY年MM月DD日 などに対応）
+// タイムゾーン問題を避けるため、文字列のまま処理する
 export function parseDate(dateStr: string): string | null {
   if (!dateStr || dateStr.trim() === '') return null
 
-  // 様々なフォーマットに対応
-  const cleanDate = dateStr.replace(/[年月]/g, '/').replace(/日/g, '')
-  const date = new Date(cleanDate)
+  // 様々なフォーマットに対応して正規化
+  // 2025年01月01日 → 2025/01/01
+  // 2025-01-01 → 2025/01/01
+  const cleanDate = dateStr
+    .replace(/[年月]/g, '/')
+    .replace(/日/g, '')
+    .replace(/-/g, '/')
+    .trim()
 
-  if (isNaN(date.getTime())) return null
-  return date.toISOString().split('T')[0]
+  // YYYY/MM/DD または YYYY/M/D 形式かチェック
+  const match = cleanDate.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/)
+  if (!match) return null
+
+  const year = parseInt(match[1], 10)
+  const month = parseInt(match[2], 10)
+  const day = parseInt(match[3], 10)
+
+  // 簡易バリデーション
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null
+
+  // YYYY-MM-DD 形式で返す（ゼロパディング）
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
 // ステージマッピング
