@@ -87,6 +87,8 @@ function getStageBadge(stage: string) {
   }
 }
 
+const ITEMS_PER_PAGE = 50
+
 export default function CandidatesPage() {
   const [candidates, setCandidates] = useState<CandidateWithApplication[]>([])
   const [employees, setEmployees] = useState<{ value: string; label: string }[]>([{ value: '', label: 'すべて' }])
@@ -96,6 +98,7 @@ export default function CandidatesPage() {
   const [stageFilter, setStageFilter] = useState('')
   const [occupationFilter, setOccupationFilter] = useState('')
   const [employeeFilter, setEmployeeFilter] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     fetchCandidates()
@@ -196,6 +199,48 @@ export default function CandidatesPage() {
     )
   })
 
+  // ページネーション計算
+  const totalCount = filteredCandidates.length
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE)
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+  const endIndex = startIndex + ITEMS_PER_PAGE
+  const paginatedCandidates = filteredCandidates.slice(startIndex, endIndex)
+
+  // フィルター変更時にページを1に戻す
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, sourceFilter, stageFilter, occupationFilter, employeeFilter])
+
+  // ページ番号の配列を生成（現在ページの前後2ページを表示）
+  function getPageNumbers(): (number | string)[] {
+    const pages: (number | string)[] = []
+    const maxVisiblePages = 5
+
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i)
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) pages.push(i)
+        pages.push('...')
+        pages.push(totalPages)
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1)
+        pages.push('...')
+        for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i)
+      } else {
+        pages.push(1)
+        pages.push('...')
+        for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i)
+        pages.push('...')
+        pages.push(totalPages)
+      }
+    }
+
+    return pages
+  }
+
   // 日付フォーマット
   function formatDate(dateStr: string | null): string {
     if (!dateStr) return '-'
@@ -269,7 +314,7 @@ export default function CandidatesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCandidates.map((candidate) => (
+                {paginatedCandidates.map((candidate) => (
                   <TableRow key={candidate.id} className="cursor-pointer">
                     <TableCell>
                       <Link
@@ -334,6 +379,50 @@ export default function CandidatesPage() {
             {filteredCandidates.length === 0 && (
               <div className="p-8 text-center text-slate-500">
                 該当する求職者が見つかりません
+              </div>
+            )}
+
+            {/* ページネーション */}
+            {totalPages > 1 && (
+              <div className="p-4 border-t border-slate-200 flex items-center justify-between">
+                <div className="text-sm text-slate-600">
+                  全{totalCount.toLocaleString()}件（{currentPage} / {totalPages}ページ）
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1.5 text-sm border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    前へ
+                  </button>
+                  {getPageNumbers().map((page, index) => (
+                    typeof page === 'number' ? (
+                      <button
+                        key={index}
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-3 py-1.5 text-sm border rounded-md ${
+                          currentPage === page
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ) : (
+                      <span key={index} className="px-2 text-slate-400">
+                        {page}
+                      </span>
+                    )
+                  ))}
+                  <button
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1.5 text-sm border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    次へ
+                  </button>
+                </div>
               </div>
             )}
           </>
