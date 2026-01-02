@@ -99,17 +99,39 @@ export default function CandidatesPage() {
   const [occupationFilter, setOccupationFilter] = useState('')
   const [employeeFilter, setEmployeeFilter] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
 
   useEffect(() => {
-    fetchCandidates()
     fetchEmployees()
   }, [])
 
-  async function fetchCandidates() {
+  // フィルター変更時にページを1に戻す
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, sourceFilter, stageFilter, occupationFilter, employeeFilter])
+
+  // ページ変更時またはフィルター変更時にデータを再取得
+  useEffect(() => {
+    fetchCandidates(currentPage, searchQuery, sourceFilter, stageFilter, occupationFilter, employeeFilter)
+  }, [currentPage, searchQuery, sourceFilter, stageFilter, occupationFilter, employeeFilter])
+
+  async function fetchCandidates(
+    page: number,
+    search: string,
+    source: string,
+    stage: string,
+    occupation: string,
+    employee: string
+  ) {
+    setLoading(true)
     const supabase = createClient()
 
-    // candidatesテーブルから取得し、最新の応募情報と担当者情報を結合
-    const { data, error } = await supabase
+    // ベースクエリを構築
+    let countQuery = supabase
+      .from('candidates')
+      .select('id, name, phone, stage, preferred_job, employees:staff_id(name), applications(source)', { count: 'exact', head: true })
+
+    let dataQuery = supabase
       .from('candidates')
       .select(`
         id,
@@ -127,7 +149,32 @@ export default function CandidatesPage() {
           name
         )
       `)
+
+    // フィルター適用（検索はクライアントサイドで行うため、サーバーサイドではstage, source等のみ）
+    if (stage) {
+      countQuery = countQuery.eq('stage', stage)
+      dataQuery = dataQuery.eq('stage', stage)
+    }
+    if (occupation) {
+      countQuery = countQuery.eq('preferred_job', occupation)
+      dataQuery = dataQuery.eq('preferred_job', occupation)
+    }
+
+    // 件数取得
+    const { count, error: countError } = await countQuery
+
+    if (countError) {
+      console.error('Error fetching count:', countError)
+    }
+
+    // ページネーション用のrange計算
+    const from = (page - 1) * ITEMS_PER_PAGE
+    const to = from + ITEMS_PER_PAGE - 1
+
+    // データ取得
+    const { data, error } = await dataQuery
       .order('created_at', { ascending: false })
+      .range(from, to)
 
     if (error) {
       console.error('Error fetching candidates:', error)
@@ -136,7 +183,7 @@ export default function CandidatesPage() {
     }
 
     // データを整形
-    const formattedData: CandidateWithApplication[] = (data || []).map((candidate: any) => {
+    let formattedData: CandidateWithApplication[] = (data || []).map((candidate: any) => {
       // 最新の応募情報を取得
       const latestApplication = candidate.applications?.[0] || {}
 
@@ -154,7 +201,23 @@ export default function CandidatesPage() {
       }
     })
 
+    // クライアントサイドフィルター（検索、応募媒体、担当者）
+    if (search) {
+      formattedData = formattedData.filter(c =>
+        c.name?.includes(search) ||
+        c.id?.includes(search) ||
+        c.phone?.includes(search)
+      )
+    }
+    if (source) {
+      formattedData = formattedData.filter(c => c.source === source)
+    }
+    if (employee) {
+      formattedData = formattedData.filter(c => c.employee_name === employee)
+    }
+
     setCandidates(formattedData)
+    setTotalCount(count || 0)
     setLoading(false)
   }
 
@@ -178,38 +241,8 @@ export default function CandidatesPage() {
     setEmployees(options)
   }
 
-  const filteredCandidates = candidates.filter((candidate) => {
-    const matchesSearch =
-      candidate.name?.includes(searchQuery) ||
-      candidate.id?.includes(searchQuery) ||
-      candidate.phone?.includes(searchQuery)
-    const matchesSource = !sourceFilter || candidate.source === sourceFilter
-    const matchesStage = !stageFilter || candidate.stage === stageFilter
-    const matchesOccupation =
-      !occupationFilter || candidate.preferred_job === occupationFilter
-    const matchesEmployee =
-      !employeeFilter || candidate.employee_name === employeeFilter
-
-    return (
-      matchesSearch &&
-      matchesSource &&
-      matchesStage &&
-      matchesOccupation &&
-      matchesEmployee
-    )
-  })
-
-  // ページネーション計算
-  const totalCount = filteredCandidates.length
+  // ページネーション計算（サーバーサイドの件数を使用）
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE)
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
-  const endIndex = startIndex + ITEMS_PER_PAGE
-  const paginatedCandidates = filteredCandidates.slice(startIndex, endIndex)
-
-  // フィルター変更時にページを1に戻す
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [searchQuery, sourceFilter, stageFilter, occupationFilter, employeeFilter])
 
   // ページ番号の配列を生成（現在ページの前後2ページを表示）
   function getPageNumbers(): (number | string)[] {
@@ -314,7 +347,7 @@ export default function CandidatesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedCandidates.map((candidate) => (
+                {candidates.map((candidate) => (
                   <TableRow key={candidate.id} className="cursor-pointer">
                     <TableCell>
                       <Link
@@ -376,7 +409,7 @@ export default function CandidatesPage() {
                 ))}
               </TableBody>
             </Table>
-            {filteredCandidates.length === 0 && (
+            {candidates.length === 0 && (
               <div className="p-8 text-center text-slate-500">
                 該当する求職者が見つかりません
               </div>
