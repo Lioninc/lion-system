@@ -18,15 +18,6 @@ interface CandidateWithApplication {
   employee_name: string | null
 }
 
-const sourceOptions = [
-  { value: '', label: 'すべて' },
-  { value: 'Indeed', label: 'Indeed' },
-  { value: 'タウンワーク', label: 'タウンワーク' },
-  { value: 'リクナビ', label: 'リクナビ' },
-  { value: 'マイナビ', label: 'マイナビ' },
-  { value: 'バイトル', label: 'バイトル' },
-  { value: 'その他', label: 'その他' },
-]
 
 const stageOptions = [
   { value: '', label: 'すべて' },
@@ -92,6 +83,7 @@ const ITEMS_PER_PAGE = 50
 export default function CandidatesPage() {
   const [candidates, setCandidates] = useState<CandidateWithApplication[]>([])
   const [employees, setEmployees] = useState<{ value: string; label: string }[]>([{ value: '', label: 'すべて' }])
+  const [sourceOptions, setSourceOptions] = useState<{ value: string; label: string }[]>([{ value: '', label: 'すべて' }])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [sourceFilter, setSourceFilter] = useState('')
@@ -103,6 +95,7 @@ export default function CandidatesPage() {
 
   useEffect(() => {
     fetchEmployees()
+    fetchSources()
   }, [])
 
   // フィルター変更時にページを1に戻す
@@ -239,6 +232,27 @@ export default function CandidatesPage() {
       ...(data || []).map((emp: any) => ({ value: emp.name, label: emp.name }))
     ]
     setEmployees(options)
+  }
+
+  async function fetchSources() {
+    const supabase = createClient()
+
+    const { data, error } = await supabase
+      .from('sources')
+      .select('id, name')
+      .eq('is_active', true)
+      .order('name')
+
+    if (error) {
+      console.error('Error fetching sources:', error)
+      return
+    }
+
+    const options = [
+      { value: '', label: 'すべて' },
+      ...(data || []).map((s: any) => ({ value: s.name, label: s.name }))
+    ]
+    setSourceOptions(options)
   }
 
   // ページネーション計算（サーバーサイドの件数を使用）

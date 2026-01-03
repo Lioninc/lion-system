@@ -36,6 +36,8 @@ export interface Database {
           name: string
           email: string
           role: string
+          employee_code: string | null
+          is_active: boolean
           created_at: string
           updated_at: string
         }
@@ -45,6 +47,8 @@ export interface Database {
           name: string
           email: string
           role?: string
+          employee_code?: string | null
+          is_active?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -54,8 +58,30 @@ export interface Database {
           name?: string
           email?: string
           role?: string
+          employee_code?: string | null
+          is_active?: boolean
           created_at?: string
           updated_at?: string
+        }
+      }
+      sources: {
+        Row: {
+          id: string
+          name: string
+          is_active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          is_active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          is_active?: boolean
+          created_at?: string
         }
       }
       companies: {

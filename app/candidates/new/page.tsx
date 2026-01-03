@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button, Input, Select, Card } from '@/components/ui'
+import { createClient } from '@/lib/supabase/client'
 
 const genderOptions = [
   { value: '', label: '選択してください' },
@@ -32,25 +33,14 @@ const stageOptions = [
   { value: 'NG', label: 'NG' },
 ]
 
-const sourceOptions = [
-  { value: '', label: '選択してください' },
-  { value: 'Indeed', label: 'Indeed' },
-  { value: 'タウンワーク', label: 'タウンワーク' },
-  { value: 'リクナビ', label: 'リクナビ' },
-  { value: 'マイナビ', label: 'マイナビ' },
-  { value: '紹介', label: '紹介' },
-  { value: 'その他', label: 'その他' },
-]
-
-const employeeOptions = [
-  { value: '', label: '選択してください' },
-  { value: '1', label: '山田花子' },
-  { value: '2', label: '鈴木一郎' },
-  { value: '3', label: '佐藤美咲' },
-]
-
 export default function NewCandidatePage() {
   const router = useRouter()
+  const [sourceOptions, setSourceOptions] = useState<{ value: string; label: string }[]>([
+    { value: '', label: '選択してください' },
+  ])
+  const [employeeOptions, setEmployeeOptions] = useState<{ value: string; label: string }[]>([
+    { value: '', label: '選択してください' },
+  ])
   const [formData, setFormData] = useState({
     name: '',
     furigana: '',
@@ -63,11 +53,55 @@ export default function NewCandidatePage() {
     preferred_location: '',
     desired_salary: '',
     available_date: '',
-    stage: '',
+    stage: '新規',
     source: '',
     employee_id: '',
     notes: '',
   })
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    fetchSources()
+    fetchEmployees()
+  }, [])
+
+  async function fetchSources() {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('sources')
+      .select('id, name')
+      .eq('is_active', true)
+      .order('name')
+
+    if (error) {
+      console.error('Error fetching sources:', error)
+      return
+    }
+
+    setSourceOptions([
+      { value: '', label: '選択してください' },
+      ...(data || []).map((s: any) => ({ value: s.name, label: s.name })),
+    ])
+  }
+
+  async function fetchEmployees() {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('employees')
+      .select('id, name')
+      .eq('is_active', true)
+      .order('name')
+
+    if (error) {
+      console.error('Error fetching employees:', error)
+      return
+    }
+
+    setEmployeeOptions([
+      { value: '', label: '選択してください' },
+      ...(data || []).map((e: any) => ({ value: e.id, label: e.name })),
+    ])
+  }
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -76,10 +110,55 @@ export default function NewCandidatePage() {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // 実際はここでSupabaseにデータを保存
-    console.log('Form submitted:', formData)
+    setSubmitting(true)
+
+    const supabase = createClient()
+
+    // 求職者を作成
+    const { data: candidate, error: candidateError } = await supabase
+      .from('candidates')
+      .insert({
+        name: formData.name,
+        furigana: formData.furigana || null,
+        gender: formData.gender || null,
+        birth_date: formData.birth_date || null,
+        phone: formData.phone || null,
+        email: formData.email || null,
+        address: formData.address || null,
+        preferred_job: formData.preferred_job || null,
+        preferred_location: formData.preferred_location || null,
+        desired_salary: formData.desired_salary ? parseInt(formData.desired_salary) : null,
+        available_date: formData.available_date || null,
+        stage: formData.stage || '新規',
+        staff_id: formData.employee_id || null,
+        notes: formData.notes || null,
+      } as any)
+      .select('id')
+      .single()
+
+    if (candidateError) {
+      console.error('Error creating candidate:', candidateError)
+      alert('登録に失敗しました')
+      setSubmitting(false)
+      return
+    }
+
+    // 応募履歴を作成
+    if (formData.source && candidate) {
+      const { error: appError } = await supabase.from('applications').insert({
+        candidate_id: (candidate as any).id,
+        source: formData.source,
+        application_date: new Date().toISOString().split('T')[0],
+        status: '有効応募',
+      } as any)
+
+      if (appError) {
+        console.error('Error creating application:', appError)
+      }
+    }
+
     router.push('/candidates')
   }
 
@@ -229,7 +308,9 @@ export default function NewCandidatePage() {
               キャンセル
             </Button>
           </Link>
-          <Button type="submit">登録する</Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? '登録中...' : '登録する'}
+          </Button>
         </div>
       </form>
     </div>
