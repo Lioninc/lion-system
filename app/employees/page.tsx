@@ -7,7 +7,6 @@ import { createClient } from '@/lib/supabase/client'
 interface Employee {
   id: string
   name: string
-  email: string
   role: string
   division_id: string | null
   is_active: boolean
@@ -35,7 +34,6 @@ export default function EmployeesPage() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
   const [formData, setFormData] = useState({
     name: '',
-    email: '',
     role: 'staff',
     division_id: '',
     employee_code: '',
@@ -54,7 +52,6 @@ export default function EmployeesPage() {
       .select(`
         id,
         name,
-        email,
         role,
         division_id,
         is_active,
@@ -74,7 +71,6 @@ export default function EmployeesPage() {
     const formattedData: Employee[] = (data || []).map((emp: any) => ({
       id: emp.id,
       name: emp.name,
-      email: emp.email,
       role: emp.role,
       division_id: emp.division_id,
       is_active: emp.is_active ?? true,
@@ -106,7 +102,6 @@ export default function EmployeesPage() {
       setEditingEmployee(employee)
       setFormData({
         name: employee.name,
-        email: employee.email,
         role: employee.role,
         division_id: employee.division_id || '',
         employee_code: employee.employee_code || '',
@@ -116,7 +111,6 @@ export default function EmployeesPage() {
       setEditingEmployee(null)
       setFormData({
         name: '',
-        email: '',
         role: 'staff',
         division_id: '',
         employee_code: '',
@@ -137,7 +131,6 @@ export default function EmployeesPage() {
 
     const payload = {
       name: formData.name,
-      email: formData.email,
       role: formData.role,
       division_id: formData.division_id || null,
       employee_code: formData.employee_code || null,
@@ -216,7 +209,6 @@ export default function EmployeesPage() {
               <TableRow>
                 <TableHead>社員コード</TableHead>
                 <TableHead>名前</TableHead>
-                <TableHead>メールアドレス</TableHead>
                 <TableHead>部署</TableHead>
                 <TableHead>役割</TableHead>
                 <TableHead>ステータス</TableHead>
@@ -228,7 +220,6 @@ export default function EmployeesPage() {
                 <TableRow key={employee.id}>
                   <TableCell>{employee.employee_code || '-'}</TableCell>
                   <TableCell className="font-medium">{employee.name}</TableCell>
-                  <TableCell>{employee.email}</TableCell>
                   <TableCell>{employee.division_name || '-'}</TableCell>
                   <TableCell>{getRoleBadge(employee.role)}</TableCell>
                   <TableCell>
@@ -284,13 +275,6 @@ export default function EmployeesPage() {
                 label="名前"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-              />
-              <Input
-                label="メールアドレス"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 required
               />
               <Select
