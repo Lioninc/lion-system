@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Button, Input, Select, Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui'
+import { Input, Select, Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
 
 interface CandidateWithApplication {
@@ -286,11 +286,17 @@ export default function CandidatesPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">求職者一覧</h1>
         <div className="flex gap-2">
-          <Link href="/candidates/import">
-            <Button variant="secondary">CSVインポート</Button>
+          <Link
+            href="/candidates/import"
+            className="inline-flex items-center justify-center font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-slate-100 text-slate-700 hover:bg-slate-200 focus:ring-slate-500 px-4 py-2 text-sm"
+          >
+            CSVインポート
           </Link>
-          <Link href="/candidates/new">
-            <Button>新規登録</Button>
+          <Link
+            href="/candidates/new"
+            className="inline-flex items-center justify-center font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-[#3b82f6] text-white hover:bg-blue-600 focus:ring-blue-500 px-4 py-2 text-sm"
+          >
+            新規登録
           </Link>
         </div>
       </div>
