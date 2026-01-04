@@ -48,6 +48,7 @@ export default function NewCandidatePage() {
     birth_date: '',
     phone: '',
     email: '',
+    postal_code: '',
     address: '',
     preferred_job: '',
     preferred_location: '',
@@ -110,6 +111,37 @@ export default function NewCandidatePage() {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
+  const handlePostalCodeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    // ハイフンを除去して数字のみにする
+    const cleanedValue = value.replace(/[^0-9]/g, '')
+
+    // フォームデータを更新（ハイフン付きで表示）
+    let displayValue = cleanedValue
+    if (cleanedValue.length > 3) {
+      displayValue = cleanedValue.slice(0, 3) + '-' + cleanedValue.slice(3, 7)
+    }
+    setFormData((prev) => ({ ...prev, postal_code: displayValue }))
+
+    // 7桁入力されたら住所を取得
+    if (cleanedValue.length === 7) {
+      try {
+        const response = await fetch(
+          `https://zipcloud.ibsnet.co.jp/api/search?zipcode=${cleanedValue}`
+        )
+        const data = await response.json()
+
+        if (data.results && data.results.length > 0) {
+          const result = data.results[0]
+          const address = `${result.address1}${result.address2}${result.address3}`
+          setFormData((prev) => ({ ...prev, address }))
+        }
+      } catch (error) {
+        console.error('郵便番号検索エラー:', error)
+      }
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
@@ -126,6 +158,7 @@ export default function NewCandidatePage() {
         birth_date: formData.birth_date || null,
         phone: formData.phone || null,
         email: formData.email || null,
+        postal_code: formData.postal_code || null,
         address: formData.address || null,
         preferred_job: formData.preferred_job || null,
         preferred_location: formData.preferred_location || null,
@@ -220,12 +253,21 @@ export default function NewCandidatePage() {
               value={formData.email}
               onChange={handleChange}
             />
+            <Input
+              label="郵便番号"
+              name="postal_code"
+              value={formData.postal_code}
+              onChange={handlePostalCodeChange}
+              placeholder="例: 530-0001"
+              maxLength={8}
+            />
             <div className="md:col-span-2">
               <Input
                 label="住所"
                 name="address"
                 value={formData.address}
                 onChange={handleChange}
+                placeholder="郵便番号を入力すると自動入力されます"
               />
             </div>
           </div>
