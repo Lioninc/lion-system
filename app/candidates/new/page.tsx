@@ -184,7 +184,7 @@ export default function NewCandidatePage() {
         address: formData.address || null,
         preferred_job: formData.preferred_job || null,
         preferred_location: formData.preferred_location || null,
-        desired_salary: formData.desired_salary ? parseInt(formData.desired_salary) : null,
+        preferred_salary_min: formData.desired_salary ? parseInt(formData.desired_salary) : null,
         available_date: formData.available_date || null,
         stage: formData.stage || '新規',
         staff_id: formData.employee_id || null,
