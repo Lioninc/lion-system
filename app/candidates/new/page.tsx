@@ -60,6 +60,21 @@ export default function NewCandidatePage() {
     notes: '',
   })
   const [submitting, setSubmitting] = useState(false)
+  const [calculatedAge, setCalculatedAge] = useState<number | null>(null)
+
+  // 年齢計算関数
+  const calculateAge = (birthDate: string): number | null => {
+    if (!birthDate) return null
+    const today = new Date()
+    const birth = new Date(birthDate)
+    let age = today.getFullYear() - birth.getFullYear()
+    const monthDiff = today.getMonth() - birth.getMonth()
+    // 誕生日がまだ来ていない場合は1歳引く
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--
+    }
+    return age >= 0 ? age : null
+  }
 
   useEffect(() => {
     fetchSources()
@@ -111,6 +126,12 @@ export default function NewCandidatePage() {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
+  const handleBirthDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setFormData((prev) => ({ ...prev, birth_date: value }))
+    setCalculatedAge(calculateAge(value))
+  }
+
   const handlePostalCodeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     // ハイフンを除去して数字のみにする
@@ -156,6 +177,7 @@ export default function NewCandidatePage() {
         furigana: formData.furigana || null,
         gender: formData.gender || null,
         birth_date: formData.birth_date || null,
+        age: calculatedAge,
         phone: formData.phone || null,
         email: formData.email || null,
         postal_code: formData.postal_code || null,
@@ -232,13 +254,21 @@ export default function NewCandidatePage() {
               value={formData.gender}
               onChange={handleChange}
             />
-            <Input
-              label="生年月日"
-              name="birth_date"
-              type="date"
-              value={formData.birth_date}
-              onChange={handleChange}
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                label="生年月日"
+                name="birth_date"
+                type="date"
+                value={formData.birth_date}
+                onChange={handleBirthDateChange}
+              />
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">年齢</label>
+                <div className="px-3 py-2 bg-slate-100 border border-slate-300 rounded-md text-sm text-slate-700">
+                  {calculatedAge !== null ? `${calculatedAge}歳` : '-'}
+                </div>
+              </div>
+            </div>
             <Input
               label="電話番号"
               name="phone"
