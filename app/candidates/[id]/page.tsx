@@ -448,7 +448,9 @@ export default function CandidateDetailPage() {
           <h1 className="text-2xl font-bold text-slate-800">{candidate.name}</h1>
           {getStageBadge(candidate.stage)}
         </div>
-        <Button>編集</Button>
+        <Link href={`/candidates/${candidateId}/edit`}>
+          <Button>編集</Button>
+        </Link>
       </div>
 
       {/* タブナビゲーション */}
