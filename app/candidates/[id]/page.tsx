@@ -201,9 +201,9 @@ export default function CandidateDetailPage() {
     interview_date: '',
     interview_time: '',
     interview_type: '',
-    employee_id: '',
+    interviewer_id: '',
     result: '',
-    company_id: '',
+    referred_company_id: '',
     notes: '',
   })
 
@@ -315,7 +315,7 @@ export default function CandidateDetailPage() {
       .from('interviews')
       .select(`
         *,
-        employees:employee_id (
+        employees:interviewer_id (
           name
         )
       `)
@@ -356,9 +356,9 @@ export default function CandidateDetailPage() {
       interview_date: '',
       interview_time: '',
       interview_type: '',
-      employee_id: '',
+      interviewer_id: '',
       result: '',
-      company_id: '',
+      referred_company_id: '',
       notes: '',
     })
     setShowInterviewModal(true)
@@ -377,9 +377,9 @@ export default function CandidateDetailPage() {
       interview_date: interviewFormData.interview_date,
       interview_time: interviewFormData.interview_time || null,
       interview_type: interviewFormData.interview_type || null,
-      employee_id: interviewFormData.employee_id || null,
+      interviewer_id: interviewFormData.interviewer_id || null,
       result: interviewFormData.result || null,
-      company_id: interviewFormData.company_id || null,
+      referred_company_id: interviewFormData.referred_company_id || null,
       notes: interviewFormData.notes || null,
     }
 
@@ -399,7 +399,7 @@ export default function CandidateDetailPage() {
       .from('interviews')
       .select(`
         *,
-        employees:employee_id (
+        employees:interviewer_id (
           name
         )
       `)
@@ -777,8 +777,8 @@ export default function CandidateDetailPage() {
                   { value: '', label: '選択してください' },
                   ...employees.map((emp) => ({ value: emp.id, label: emp.name })),
                 ]}
-                value={interviewFormData.employee_id}
-                onChange={(e) => setInterviewFormData({ ...interviewFormData, employee_id: e.target.value })}
+                value={interviewFormData.interviewer_id}
+                onChange={(e) => setInterviewFormData({ ...interviewFormData, interviewer_id: e.target.value })}
               />
               <Select
                 label="結果"
@@ -792,8 +792,8 @@ export default function CandidateDetailPage() {
                   { value: '', label: '選択してください' },
                   ...companies.map((c) => ({ value: c.id, label: c.name })),
                 ]}
-                value={interviewFormData.company_id}
-                onChange={(e) => setInterviewFormData({ ...interviewFormData, company_id: e.target.value })}
+                value={interviewFormData.referred_company_id}
+                onChange={(e) => setInterviewFormData({ ...interviewFormData, referred_company_id: e.target.value })}
               />
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">備考</label>

@@ -81,9 +81,9 @@ export default function InterviewsPage() {
     interview_date: '',
     interview_time: '',
     interview_type: '',
-    employee_id: '',
+    interviewer_id: '',
     result: '',
-    company_id: '',
+    referred_company_id: '',
     notes: '',
   })
 
@@ -106,15 +106,15 @@ export default function InterviewsPage() {
         result,
         notes,
         candidate_id,
-        employee_id,
-        company_id,
+        interviewer_id,
+        referred_company_id,
         candidates:candidate_id (
           name
         ),
-        employees:employee_id (
+        employees:interviewer_id (
           name
         ),
-        companies:company_id (
+        companies:referred_company_id (
           name
         )
       `)
@@ -135,9 +135,9 @@ export default function InterviewsPage() {
       notes: i.notes,
       candidate_id: i.candidate_id,
       candidate_name: i.candidates?.name || '',
-      employee_id: i.employee_id,
+      employee_id: i.interviewer_id,
       employee_name: i.employees?.name || null,
-      company_id: i.company_id,
+      company_id: i.referred_company_id,
       company_name: i.companies?.name || null,
     }))
 
@@ -197,9 +197,9 @@ export default function InterviewsPage() {
       interview_date: '',
       interview_time: '',
       interview_type: '',
-      employee_id: '',
+      interviewer_id: '',
       result: '',
-      company_id: '',
+      referred_company_id: '',
       notes: '',
     })
     setShowModal(true)
@@ -218,9 +218,9 @@ export default function InterviewsPage() {
       interview_date: formData.interview_date,
       interview_time: formData.interview_time || null,
       interview_type: formData.interview_type || null,
-      employee_id: formData.employee_id || null,
+      interviewer_id: formData.interviewer_id || null,
       result: formData.result || null,
-      company_id: formData.company_id || null,
+      referred_company_id: formData.referred_company_id || null,
       notes: formData.notes || null,
     }
 
@@ -353,8 +353,8 @@ export default function InterviewsPage() {
                   { value: '', label: '選択してください' },
                   ...employees.map((e) => ({ value: e.id, label: e.name })),
                 ]}
-                value={formData.employee_id}
-                onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
+                value={formData.interviewer_id}
+                onChange={(e) => setFormData({ ...formData, interviewer_id: e.target.value })}
               />
               <Select
                 label="結果"
@@ -368,8 +368,8 @@ export default function InterviewsPage() {
                   { value: '', label: '選択してください' },
                   ...companies.map((c) => ({ value: c.id, label: c.name })),
                 ]}
-                value={formData.company_id}
-                onChange={(e) => setFormData({ ...formData, company_id: e.target.value })}
+                value={formData.referred_company_id}
+                onChange={(e) => setFormData({ ...formData, referred_company_id: e.target.value })}
               />
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">備考</label>
