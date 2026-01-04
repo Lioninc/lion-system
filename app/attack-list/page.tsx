@@ -18,6 +18,8 @@ interface Candidate {
   source_name: string | null
   last_contact: string | null
   last_contact_result: string | null
+  contact_count: number
+  available_date: string | null
 }
 
 interface Employee {
@@ -56,6 +58,8 @@ function getContactResultBadge(result: string | null) {
       return <Badge variant="danger">{result}</Badge>
     case '留守電':
       return <Badge variant="warning">{result}</Badge>
+    case '就業時期が先':
+      return <Badge variant="default">{result}</Badge>
     default:
       return <Badge>{result}</Badge>
   }
@@ -78,6 +82,7 @@ export default function AttackListPage() {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
   const [contactResult, setContactResult] = useState('')
   const [contactNotes, setContactNotes] = useState('')
+  const [availableDate, setAvailableDate] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
@@ -110,6 +115,8 @@ export default function AttackListPage() {
         staff_id,
         notes,
         created_at,
+        contact_count,
+        available_date,
         employees:staff_id (
           name
         )
@@ -125,6 +132,12 @@ export default function AttackListPage() {
 
     // 各求職者の最新連絡履歴と応募媒体を取得
     const candidateIds = (candidatesData || []).map((c: any) => c.id)
+
+    if (candidateIds.length === 0) {
+      setCandidates([])
+      setLoading(false)
+      return
+    }
 
     // 応募情報を取得（応募日と媒体）
     const { data: applicationsData } = await supabase
@@ -178,11 +191,57 @@ export default function AttackListPage() {
         source_name: application?.source || null,
         last_contact: latestContact?.contacted_at || null,
         last_contact_result: latestContact?.result || null,
+        contact_count: c.contact_count || 0,
+        available_date: c.available_date,
       }
     })
 
     setCandidates(formattedData)
     setLoading(false)
+  }
+
+  // 表示対象かどうかを判定
+  function shouldDisplay(candidate: Candidate): boolean {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const todayStr = today.toISOString().split('T')[0]
+
+    // 14日前の日付
+    const twoWeeksAgo = new Date(today)
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
+    const twoWeeksAgoStr = twoWeeksAgo.toISOString().split('T')[0]
+
+    // 就業時期が先の場合
+    if (candidate.stage === '就業時期が先') {
+      // available_dateがあり、今日以前なら表示（希望日になった人）
+      if (candidate.available_date && candidate.available_date <= todayStr) {
+        return true
+      }
+      // available_dateがNULLまたは今日より後なら非表示
+      return false
+    }
+
+    // 新規・電話出ず・連絡済みの場合
+    if (['新規', '電話出ず', '連絡済み'].includes(candidate.stage)) {
+      // contact_count >= 3 なら除外
+      if (candidate.contact_count >= 3) {
+        return false
+      }
+
+      // 応募から2週間以上経過なら除外
+      const applicationDateStr = candidate.application_date || candidate.created_at
+      if (applicationDateStr) {
+        const applicationDate = applicationDateStr.split('T')[0]
+        if (applicationDate < twoWeeksAgoStr) {
+          return false
+        }
+      }
+
+      return true
+    }
+
+    // 面談予定・保留は表示
+    return true
   }
 
   // フィルタリング
@@ -226,25 +285,31 @@ export default function AttackListPage() {
     return true
   })
 
-  // 当日連絡リスト（新規・電話出ず・連絡済み）
-  const todayList = filteredCandidates.filter((c) =>
-    ['新規', '電話出ず', '連絡済み'].includes(c.stage)
-  )
+  // 当日連絡リスト（表示条件を適用）
+  const todayList = filteredCandidates.filter((c) => {
+    // 新規・電話出ず・連絡済み または 就業時期が先（希望日到来）の人
+    if (['新規', '電話出ず', '連絡済み', '就業時期が先'].includes(c.stage)) {
+      return shouldDisplay(c)
+    }
+    return false
+  })
 
-  // ステージ別カウント
+  // ステージ別カウント（表示条件を適用）
+  const displayableCandidates = filteredCandidates.filter(shouldDisplay)
   const stageCounts = {
-    '新規': filteredCandidates.filter((c) => c.stage === '新規').length,
-    '電話出ず': filteredCandidates.filter((c) => c.stage === '電話出ず').length,
-    '連絡済み': filteredCandidates.filter((c) => c.stage === '連絡済み').length,
+    '新規': displayableCandidates.filter((c) => c.stage === '新規').length,
+    '電話出ず': displayableCandidates.filter((c) => c.stage === '電話出ず').length,
+    '連絡済み': displayableCandidates.filter((c) => c.stage === '連絡済み').length,
     '面談予定': filteredCandidates.filter((c) => c.stage === '面談予定').length,
     '保留': filteredCandidates.filter((c) => c.stage === '保留').length,
-    '就業時期が先': filteredCandidates.filter((c) => c.stage === '就業時期が先').length,
+    '就業時期が先': displayableCandidates.filter((c) => c.stage === '就業時期が先').length,
   }
 
   function handleOpenContactModal(candidate: Candidate) {
     setSelectedCandidate(candidate)
     setContactResult('')
     setContactNotes('')
+    setAvailableDate('')
     setShowContactModal(true)
   }
 
@@ -256,6 +321,12 @@ export default function AttackListPage() {
   async function handleSaveContact(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedCandidate || !contactResult) return
+
+    // 就業時期が先を選択した場合は日付必須
+    if (contactResult === '就業時期が先' && !availableDate) {
+      alert('希望就業日を入力してください')
+      return
+    }
 
     setSubmitting(true)
     const supabase = createClient()
@@ -276,18 +347,29 @@ export default function AttackListPage() {
       return
     }
 
-    // ステージを更新（繋がったら連絡済み、繋がらずなら電話出ず）
+    // ステージとcontact_countを更新
     let newStage = selectedCandidate.stage
+    let newContactCount = selectedCandidate.contact_count
+    const updateData: any = {}
+
     if (contactResult === '繋がった') {
       newStage = '連絡済み'
+      updateData.stage = newStage
     } else if (contactResult === '繋がらず' || contactResult === '留守電') {
       newStage = '電話出ず'
+      newContactCount = (selectedCandidate.contact_count || 0) + 1
+      updateData.stage = newStage
+      updateData.contact_count = newContactCount
+    } else if (contactResult === '就業時期が先') {
+      newStage = '就業時期が先'
+      updateData.stage = newStage
+      updateData.available_date = availableDate
     }
 
-    if (newStage !== selectedCandidate.stage) {
+    if (Object.keys(updateData).length > 0) {
       await (supabase
         .from('candidates') as any)
-        .update({ stage: newStage })
+        .update(updateData)
         .eq('id', selectedCandidate.id)
     }
 
@@ -322,6 +404,7 @@ export default function AttackListPage() {
     { value: '繋がった', label: '繋がった' },
     { value: '繋がらず', label: '繋がらず' },
     { value: '留守電', label: '留守電' },
+    { value: '就業時期が先', label: '就業時期が先' },
   ]
 
   if (loading) {
@@ -332,6 +415,11 @@ export default function AttackListPage() {
       </div>
     )
   }
+
+  // 表示用リスト（フィルター適用時はフィルター結果、それ以外はtodayList）
+  const displayList = stageFilter
+    ? filteredCandidates.filter(shouldDisplay)
+    : todayList
 
   return (
     <div className="p-6 space-y-6">
@@ -436,7 +524,7 @@ export default function AttackListPage() {
         <h2 className="text-lg font-semibold text-slate-800">
           {stageFilter ? `${stageFilter}の求職者` : '当日連絡リスト'}
           <span className="ml-2 text-sm font-normal text-slate-500">
-            ({stageFilter ? filteredCandidates.length : todayList.length}件)
+            ({displayList.length}件)
           </span>
         </h2>
       </div>
@@ -458,7 +546,7 @@ export default function AttackListPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(stageFilter ? filteredCandidates : todayList).map((candidate) => (
+            {displayList.map((candidate) => (
               <TableRow key={candidate.id}>
                 <TableCell>
                   <Link
@@ -513,7 +601,7 @@ export default function AttackListPage() {
             ))}
           </TableBody>
         </Table>
-        {(stageFilter ? filteredCandidates : todayList).length === 0 && (
+        {displayList.length === 0 && (
           <div className="p-8 text-center text-slate-500">
             該当する求職者がいません
           </div>
@@ -541,6 +629,15 @@ export default function AttackListPage() {
                 onChange={(e) => setContactResult(e.target.value)}
                 required
               />
+              {contactResult === '就業時期が先' && (
+                <Input
+                  label="希望就業日"
+                  type="date"
+                  value={availableDate}
+                  onChange={(e) => setAvailableDate(e.target.value)}
+                  required
+                />
+              )}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">備考</label>
                 <textarea
