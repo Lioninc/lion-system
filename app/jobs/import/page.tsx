@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 interface Company {
   id: string
   name: string
+  csv_mapping: { [key: string]: string } | null
 }
 
 interface ParsedJob {
@@ -162,7 +163,9 @@ function parseCSVLine(line: string): string[] {
 export default function JobsImportPage() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [selectedCompanyId, setSelectedCompanyId] = useState('')
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
   const [file, setFile] = useState<File | null>(null)
+  const [csvText, setCsvText] = useState<string>('')
   const [parsedData, setParsedData] = useState<{ headers: string[], jobs: ParsedJob[] } | null>(null)
   const [importing, setImporting] = useState(false)
   const [dragOver, setDragOver] = useState(false)
@@ -172,11 +175,20 @@ export default function JobsImportPage() {
     fetchCompanies()
   }, [])
 
+  // 企業選択時にマッピングを再適用
+  useEffect(() => {
+    if (selectedCompanyId && csvText) {
+      const company = companies.find(c => c.id === selectedCompanyId)
+      setSelectedCompany(company || null)
+      parseAndMapCSV(csvText, company?.csv_mapping || null)
+    }
+  }, [selectedCompanyId])
+
   async function fetchCompanies() {
     const supabase = createClient()
     const { data, error } = await supabase
       .from('companies')
-      .select('id, name')
+      .select('id, name, csv_mapping')
       .order('name')
 
     if (error) {
@@ -187,9 +199,44 @@ export default function JobsImportPage() {
     setCompanies(data || [])
   }
 
+  // 企業のマッピングとデフォルトマッピングをマージしてCSVをパース
+  function parseAndMapCSV(text: string, companyMapping: { [key: string]: string } | null) {
+    const { headers, rows } = parseCSV(text)
+
+    // 企業マッピングがあれば、それを使ってCSV列名→DBカラム変換テーブルを作成
+    // 企業マッピング形式: { db_column: csv_column_name }
+    // 例: { title: 'スピード採用案件', location: '勤務地' }
+    let effectiveMapping: { [csvColumn: string]: string } = { ...CSV_TO_DB_MAPPING }
+
+    if (companyMapping) {
+      // 企業設定のマッピングを追加（CSV列名 → DBカラム）
+      Object.entries(companyMapping).forEach(([dbColumn, csvColumnName]) => {
+        if (csvColumnName) {
+          effectiveMapping[csvColumnName] = dbColumn
+        }
+      })
+    }
+
+    // マッピングを適用
+    const jobs: ParsedJob[] = rows.map(row => {
+      const job: ParsedJob = {}
+      headers.forEach((header, index) => {
+        const dbColumn = effectiveMapping[header]
+        if (dbColumn && KNOWN_DB_COLUMNS.includes(dbColumn)) {
+          const value = row[index]
+          job[dbColumn] = convertValue(value, dbColumn)
+        }
+      })
+      return job
+    }).filter(job => Object.keys(job).length > 0)
+
+    setParsedData({ headers, jobs })
+  }
+
   const handleFileChange = useCallback((selectedFile: File | null) => {
     if (!selectedFile) {
       setFile(null)
+      setCsvText('')
       setParsedData(null)
       return
     }
@@ -199,25 +246,14 @@ export default function JobsImportPage() {
     const reader = new FileReader()
     reader.onload = (e) => {
       const text = e.target?.result as string
-      const { headers, rows } = parseCSV(text)
+      setCsvText(text)
 
-      // マッピングを適用
-      const jobs: ParsedJob[] = rows.map(row => {
-        const job: ParsedJob = {}
-        headers.forEach((header, index) => {
-          const dbColumn = CSV_TO_DB_MAPPING[header]
-          if (dbColumn && KNOWN_DB_COLUMNS.includes(dbColumn)) {
-            const value = row[index]
-            job[dbColumn] = convertValue(value, dbColumn)
-          }
-        })
-        return job
-      }).filter(job => Object.keys(job).length > 0)
-
-      setParsedData({ headers, jobs })
+      // 選択中の企業のマッピングを取得
+      const company = companies.find(c => c.id === selectedCompanyId)
+      parseAndMapCSV(text, company?.csv_mapping || null)
     }
     reader.readAsText(selectedFile, 'UTF-8')
-  }, [])
+  }, [companies, selectedCompanyId])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -283,9 +319,20 @@ export default function JobsImportPage() {
 
   const getMappedColumns = () => {
     if (!parsedData) return []
+
+    // 企業マッピングがあればマージ
+    let effectiveMapping: { [csvColumn: string]: string } = { ...CSV_TO_DB_MAPPING }
+    if (selectedCompany?.csv_mapping) {
+      Object.entries(selectedCompany.csv_mapping).forEach(([dbColumn, csvColumnName]) => {
+        if (csvColumnName) {
+          effectiveMapping[csvColumnName] = dbColumn
+        }
+      })
+    }
+
     return parsedData.headers
-      .filter(h => CSV_TO_DB_MAPPING[h])
-      .map(h => ({ csv: h, db: CSV_TO_DB_MAPPING[h] }))
+      .filter(h => effectiveMapping[h])
+      .map(h => ({ csv: h, db: effectiveMapping[h] }))
   }
 
   return (
@@ -311,12 +358,24 @@ export default function JobsImportPage() {
             ...companies.map(c => ({ value: c.id, label: c.name }))
           ]}
           value={selectedCompanyId}
-          onChange={(e) => setSelectedCompanyId(e.target.value)}
+          onChange={(e) => {
+            const companyId = e.target.value
+            setSelectedCompanyId(companyId)
+            const company = companies.find(c => c.id === companyId)
+            setSelectedCompany(company || null)
+          }}
           required
         />
         <p className="text-sm text-slate-500 mt-2">
           インポートする案件に設定する企業を選択してください
         </p>
+        {selectedCompany?.csv_mapping && Object.keys(selectedCompany.csv_mapping).length > 0 && (
+          <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-700">
+              この企業にはCSVマッピング設定があります。設定されたマッピングを使用してインポートします。
+            </p>
+          </div>
+        )}
       </Card>
 
       {/* CSVアップロード */}

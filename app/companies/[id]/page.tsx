@@ -64,7 +64,9 @@ export default function CompanyDetailPage() {
           <h1 className="text-2xl font-bold text-slate-800">{demoCompany.name}</h1>
           {getStatusBadge(demoCompany.status)}
         </div>
-        <Button>編集</Button>
+        <Link href={`/companies/${params.id}/edit`}>
+          <Button>編集</Button>
+        </Link>
       </div>
 
       {/* 企業情報 */}

@@ -2,13 +2,27 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { Button, Input, Select, Card } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
 
 interface Employee {
   id: string
   name: string
+}
+
+interface Company {
+  id: string
+  name: string
+  industry: string | null
+  address: string | null
+  phone: string | null
+  email: string | null
+  contact_person: string | null
+  employee_id: string | null
+  status: string
+  notes: string | null
+  csv_mapping: { [key: string]: string } | null
 }
 
 const industryOptions = [
@@ -46,10 +60,13 @@ const csvMappingFields = [
   { key: 'site_name', label: '現場名（CSV列名）', required: false, placeholder: '例: 現場名' },
 ]
 
-export default function NewCompanyPage() {
+export default function EditCompanyPage() {
+  const params = useParams()
   const router = useRouter()
+  const companyId = params.id as string
   const [activeTab, setActiveTab] = useState('basic')
   const [employees, setEmployees] = useState<Employee[]>([])
+  const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
@@ -75,23 +92,66 @@ export default function NewCompanyPage() {
   })
 
   useEffect(() => {
-    fetchEmployees()
-  }, [])
+    fetchData()
+  }, [companyId])
 
-  async function fetchEmployees() {
+  async function fetchData() {
     const supabase = createClient()
-    const { data, error } = await supabase
-      .from('employees')
-      .select('id, name')
-      .eq('is_active', true)
-      .order('name')
 
-    if (error) {
-      console.error('Error fetching employees:', error)
+    // 従業員と企業データを並行して取得
+    const [employeesResult, companyResult] = await Promise.all([
+      supabase
+        .from('employees')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name'),
+      supabase
+        .from('companies')
+        .select('*')
+        .eq('id', companyId)
+        .single()
+    ])
+
+    if (employeesResult.error) {
+      console.error('Error fetching employees:', employeesResult.error)
+    } else {
+      setEmployees(employeesResult.data || [])
+    }
+
+    if (companyResult.error) {
+      console.error('Error fetching company:', companyResult.error)
+      setLoading(false)
       return
     }
 
-    setEmployees(data || [])
+    const company = companyResult.data as Company
+    setFormData({
+      name: company.name || '',
+      industry: company.industry || '',
+      address: company.address || '',
+      phone: company.phone || '',
+      email: company.email || '',
+      contact_person: company.contact_person || '',
+      employee_id: company.employee_id || '',
+      status: company.status || '新規',
+      notes: company.notes || '',
+    })
+
+    if (company.csv_mapping) {
+      setCsvMapping({
+        title: company.csv_mapping.title || '',
+        location: company.csv_mapping.location || '',
+        referral_fee: company.csv_mapping.referral_fee || '',
+        job_number: company.csv_mapping.job_number || '',
+        job_type: company.csv_mapping.job_type || '',
+        monthly_salary: company.csv_mapping.monthly_salary || '',
+        working_hours: company.csv_mapping.working_hours || '',
+        holidays: company.csv_mapping.holidays || '',
+        site_name: company.csv_mapping.site_name || '',
+      })
+    }
+
+    setLoading(false)
   }
 
   const handleChange = (
@@ -132,29 +192,39 @@ export default function NewCompanyPage() {
       csv_mapping: Object.keys(filteredMapping).length > 0 ? filteredMapping : null,
     }
 
-    const { error } = await (supabase.from('companies') as any).insert(payload)
+    const { error } = await (supabase.from('companies') as any)
+      .update(payload)
+      .eq('id', companyId)
 
     if (error) {
-      console.error('Error creating company:', error)
-      alert('登録に失敗しました')
+      console.error('Error updating company:', error)
+      alert('更新に失敗しました')
       setSubmitting(false)
       return
     }
 
-    router.push('/companies')
+    router.push(`/companies/${companyId}`)
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="text-center text-slate-500">読み込み中...</div>
+      </div>
+    )
   }
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-4">
         <Link
-          href="/companies"
+          href={`/companies/${companyId}`}
           className="text-slate-600 hover:text-slate-800 flex items-center gap-1"
         >
           <span>←</span>
-          <span>一覧に戻る</span>
+          <span>詳細に戻る</span>
         </Link>
-        <h1 className="text-2xl font-bold text-slate-800">企業 新規登録</h1>
+        <h1 className="text-2xl font-bold text-slate-800">企業 編集</h1>
       </div>
 
       {/* タブナビゲーション */}
@@ -302,13 +372,13 @@ export default function NewCompanyPage() {
         )}
 
         <div className="flex gap-4 justify-end">
-          <Link href="/companies">
+          <Link href={`/companies/${companyId}`}>
             <Button type="button" variant="secondary">
               キャンセル
             </Button>
           </Link>
           <Button type="submit" disabled={submitting}>
-            {submitting ? '登録中...' : '登録する'}
+            {submitting ? '更新中...' : '更新する'}
           </Button>
         </div>
       </form>
