@@ -14,6 +14,7 @@ interface Candidate {
   staff_name: string | null
   notes: string | null
   created_at: string
+  application_date: string | null
   source_name: string | null
   last_contact: string | null
   last_contact_result: string | null
@@ -125,11 +126,12 @@ export default function AttackListPage() {
     // 各求職者の最新連絡履歴と応募媒体を取得
     const candidateIds = (candidatesData || []).map((c: any) => c.id)
 
-    // 応募情報を取得
+    // 応募情報を取得（応募日と媒体）
     const { data: applicationsData } = await supabase
       .from('applications')
-      .select('candidate_id, source')
+      .select('candidate_id, source, application_date')
       .in('candidate_id', candidateIds)
+      .order('application_date', { ascending: true })
 
     // 連絡履歴を取得（最新のもの）
     const { data: contactHistoryData } = await supabase
@@ -149,16 +151,20 @@ export default function AttackListPage() {
       }
     })
 
-    // 求職者ごとの応募媒体をマップ
-    const sourceMap = new Map<string, string>()
+    // 求職者ごとの応募媒体と応募日をマップ
+    const applicationMap = new Map<string, { source: string; application_date: string | null }>()
     ;(applicationsData || []).forEach((app: any) => {
-      if (!sourceMap.has(app.candidate_id)) {
-        sourceMap.set(app.candidate_id, app.source)
+      if (!applicationMap.has(app.candidate_id)) {
+        applicationMap.set(app.candidate_id, {
+          source: app.source,
+          application_date: app.application_date,
+        })
       }
     })
 
     const formattedData: Candidate[] = (candidatesData || []).map((c: any) => {
       const latestContact = latestContactMap.get(c.id)
+      const application = applicationMap.get(c.id)
       return {
         id: c.id,
         name: c.name,
@@ -168,7 +174,8 @@ export default function AttackListPage() {
         staff_name: c.employees?.name || null,
         notes: c.notes,
         created_at: c.created_at,
-        source_name: sourceMap.get(c.id) || null,
+        application_date: application?.application_date || null,
+        source_name: application?.source || null,
         last_contact: latestContact?.contacted_at || null,
         last_contact_result: latestContact?.result || null,
       }
@@ -201,15 +208,16 @@ export default function AttackListPage() {
       return false
     }
 
-    // 応募日フィルター
+    // 応募日フィルター（application_date優先、なければcreated_at）
+    const applicationDateStr = candidate.application_date || candidate.created_at
     if (dateFrom) {
-      const candidateDate = new Date(candidate.created_at).toISOString().split('T')[0]
+      const candidateDate = new Date(applicationDateStr).toISOString().split('T')[0]
       if (candidateDate < dateFrom) {
         return false
       }
     }
     if (dateTo) {
-      const candidateDate = new Date(candidate.created_at).toISOString().split('T')[0]
+      const candidateDate = new Date(applicationDateStr).toISOString().split('T')[0]
       if (candidateDate > dateTo) {
         return false
       }
@@ -475,7 +483,7 @@ export default function AttackListPage() {
                 <TableCell>{getStageBadge(candidate.stage)}</TableCell>
                 <TableCell>{candidate.staff_name || <span className="text-slate-400">-</span>}</TableCell>
                 <TableCell>{candidate.source_name || <span className="text-slate-400">-</span>}</TableCell>
-                <TableCell>{formatDate(candidate.created_at)}</TableCell>
+                <TableCell>{formatDate(candidate.application_date || candidate.created_at)}</TableCell>
                 <TableCell>
                   {candidate.last_contact ? (
                     <div className="space-y-1">
