@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { Button, Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui'
+import { Button, Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
 
 interface Candidate {
@@ -69,6 +69,30 @@ interface Introduction {
   company_name: string | null
   job_title: string | null
 }
+
+interface Employee {
+  id: string
+  name: string
+}
+
+interface Company {
+  id: string
+  name: string
+}
+
+const interviewTypeOptions = [
+  { value: '', label: '選択してください' },
+  { value: '対面', label: '対面' },
+  { value: '電話', label: '電話' },
+  { value: 'Web', label: 'Web' },
+]
+
+const resultOptions = [
+  { value: '', label: '選択してください' },
+  { value: '未実施', label: '未実施' },
+  { value: '繋ぎ', label: '繋ぎ' },
+  { value: '繋げず', label: '繋げず' },
+]
 
 const tabs = [
   { id: 'summary', label: '詳細' },
@@ -168,14 +192,59 @@ export default function CandidateDetailPage() {
   const [applications, setApplications] = useState<Application[]>([])
   const [interviews, setInterviews] = useState<Interview[]>([])
   const [introductions, setIntroductions] = useState<Introduction[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('summary')
+  const [showInterviewModal, setShowInterviewModal] = useState(false)
+  const [interviewFormData, setInterviewFormData] = useState({
+    interview_date: '',
+    interview_time: '',
+    interview_type: '',
+    employee_id: '',
+    result: '',
+    company_id: '',
+    notes: '',
+  })
 
   useEffect(() => {
     if (candidateId) {
       fetchCandidateData()
+      fetchEmployees()
+      fetchCompanies()
     }
   }, [candidateId])
+
+  async function fetchEmployees() {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('employees')
+      .select('id, name')
+      .eq('is_active', true)
+      .order('name')
+
+    if (error) {
+      console.error('Error fetching employees:', error)
+      return
+    }
+
+    setEmployees(data || [])
+  }
+
+  async function fetchCompanies() {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('companies')
+      .select('id, name')
+      .order('name')
+
+    if (error) {
+      console.error('Error fetching companies:', error)
+      return
+    }
+
+    setCompanies(data || [])
+  }
 
   async function fetchCandidateData() {
     const supabase = createClient()
@@ -280,6 +349,67 @@ export default function CandidateDetailPage() {
     })))
 
     setLoading(false)
+  }
+
+  function handleOpenInterviewModal() {
+    setInterviewFormData({
+      interview_date: '',
+      interview_time: '',
+      interview_type: '',
+      employee_id: '',
+      result: '',
+      company_id: '',
+      notes: '',
+    })
+    setShowInterviewModal(true)
+  }
+
+  function handleCloseInterviewModal() {
+    setShowInterviewModal(false)
+  }
+
+  async function handleInterviewSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const supabase = createClient()
+
+    const payload = {
+      candidate_id: candidateId,
+      interview_date: interviewFormData.interview_date,
+      interview_time: interviewFormData.interview_time || null,
+      interview_type: interviewFormData.interview_type || null,
+      employee_id: interviewFormData.employee_id || null,
+      result: interviewFormData.result || null,
+      company_id: interviewFormData.company_id || null,
+      notes: interviewFormData.notes || null,
+    }
+
+    const { error } = await (supabase
+      .from('interviews') as any)
+      .insert(payload)
+
+    if (error) {
+      console.error('Error creating interview:', error)
+      alert('登録に失敗しました')
+      return
+    }
+
+    handleCloseInterviewModal()
+    // 面談履歴を再取得
+    const { data: interviewsData } = await supabase
+      .from('interviews')
+      .select(`
+        *,
+        employees:employee_id (
+          name
+        )
+      `)
+      .eq('candidate_id', candidateId)
+      .order('interview_date', { ascending: false })
+
+    setInterviews((interviewsData || []).map((i: any) => ({
+      ...i,
+      employee_name: i.employees?.name || null,
+    })))
   }
 
   if (loading) {
@@ -539,7 +669,7 @@ export default function CandidateDetailPage() {
         <Card padding="none">
           <div className="p-4 border-b border-slate-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-800">面談履歴</h2>
-            <Button size="sm">新規面談</Button>
+            <Button size="sm" onClick={handleOpenInterviewModal}>新規面談</Button>
           </div>
           {interviews.length > 0 ? (
             <Table>
@@ -608,6 +738,81 @@ export default function CandidateDetailPage() {
             <div className="p-8 text-center text-slate-500">企業紹介履歴はありません</div>
           )}
         </Card>
+      )}
+
+      {/* 新規面談モーダル */}
+      {showInterviewModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-bold text-slate-800 mb-4">新規面談登録</h2>
+            <form onSubmit={handleInterviewSubmit} className="space-y-4">
+              <div className="p-3 bg-slate-100 rounded">
+                <span className="text-sm text-slate-500">求職者：</span>
+                <span className="text-sm font-medium text-slate-800 ml-2">{candidate.name}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="面談日"
+                  type="date"
+                  value={interviewFormData.interview_date}
+                  onChange={(e) => setInterviewFormData({ ...interviewFormData, interview_date: e.target.value })}
+                  required
+                />
+                <Input
+                  label="面談時間"
+                  type="time"
+                  value={interviewFormData.interview_time}
+                  onChange={(e) => setInterviewFormData({ ...interviewFormData, interview_time: e.target.value })}
+                />
+              </div>
+              <Select
+                label="面談種類"
+                options={interviewTypeOptions}
+                value={interviewFormData.interview_type}
+                onChange={(e) => setInterviewFormData({ ...interviewFormData, interview_type: e.target.value })}
+              />
+              <Select
+                label="面談担当者"
+                options={[
+                  { value: '', label: '選択してください' },
+                  ...employees.map((emp) => ({ value: emp.id, label: emp.name })),
+                ]}
+                value={interviewFormData.employee_id}
+                onChange={(e) => setInterviewFormData({ ...interviewFormData, employee_id: e.target.value })}
+              />
+              <Select
+                label="結果"
+                options={resultOptions}
+                value={interviewFormData.result}
+                onChange={(e) => setInterviewFormData({ ...interviewFormData, result: e.target.value })}
+              />
+              <Select
+                label="紹介先企業（任意）"
+                options={[
+                  { value: '', label: '選択してください' },
+                  ...companies.map((c) => ({ value: c.id, label: c.name })),
+                ]}
+                value={interviewFormData.company_id}
+                onChange={(e) => setInterviewFormData({ ...interviewFormData, company_id: e.target.value })}
+              />
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">備考</label>
+                <textarea
+                  value={interviewFormData.notes}
+                  onChange={(e) => setInterviewFormData({ ...interviewFormData, notes: e.target.value })}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div className="flex gap-2 justify-end pt-4">
+                <Button type="button" variant="secondary" onClick={handleCloseInterviewModal}>
+                  キャンセル
+                </Button>
+                <Button type="submit">登録</Button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   )
