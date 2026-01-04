@@ -77,9 +77,14 @@ export default function JobsPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">案件管理</h1>
-        <Link href="/jobs/new">
-          <Button>新規登録</Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/jobs/import">
+            <Button variant="secondary">CSVインポート</Button>
+          </Link>
+          <Link href="/jobs/new">
+            <Button>新規登録</Button>
+          </Link>
+        </div>
       </div>
 
       {/* 検索 */}
