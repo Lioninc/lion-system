@@ -1,240 +1,560 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Button, Input, Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui'
+import { Button, Input, Select, Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui'
+import { createClient } from '@/lib/supabase/client'
 
-// デモデータ
-const demoAttackList = [
-  {
-    id: '1',
-    priority: 1,
-    priority_label: '今日応募',
-    name: '田中太郎',
-    phone: '090-1234-5678',
-    last_contact: '2024/12/23 10:00',
-    status: '有効応募',
-  },
-  {
-    id: '2',
-    priority: 1,
-    priority_label: '今日応募',
-    name: '佐藤次郎',
-    phone: '090-2345-6789',
-    last_contact: null,
-    status: '電話出ず',
-  },
-  {
-    id: '3',
-    priority: 2,
-    priority_label: '3日以内',
-    name: '高橋三郎',
-    phone: '090-3456-7890',
-    last_contact: '2024/12/21 15:00',
-    status: '有効応募',
-  },
-  {
-    id: '4',
-    priority: 2,
-    priority_label: '3日以内',
-    name: '伊藤四郎',
-    phone: '090-4567-8901',
-    last_contact: '2024/12/20 11:00',
-    status: '電話出ず',
-  },
-  {
-    id: '5',
-    priority: 3,
-    priority_label: '紹介待ち',
-    name: '渡辺五郎',
-    phone: '090-5678-9012',
-    last_contact: '2024/12/22 14:00',
-    status: '有効応募',
-  },
-  {
-    id: '6',
-    priority: 4,
-    priority_label: '時期先',
-    name: '山本六郎',
-    phone: '090-6789-0123',
-    last_contact: '2024/12/19 09:00',
-    status: '就業時期が先',
-  },
-]
+interface Candidate {
+  id: string
+  name: string
+  phone: string | null
+  stage: string
+  staff_id: string | null
+  staff_name: string | null
+  notes: string | null
+  created_at: string
+  source_name: string | null
+  last_contact: string | null
+  last_contact_result: string | null
+}
 
-function getPriorityBadge(label: string) {
-  switch (label) {
-    case '今日応募':
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-700">
-          <span>🔥</span>
-          {label}
-        </span>
-      )
-    case '3日以内':
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-700">
-          <span>🟠</span>
-          {label}
-        </span>
-      )
-    case '紹介待ち':
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-700">
-          <span>🟡</span>
-          {label}
-        </span>
-      )
-    case '時期先':
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-700">
-          <span>🔵</span>
-          {label}
-        </span>
-      )
+interface Employee {
+  id: string
+  name: string
+}
+
+
+// ステージ別のバッジ表示
+function getStageBadge(stage: string) {
+  switch (stage) {
+    case '新規':
+      return <Badge variant="info">{stage}</Badge>
+    case '電話出ず':
+      return <Badge variant="warning">{stage}</Badge>
+    case '連絡済み':
+      return <Badge variant="success">{stage}</Badge>
+    case '面談予定':
+      return <Badge variant="purple">{stage}</Badge>
+    case '保留':
+      return <Badge variant="default">{stage}</Badge>
+    case '就業時期が先':
+      return <Badge variant="default">{stage}</Badge>
     default:
-      return <Badge>{label}</Badge>
+      return <Badge>{stage}</Badge>
   }
 }
 
-function getStatusBadge(status: string) {
-  switch (status) {
-    case '有効応募':
-      return <Badge variant="success">{status}</Badge>
-    case '電話出ず':
-      return <Badge variant="warning">{status}</Badge>
-    case '就業時期が先':
-      return <Badge variant="purple">{status}</Badge>
+// 連絡結果のバッジ
+function getContactResultBadge(result: string | null) {
+  if (!result) return null
+  switch (result) {
+    case '繋がった':
+      return <Badge variant="success">{result}</Badge>
+    case '繋がらず':
+      return <Badge variant="danger">{result}</Badge>
+    case '留守電':
+      return <Badge variant="warning">{result}</Badge>
     default:
-      return <Badge>{status}</Badge>
+      return <Badge>{result}</Badge>
   }
 }
 
 export default function AttackListPage() {
+  const [candidates, setCandidates] = useState<Candidate[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
 
-  const filteredList = demoAttackList.filter((item) =>
-    item.name.includes(searchQuery) ||
-    item.phone.includes(searchQuery)
+  // フィルター
+  const [stageFilter, setStageFilter] = useState('')
+  const [employeeFilter, setEmployeeFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
+  // 連絡モーダル
+  const [showContactModal, setShowContactModal] = useState(false)
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
+  const [contactResult, setContactResult] = useState('')
+  const [contactNotes, setContactNotes] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  async function fetchData() {
+    setLoading(true)
+    const supabase = createClient()
+
+    // 従業員を取得
+    const { data: employeesData } = await supabase
+      .from('employees')
+      .select('id, name')
+      .eq('is_active', true)
+      .order('name')
+
+    setEmployees(employeesData || [])
+
+    // 対象ステージの求職者を取得
+    const targetStages = ['新規', '電話出ず', '連絡済み', '面談予定', '保留', '就業時期が先']
+
+    const { data: candidatesData, error } = await supabase
+      .from('candidates')
+      .select(`
+        id,
+        name,
+        phone,
+        stage,
+        staff_id,
+        notes,
+        created_at,
+        employees:staff_id (
+          name
+        )
+      `)
+      .in('stage', targetStages)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching candidates:', error)
+      setLoading(false)
+      return
+    }
+
+    // 各求職者の最新連絡履歴と応募媒体を取得
+    const candidateIds = (candidatesData || []).map((c: any) => c.id)
+
+    // 応募情報を取得
+    const { data: applicationsData } = await supabase
+      .from('applications')
+      .select('candidate_id, source')
+      .in('candidate_id', candidateIds)
+
+    // 連絡履歴を取得（最新のもの）
+    const { data: contactHistoryData } = await supabase
+      .from('contact_history')
+      .select('candidate_id, contacted_at, result')
+      .in('candidate_id', candidateIds)
+      .order('contacted_at', { ascending: false })
+
+    // 求職者ごとの最新連絡履歴をマップ
+    const latestContactMap = new Map<string, { contacted_at: string; result: string }>()
+    ;(contactHistoryData || []).forEach((ch: any) => {
+      if (!latestContactMap.has(ch.candidate_id)) {
+        latestContactMap.set(ch.candidate_id, {
+          contacted_at: ch.contacted_at,
+          result: ch.result,
+        })
+      }
+    })
+
+    // 求職者ごとの応募媒体をマップ
+    const sourceMap = new Map<string, string>()
+    ;(applicationsData || []).forEach((app: any) => {
+      if (!sourceMap.has(app.candidate_id)) {
+        sourceMap.set(app.candidate_id, app.source)
+      }
+    })
+
+    const formattedData: Candidate[] = (candidatesData || []).map((c: any) => {
+      const latestContact = latestContactMap.get(c.id)
+      return {
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        stage: c.stage,
+        staff_id: c.staff_id,
+        staff_name: c.employees?.name || null,
+        notes: c.notes,
+        created_at: c.created_at,
+        source_name: sourceMap.get(c.id) || null,
+        last_contact: latestContact?.contacted_at || null,
+        last_contact_result: latestContact?.result || null,
+      }
+    })
+
+    setCandidates(formattedData)
+    setLoading(false)
+  }
+
+  // フィルタリング
+  const filteredCandidates = candidates.filter((candidate) => {
+    // 検索クエリ
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      if (
+        !candidate.name.toLowerCase().includes(query) &&
+        !(candidate.phone || '').includes(query)
+      ) {
+        return false
+      }
+    }
+
+    // ステージフィルター
+    if (stageFilter && candidate.stage !== stageFilter) {
+      return false
+    }
+
+    // 担当者フィルター
+    if (employeeFilter && candidate.staff_id !== employeeFilter) {
+      return false
+    }
+
+    // 応募日フィルター
+    if (dateFrom) {
+      const candidateDate = new Date(candidate.created_at).toISOString().split('T')[0]
+      if (candidateDate < dateFrom) {
+        return false
+      }
+    }
+    if (dateTo) {
+      const candidateDate = new Date(candidate.created_at).toISOString().split('T')[0]
+      if (candidateDate > dateTo) {
+        return false
+      }
+    }
+
+    return true
+  })
+
+  // 当日連絡リスト（新規・電話出ず・連絡済み）
+  const todayList = filteredCandidates.filter((c) =>
+    ['新規', '電話出ず', '連絡済み'].includes(c.stage)
   )
 
-  const handleCall = (phone: string) => {
-    // 実際はここで連絡記録を保存
-    console.log('Calling:', phone)
+  // ステージ別カウント
+  const stageCounts = {
+    '新規': filteredCandidates.filter((c) => c.stage === '新規').length,
+    '電話出ず': filteredCandidates.filter((c) => c.stage === '電話出ず').length,
+    '連絡済み': filteredCandidates.filter((c) => c.stage === '連絡済み').length,
+    '面談予定': filteredCandidates.filter((c) => c.stage === '面談予定').length,
+    '保留': filteredCandidates.filter((c) => c.stage === '保留').length,
+    '就業時期が先': filteredCandidates.filter((c) => c.stage === '就業時期が先').length,
+  }
+
+  function handleOpenContactModal(candidate: Candidate) {
+    setSelectedCandidate(candidate)
+    setContactResult('')
+    setContactNotes('')
+    setShowContactModal(true)
+  }
+
+  function handleCloseContactModal() {
+    setShowContactModal(false)
+    setSelectedCandidate(null)
+  }
+
+  async function handleSaveContact(e: React.FormEvent) {
+    e.preventDefault()
+    if (!selectedCandidate || !contactResult) return
+
+    setSubmitting(true)
+    const supabase = createClient()
+
+    // 連絡履歴を保存
+    const { error } = await (supabase.from('contact_history') as any).insert({
+      candidate_id: selectedCandidate.id,
+      contacted_at: new Date().toISOString(),
+      result: contactResult,
+      notes: contactNotes || null,
+      staff_id: null, // TODO: ログインユーザーのIDを設定
+    })
+
+    if (error) {
+      console.error('Error saving contact history:', error)
+      alert('連絡履歴の保存に失敗しました')
+      setSubmitting(false)
+      return
+    }
+
+    // ステージを更新（繋がったら連絡済み、繋がらずなら電話出ず）
+    let newStage = selectedCandidate.stage
+    if (contactResult === '繋がった') {
+      newStage = '連絡済み'
+    } else if (contactResult === '繋がらず' || contactResult === '留守電') {
+      newStage = '電話出ず'
+    }
+
+    if (newStage !== selectedCandidate.stage) {
+      await (supabase
+        .from('candidates') as any)
+        .update({ stage: newStage })
+        .eq('id', selectedCandidate.id)
+    }
+
+    setSubmitting(false)
+    handleCloseContactModal()
+    fetchData() // データを再取得
+  }
+
+  function formatDateTime(dateStr: string | null) {
+    if (!dateStr) return null
+    const date = new Date(dateStr)
+    return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  }
+
+  function formatDate(dateStr: string) {
+    const date = new Date(dateStr)
+    return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`
+  }
+
+  const stageOptions = [
+    { value: '', label: 'すべて' },
+    { value: '新規', label: '新規' },
+    { value: '電話出ず', label: '電話出ず' },
+    { value: '連絡済み', label: '連絡済み' },
+    { value: '面談予定', label: '面談予定' },
+    { value: '保留', label: '保留' },
+    { value: '就業時期が先', label: '就業時期が先' },
+  ]
+
+  const contactResultOptions = [
+    { value: '', label: '選択してください' },
+    { value: '繋がった', label: '繋がった' },
+    { value: '繋がらず', label: '繋がらず' },
+    { value: '留守電', label: '留守電' },
+  ]
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <h1 className="text-2xl font-bold text-slate-800 mb-6">アタックリスト</h1>
+        <div className="text-center text-slate-500">読み込み中...</div>
+      </div>
+    )
   }
 
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-bold text-slate-800">アタックリスト</h1>
 
-      {/* 優先度別サマリー */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🔥</span>
-            <div>
-              <p className="text-sm text-slate-500">今日応募</p>
-              <p className="text-xl font-bold text-red-600">
-                {demoAttackList.filter((i) => i.priority === 1).length}件
-              </p>
-            </div>
+      {/* ステージ別サマリー */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <Card className="cursor-pointer hover:bg-slate-50" onClick={() => setStageFilter('新規')}>
+          <div className="text-center">
+            <p className="text-sm text-slate-500">新規</p>
+            <p className="text-2xl font-bold text-blue-600">{stageCounts['新規']}</p>
           </div>
         </Card>
-        <Card>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🟠</span>
-            <div>
-              <p className="text-sm text-slate-500">3日以内</p>
-              <p className="text-xl font-bold text-orange-600">
-                {demoAttackList.filter((i) => i.priority === 2).length}件
-              </p>
-            </div>
+        <Card className="cursor-pointer hover:bg-slate-50" onClick={() => setStageFilter('電話出ず')}>
+          <div className="text-center">
+            <p className="text-sm text-slate-500">電話出ず</p>
+            <p className="text-2xl font-bold text-orange-600">{stageCounts['電話出ず']}</p>
           </div>
         </Card>
-        <Card>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🟡</span>
-            <div>
-              <p className="text-sm text-slate-500">紹介待ち</p>
-              <p className="text-xl font-bold text-yellow-600">
-                {demoAttackList.filter((i) => i.priority === 3).length}件
-              </p>
-            </div>
+        <Card className="cursor-pointer hover:bg-slate-50" onClick={() => setStageFilter('連絡済み')}>
+          <div className="text-center">
+            <p className="text-sm text-slate-500">連絡済み</p>
+            <p className="text-2xl font-bold text-green-600">{stageCounts['連絡済み']}</p>
           </div>
         </Card>
-        <Card>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🔵</span>
-            <div>
-              <p className="text-sm text-slate-500">時期先</p>
-              <p className="text-xl font-bold text-blue-600">
-                {demoAttackList.filter((i) => i.priority === 4).length}件
-              </p>
-            </div>
+        <Card className="cursor-pointer hover:bg-slate-50" onClick={() => setStageFilter('面談予定')}>
+          <div className="text-center">
+            <p className="text-sm text-slate-500">面談予定</p>
+            <p className="text-2xl font-bold text-purple-600">{stageCounts['面談予定']}</p>
+          </div>
+        </Card>
+        <Card className="cursor-pointer hover:bg-slate-50" onClick={() => setStageFilter('保留')}>
+          <div className="text-center">
+            <p className="text-sm text-slate-500">保留</p>
+            <p className="text-2xl font-bold text-slate-600">{stageCounts['保留']}</p>
+          </div>
+        </Card>
+        <Card className="cursor-pointer hover:bg-slate-50" onClick={() => setStageFilter('就業時期が先')}>
+          <div className="text-center">
+            <p className="text-sm text-slate-500">就業時期が先</p>
+            <p className="text-2xl font-bold text-slate-600">{stageCounts['就業時期が先']}</p>
           </div>
         </Card>
       </div>
 
-      {/* 検索 */}
+      {/* フィルター */}
       <Card>
-        <Input
-          placeholder="名前・電話番号で検索"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="max-w-md"
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <Input
+            placeholder="名前・電話番号で検索"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <Select
+            label=""
+            options={stageOptions}
+            value={stageFilter}
+            onChange={(e) => setStageFilter(e.target.value)}
+          />
+          <Select
+            label=""
+            options={[
+              { value: '', label: '担当者：すべて' },
+              ...employees.map((e) => ({ value: e.id, label: e.name })),
+            ]}
+            value={employeeFilter}
+            onChange={(e) => setEmployeeFilter(e.target.value)}
+          />
+          <Input
+            type="date"
+            placeholder="応募日（から）"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+          />
+          <Input
+            type="date"
+            placeholder="応募日（まで）"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+          />
+        </div>
+        {(stageFilter || employeeFilter || dateFrom || dateTo) && (
+          <div className="mt-3">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setStageFilter('')
+                setEmployeeFilter('')
+                setDateFrom('')
+                setDateTo('')
+              }}
+            >
+              フィルターをクリア
+            </Button>
+          </div>
+        )}
       </Card>
+
+      {/* 当日連絡リストヘッダー */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-slate-800">
+          {stageFilter ? `${stageFilter}の求職者` : '当日連絡リスト'}
+          <span className="ml-2 text-sm font-normal text-slate-500">
+            ({stageFilter ? filteredCandidates.length : todayList.length}件)
+          </span>
+        </h2>
+      </div>
 
       {/* テーブル */}
       <Card padding="none">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>優先度</TableHead>
-              <TableHead>名前</TableHead>
+              <TableHead>氏名</TableHead>
               <TableHead>電話番号</TableHead>
-              <TableHead>前回連絡</TableHead>
-              <TableHead>ステータス</TableHead>
+              <TableHead>ステージ</TableHead>
+              <TableHead>担当者</TableHead>
+              <TableHead>応募媒体</TableHead>
+              <TableHead>応募日</TableHead>
+              <TableHead>最終連絡</TableHead>
+              <TableHead>備考</TableHead>
               <TableHead>アクション</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredList.map((item) => (
-              <TableRow key={item.id}>
-                <TableCell>{getPriorityBadge(item.priority_label)}</TableCell>
+            {(stageFilter ? filteredCandidates : todayList).map((candidate) => (
+              <TableRow key={candidate.id}>
                 <TableCell>
                   <Link
-                    href={`/candidates/${item.id}`}
+                    href={`/candidates/${candidate.id}`}
                     className="font-medium text-blue-600 hover:underline"
                   >
-                    {item.name}
+                    {candidate.name}
                   </Link>
                 </TableCell>
-                <TableCell>{item.phone}</TableCell>
                 <TableCell>
-                  {item.last_contact || (
+                  {candidate.phone ? (
+                    <a
+                      href={`tel:${candidate.phone}`}
+                      className="text-blue-600 hover:underline"
+                    >
+                      {candidate.phone}
+                    </a>
+                  ) : (
+                    <span className="text-slate-400">-</span>
+                  )}
+                </TableCell>
+                <TableCell>{getStageBadge(candidate.stage)}</TableCell>
+                <TableCell>{candidate.staff_name || <span className="text-slate-400">-</span>}</TableCell>
+                <TableCell>{candidate.source_name || <span className="text-slate-400">-</span>}</TableCell>
+                <TableCell>{formatDate(candidate.created_at)}</TableCell>
+                <TableCell>
+                  {candidate.last_contact ? (
+                    <div className="space-y-1">
+                      <div className="text-xs text-slate-500">
+                        {formatDateTime(candidate.last_contact)}
+                      </div>
+                      {getContactResultBadge(candidate.last_contact_result)}
+                    </div>
+                  ) : (
                     <span className="text-slate-400">未連絡</span>
                   )}
                 </TableCell>
-                <TableCell>{getStatusBadge(item.status)}</TableCell>
+                <TableCell>
+                  <div className="max-w-32 truncate text-sm text-slate-600" title={candidate.notes || ''}>
+                    {candidate.notes || '-'}
+                  </div>
+                </TableCell>
                 <TableCell>
                   <Button
                     size="sm"
-                    onClick={() => handleCall(item.phone)}
+                    onClick={() => handleOpenContactModal(candidate)}
                   >
-                    架電
+                    連絡
                   </Button>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
-        {filteredList.length === 0 && (
+        {(stageFilter ? filteredCandidates : todayList).length === 0 && (
           <div className="p-8 text-center text-slate-500">
-            該当するデータが見つかりません
+            該当する求職者がいません
           </div>
         )}
       </Card>
+
+      {/* 連絡モーダル */}
+      {showContactModal && selectedCandidate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h2 className="text-lg font-semibold text-slate-800 mb-4">連絡記録</h2>
+            <div className="mb-4 p-3 bg-slate-50 rounded-lg">
+              <p className="text-sm text-slate-600">
+                <span className="font-medium">{selectedCandidate.name}</span>
+                {selectedCandidate.phone && (
+                  <span className="ml-2 text-slate-500">{selectedCandidate.phone}</span>
+                )}
+              </p>
+            </div>
+            <form onSubmit={handleSaveContact} className="space-y-4">
+              <Select
+                label="連絡結果"
+                options={contactResultOptions}
+                value={contactResult}
+                onChange={(e) => setContactResult(e.target.value)}
+                required
+              />
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">備考</label>
+                <textarea
+                  value={contactNotes}
+                  onChange={(e) => setContactNotes(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  placeholder="メモを入力（任意）"
+                />
+              </div>
+              <div className="flex gap-3 justify-end">
+                <Button type="button" variant="secondary" onClick={handleCloseContactModal}>
+                  キャンセル
+                </Button>
+                <Button type="submit" disabled={!contactResult || submitting}>
+                  {submitting ? '保存中...' : '保存'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
