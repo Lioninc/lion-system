@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button, Input, Select, Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
 
@@ -66,6 +67,7 @@ function getContactResultBadge(result: string | null) {
 }
 
 export default function AttackListPage() {
+  const router = useRouter()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
@@ -355,6 +357,17 @@ export default function AttackListPage() {
     if (contactResult === '繋がった') {
       newStage = '連絡済み'
       updateData.stage = newStage
+
+      // ステージ更新後、面談登録画面へ遷移
+      await (supabase
+        .from('candidates') as any)
+        .update(updateData)
+        .eq('id', selectedCandidate.id)
+
+      setSubmitting(false)
+      handleCloseContactModal()
+      router.push(`/interviews/new?candidate_id=${selectedCandidate.id}`)
+      return
     } else if (contactResult === '繋がらず' || contactResult === '留守電') {
       newStage = '電話出ず'
       newContactCount = (selectedCandidate.contact_count || 0) + 1
