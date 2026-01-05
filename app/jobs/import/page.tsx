@@ -70,52 +70,83 @@ const KNOWN_DB_COLUMNS = [
   'job_details', 'probation_period', 'probation_salary', 'location_legacy',
 ]
 
-// 値の変換
+// カラムの型定義
+const BOOLEAN_COLUMNS = [
+  'dormitory_available', 'car_commute_ok', 'transportation_paid',
+  'shuttle_bus', 'foreigner_ok', 'family_dormitory', 'couple_dormitory',
+  'social_insurance'
+]
+
+const INTEGER_COLUMNS = [
+  'referral_fee', 'monthly_salary', 'age_min', 'age_max',
+  'remaining_slots', 'dormitory_cost', 'height_min', 'height_max',
+  'waist_max', 'hourly_rate', 'probation_salary', 'relocation_cost',
+  'signing_bonus', 'salary_min', 'salary_max', 'interview_count', 'headcount'
+]
+
+const DATE_COLUMNS = ['start_date', 'deadline', 'publish_deadline']
+
+const STRING_COLUMNS = [
+  'title', 'description', 'location', 'employment_type', 'requirements',
+  'benefits', 'working_hours', 'holidays', 'site_name', 'job_type',
+  'salary_breakdown', 'nearest_station', 'transportation', 'qualifications',
+  'company_pr', 'gender_requirement', 'bmi_requirement', 'smoking_policy',
+  'job_details', 'probation_period', 'location_legacy', 'status'
+]
+
+// 値の変換（厳密な型変換）
 function convertValue(value: string, columnName: string): any {
-  if (!value || value.trim() === '') return null
+  if (!value || value.trim() === '') return undefined // undefinedを返してフィルタリングで除外
 
   const trimmed = value.trim()
 
   // Boolean変換（●、○、〇 → true, ×、✕、- → false）
-  const booleanColumns = [
-    'dormitory_available', 'car_commute_ok', 'transportation_paid',
-    'shuttle_bus', 'foreigner_ok', 'family_dormitory', 'couple_dormitory'
-  ]
-  if (booleanColumns.includes(columnName)) {
-    if (['●', '○', '〇', 'あり', '可', 'OK', 'ok', '有'].includes(trimmed)) return true
-    if (['×', '✕', '-', 'なし', '不可', 'NG', 'ng', '無'].includes(trimmed)) return false
-    return null
+  if (BOOLEAN_COLUMNS.includes(columnName)) {
+    if (['●', '○', '〇', 'あり', '可', 'OK', 'ok', '有', 'TRUE', 'true', '1'].includes(trimmed)) return true
+    if (['×', '✕', '-', 'なし', '不可', 'NG', 'ng', '無', 'FALSE', 'false', '0'].includes(trimmed)) return false
+    // 認識できない値は除外
+    return undefined
   }
 
-  // 数値変換
-  const numericColumns = [
-    'referral_fee', 'monthly_salary', 'age_min', 'age_max',
-    'remaining_slots', 'dormitory_cost', 'height_min', 'height_max',
-    'waist_max', 'hourly_rate', 'probation_salary'
-  ]
-  if (numericColumns.includes(columnName)) {
+  // 数値変換（整数）
+  if (INTEGER_COLUMNS.includes(columnName)) {
     // 「20万円」→ 200000、「1,500円」→ 1500 などの変換
     let numStr = trimmed
       .replace(/,/g, '')
       .replace(/円/g, '')
       .replace(/万/g, '0000')
       .replace(/千/g, '000')
+      .replace(/[^\d\-]/g, '') // 数字とマイナス以外を除去
+
+    if (numStr === '' || numStr === '-') return undefined
+
     const num = parseInt(numStr, 10)
-    return isNaN(num) ? null : num
+    if (isNaN(num)) return undefined
+    return num
   }
 
   // 日付変換
-  const dateColumns = ['start_date']
-  if (dateColumns.includes(columnName)) {
+  if (DATE_COLUMNS.includes(columnName)) {
     // YYYY/MM/DD or YYYY-MM-DD → YYYY-MM-DD
     const dateMatch = trimmed.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/)
     if (dateMatch) {
       const [, year, month, day] = dateMatch
-      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+      const m = parseInt(month, 10)
+      const d = parseInt(day, 10)
+      // 簡易バリデーション
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+      }
     }
-    return null
+    return undefined
   }
 
+  // 文字列カラム
+  if (STRING_COLUMNS.includes(columnName)) {
+    return trimmed
+  }
+
+  // その他は文字列として返す
   return trimmed
 }
 
@@ -217,14 +248,18 @@ export default function JobsImportPage() {
       })
     }
 
-    // マッピングを適用
+    // マッピングを適用（undefinedは除外）
     const jobs: ParsedJob[] = rows.map(row => {
       const job: ParsedJob = {}
       headers.forEach((header, index) => {
         const dbColumn = effectiveMapping[header]
         if (dbColumn && KNOWN_DB_COLUMNS.includes(dbColumn)) {
           const value = row[index]
-          job[dbColumn] = convertValue(value, dbColumn)
+          const converted = convertValue(value, dbColumn)
+          // undefinedは除外、nullも除外（DBにnullを送らない）
+          if (converted !== undefined && converted !== null) {
+            job[dbColumn] = converted
+          }
         }
       })
       return job
@@ -283,34 +318,57 @@ export default function JobsImportPage() {
 
     let success = 0
     let failed = 0
+    const errors: { index: number; title: string; error: string }[] = []
 
-    for (const job of parsedData.jobs) {
-      // company_idを追加し、titleがなければスキップ
-      const jobData: any = {
-        ...job,
-        company_id: selectedCompanyId,
-        status: '募集中',
-      }
+    for (let i = 0; i < parsedData.jobs.length; i++) {
+      const job = parsedData.jobs[i]
 
       // titleがない場合はsite_nameをtitleとして使用
-      if (!jobData.title && jobData.site_name) {
-        jobData.title = jobData.site_name
+      let title = job.title
+      if (!title && job.site_name) {
+        title = job.site_name
       }
 
       // titleが必須なのでなければスキップ
-      if (!jobData.title) {
+      if (!title) {
         failed++
+        errors.push({ index: i + 1, title: '(タイトルなし)', error: 'タイトルが必須です' })
         continue
       }
+
+      // クリーンなデータを構築（undefined/nullを除外し、既知のカラムのみ）
+      const jobData: Record<string, any> = {
+        company_id: selectedCompanyId,
+        status: '募集中',
+        title: title,
+      }
+
+      // job からデータをコピー（title以外）
+      Object.entries(job).forEach(([key, value]) => {
+        if (key !== 'title' && value !== undefined && value !== null && KNOWN_DB_COLUMNS.includes(key)) {
+          jobData[key] = value
+        }
+      })
+
+      console.log(`[Import ${i + 1}] Inserting job:`, JSON.stringify(jobData, null, 2))
 
       const { error } = await (supabase.from('jobs') as any).insert(jobData)
 
       if (error) {
-        console.error('Error inserting job:', error)
+        console.error(`[Import ${i + 1}] Error:`, error.message, error.details, error.hint)
+        errors.push({ index: i + 1, title: title, error: error.message })
         failed++
       } else {
         success++
       }
+    }
+
+    // エラーがあればコンソールにまとめて出力
+    if (errors.length > 0) {
+      console.error('=== Import Errors Summary ===')
+      errors.forEach(e => {
+        console.error(`  Row ${e.index} (${e.title}): ${e.error}`)
+      })
     }
 
     setImportResult({ success, failed })
