@@ -56,9 +56,9 @@ export default function NewCompanyPage() {
     industry: '',
     address: '',
     phone: '',
-    email: '',
+    contact_email: '',
     contact_person: '',
-    employee_id: '',
+    staff_id: '',
     status: '新規',
     notes: '',
   })
@@ -124,9 +124,9 @@ export default function NewCompanyPage() {
       industry: formData.industry || null,
       address: formData.address || null,
       phone: formData.phone || null,
-      email: formData.email || null,
+      contact_email: formData.contact_email || null,
       contact_person: formData.contact_person || null,
-      employee_id: formData.employee_id || null,
+      staff_id: formData.staff_id || null,
       status: formData.status || '新規',
       notes: formData.notes || null,
       csv_mapping: Object.keys(filteredMapping).length > 0 ? filteredMapping : null,
@@ -215,9 +215,9 @@ export default function NewCompanyPage() {
                 />
                 <Input
                   label="メールアドレス"
-                  name="email"
+                  name="contact_email"
                   type="email"
-                  value={formData.email}
+                  value={formData.contact_email}
                   onChange={handleChange}
                 />
               </div>
@@ -234,12 +234,12 @@ export default function NewCompanyPage() {
                 />
                 <Select
                   label="弊社担当"
-                  name="employee_id"
+                  name="staff_id"
                   options={[
                     { value: '', label: '選択してください' },
                     ...employees.map((e) => ({ value: e.id, label: e.name })),
                   ]}
-                  value={formData.employee_id}
+                  value={formData.staff_id}
                   onChange={handleChange}
                 />
                 <Select
