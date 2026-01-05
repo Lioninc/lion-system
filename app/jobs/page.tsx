@@ -13,7 +13,8 @@ interface Job {
   location: string | null
   site_name: string | null
   monthly_salary: number | null
-  hourly_rate: number | null
+  salary_min: number | null
+  salary_max: number | null
   status: string | null
 }
 
@@ -51,7 +52,8 @@ export default function JobsPage() {
         location,
         site_name,
         monthly_salary,
-        hourly_rate,
+        salary_min,
+        salary_max,
         status,
         companies:company_id (
           name
@@ -74,7 +76,8 @@ export default function JobsPage() {
       location: j.location,
       site_name: j.site_name,
       monthly_salary: j.monthly_salary,
-      hourly_rate: j.hourly_rate,
+      salary_min: j.salary_min,
+      salary_max: j.salary_max,
       status: j.status,
     }))
 
@@ -149,8 +152,16 @@ export default function JobsPage() {
                     <TableCell>
                       {job.monthly_salary ? (
                         <span>月収 ¥{job.monthly_salary.toLocaleString()}</span>
-                      ) : job.hourly_rate ? (
-                        <span>時給 ¥{job.hourly_rate.toLocaleString()}</span>
+                      ) : job.salary_min || job.salary_max ? (
+                        <span>
+                          {job.salary_min && job.salary_max ? (
+                            `¥${job.salary_min.toLocaleString()}〜¥${job.salary_max.toLocaleString()}`
+                          ) : job.salary_min ? (
+                            `¥${job.salary_min.toLocaleString()}〜`
+                          ) : (
+                            `〜¥${job.salary_max!.toLocaleString()}`
+                          )}
+                        </span>
                       ) : (
                         '-'
                       )}
