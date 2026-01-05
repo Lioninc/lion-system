@@ -503,9 +503,13 @@ export default function CandidateDetailPage() {
       return
     }
 
-    // ステージを「新規」に更新（アタックリストに出るように）
+    // ステージを「新規」に更新（アタックリストに出るように）、応募日も更新
     await (supabase.from('candidates') as any)
-      .update({ stage: '新規', contact_count: 0 })
+      .update({
+        stage: '新規',
+        contact_count: 0,
+        application_date: applicationFormData.application_date
+      })
       .eq('id', candidateId)
 
     handleCloseApplicationModal()
