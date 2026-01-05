@@ -80,6 +80,11 @@ interface Company {
   name: string
 }
 
+interface Source {
+  id: string
+  name: string
+}
+
 const interviewTypeOptions = [
   { value: '', label: '選択してください' },
   { value: '対面', label: '対面' },
@@ -92,6 +97,12 @@ const resultOptions = [
   { value: '未実施', label: '未実施' },
   { value: '繋ぎ', label: '繋ぎ' },
   { value: '繋げず', label: '繋げず' },
+]
+
+const applicationStatusOptions = [
+  { value: '', label: '選択してください' },
+  { value: '有効応募', label: '有効応募' },
+  { value: '無効応募', label: '無効応募' },
 ]
 
 const tabs = [
@@ -194,6 +205,7 @@ export default function CandidateDetailPage() {
   const [introductions, setIntroductions] = useState<Introduction[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
+  const [sources, setSources] = useState<Source[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('summary')
   const [showInterviewModal, setShowInterviewModal] = useState(false)
@@ -206,12 +218,22 @@ export default function CandidateDetailPage() {
     referred_company_id: '',
     notes: '',
   })
+  // 再応募モーダル
+  const [showApplicationModal, setShowApplicationModal] = useState(false)
+  const [applicationFormData, setApplicationFormData] = useState({
+    application_date: new Date().toISOString().split('T')[0],
+    source: '',
+    job_article: '',
+    status: '有効応募',
+    notes: '',
+  })
 
   useEffect(() => {
     if (candidateId) {
       fetchCandidateData()
       fetchEmployees()
       fetchCompanies()
+      fetchSources()
     }
   }, [candidateId])
 
@@ -244,6 +266,22 @@ export default function CandidateDetailPage() {
     }
 
     setCompanies(data || [])
+  }
+
+  async function fetchSources() {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('sources')
+      .select('id, name')
+      .eq('is_active', true)
+      .order('name')
+
+    if (error) {
+      console.error('Error fetching sources:', error)
+      return
+    }
+
+    setSources(data || [])
   }
 
   async function fetchCandidateData() {
@@ -412,6 +450,82 @@ export default function CandidateDetailPage() {
     })))
   }
 
+  // 再応募モーダル
+  function handleOpenApplicationModal() {
+    setApplicationFormData({
+      application_date: new Date().toISOString().split('T')[0],
+      source: '',
+      job_article: '',
+      status: '有効応募',
+      notes: '',
+    })
+    setShowApplicationModal(true)
+  }
+
+  function handleCloseApplicationModal() {
+    setShowApplicationModal(false)
+  }
+
+  async function handleApplicationSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const supabase = createClient()
+
+    // 既存の応募から最大のapplication_numberを取得
+    const { data: existingApps } = await supabase
+      .from('applications')
+      .select('application_number')
+      .eq('candidate_id', candidateId)
+      .order('application_number', { ascending: false })
+      .limit(1)
+
+    const apps = existingApps as { application_number: number }[] | null
+    const maxNumber = (apps && apps.length > 0 && apps[0].application_number)
+      ? apps[0].application_number
+      : 0
+    const newNumber = maxNumber + 1
+
+    // 新しい応募を登録
+    const payload = {
+      candidate_id: candidateId,
+      application_number: newNumber,
+      application_date: applicationFormData.application_date,
+      source: applicationFormData.source,
+      job_article: applicationFormData.job_article || null,
+      status: applicationFormData.status || '有効応募',
+      notes: applicationFormData.notes || null,
+    }
+
+    const { error } = await (supabase.from('applications') as any).insert(payload)
+
+    if (error) {
+      console.error('Error creating application:', error)
+      alert('登録に失敗しました')
+      return
+    }
+
+    // ステージを「新規」に更新（アタックリストに出るように）
+    await (supabase.from('candidates') as any)
+      .update({ stage: '新規', contact_count: 0 })
+      .eq('id', candidateId)
+
+    handleCloseApplicationModal()
+
+    // 応募履歴を再取得
+    const { data: applicationsData } = await supabase
+      .from('applications')
+      .select('*')
+      .eq('candidate_id', candidateId)
+      .order('application_date', { ascending: false })
+
+    setApplications(applicationsData || [])
+
+    // 求職者情報も再取得（stageが変わっているため）
+    fetchCandidateData()
+
+    // 応募履歴タブに切り替え
+    setActiveTab('applications')
+  }
+
   if (loading) {
     return (
       <div className="p-6">
@@ -448,9 +562,12 @@ export default function CandidateDetailPage() {
           <h1 className="text-2xl font-bold text-slate-800">{candidate.name}</h1>
           {getStageBadge(candidate.stage)}
         </div>
-        <Link href={`/candidates/${candidateId}/edit`}>
-          <Button>編集</Button>
-        </Link>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={handleOpenApplicationModal}>再応募登録</Button>
+          <Link href={`/candidates/${candidateId}/edit`}>
+            <Button>編集</Button>
+          </Link>
+        </div>
       </div>
 
       {/* タブナビゲーション */}
@@ -808,6 +925,66 @@ export default function CandidateDetailPage() {
               </div>
               <div className="flex gap-2 justify-end pt-4">
                 <Button type="button" variant="secondary" onClick={handleCloseInterviewModal}>
+                  キャンセル
+                </Button>
+                <Button type="submit">登録</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 再応募登録モーダル */}
+      {showApplicationModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-bold text-slate-800 mb-4">再応募登録</h2>
+            <form onSubmit={handleApplicationSubmit} className="space-y-4">
+              <div className="p-3 bg-slate-100 rounded">
+                <span className="text-sm text-slate-500">求職者：</span>
+                <span className="text-sm font-medium text-slate-800 ml-2">{candidate.name}</span>
+              </div>
+              <Input
+                label="応募日"
+                type="date"
+                value={applicationFormData.application_date}
+                onChange={(e) => setApplicationFormData({ ...applicationFormData, application_date: e.target.value })}
+                required
+              />
+              <Select
+                label="応募媒体"
+                options={[
+                  { value: '', label: '選択してください' },
+                  ...sources.map((s) => ({ value: s.name, label: s.name })),
+                ]}
+                value={applicationFormData.source}
+                onChange={(e) => setApplicationFormData({ ...applicationFormData, source: e.target.value })}
+                required
+              />
+              <Input
+                label="職種"
+                value={applicationFormData.job_article}
+                onChange={(e) => setApplicationFormData({ ...applicationFormData, job_article: e.target.value })}
+                placeholder="例: 製造スタッフ"
+              />
+              <Select
+                label="ステータス"
+                options={applicationStatusOptions}
+                value={applicationFormData.status}
+                onChange={(e) => setApplicationFormData({ ...applicationFormData, status: e.target.value })}
+              />
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">備考</label>
+                <textarea
+                  value={applicationFormData.notes}
+                  onChange={(e) => setApplicationFormData({ ...applicationFormData, notes: e.target.value })}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="備考があれば入力"
+                />
+              </div>
+              <div className="flex gap-2 justify-end pt-4">
+                <Button type="button" variant="secondary" onClick={handleCloseApplicationModal}>
                   キャンセル
                 </Button>
                 <Button type="submit">登録</Button>
