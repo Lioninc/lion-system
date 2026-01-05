@@ -120,6 +120,7 @@ export default function AttackListPage() {
         contact_count,
         available_date,
         application_date,
+        last_contact_date,
         employees:staff_id (
           name
         )
@@ -176,8 +177,22 @@ export default function AttackListPage() {
     })
 
     const formattedData: Candidate[] = (candidatesData || []).map((c: any) => {
-      const latestContact = latestContactMap.get(c.id)
       const latestSource = latestSourceMap.get(c.id)
+
+      // last_contact_date を優先：NULLなら「未連絡」扱い
+      // last_contact_date に値がある場合のみ、contact_history から結果を取得
+      let lastContact: string | null = null
+      let lastContactResult: string | null = null
+
+      if (c.last_contact_date) {
+        lastContact = c.last_contact_date
+        // contact_history から該当日時付近の連絡結果を取得
+        const contactHistory = latestContactMap.get(c.id)
+        if (contactHistory) {
+          lastContactResult = contactHistory.result
+        }
+      }
+
       return {
         id: c.id,
         name: c.name,
@@ -189,8 +204,8 @@ export default function AttackListPage() {
         created_at: c.created_at,
         application_date: c.application_date || null,
         source_name: latestSource || null,
-        last_contact: latestContact?.contacted_at || null,
-        last_contact_result: latestContact?.result || null,
+        last_contact: lastContact,
+        last_contact_result: lastContactResult,
         contact_count: c.contact_count || 0,
         available_date: c.available_date,
       }
