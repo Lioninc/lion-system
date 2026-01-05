@@ -119,6 +119,7 @@ export default function AttackListPage() {
         created_at,
         contact_count,
         available_date,
+        application_date,
         employees:staff_id (
           name
         )
@@ -141,12 +142,12 @@ export default function AttackListPage() {
       return
     }
 
-    // 応募情報を取得（応募日と媒体）
+    // 応募情報を取得（最新の応募媒体のみ）
     const { data: applicationsData } = await supabase
       .from('applications')
       .select('candidate_id, source, application_date')
       .in('candidate_id', candidateIds)
-      .order('application_date', { ascending: true })
+      .order('application_date', { ascending: false })
 
     // 連絡履歴を取得（最新のもの）
     const { data: contactHistoryData } = await supabase
@@ -166,20 +167,17 @@ export default function AttackListPage() {
       }
     })
 
-    // 求職者ごとの応募媒体と応募日をマップ
-    const applicationMap = new Map<string, { source: string; application_date: string | null }>()
+    // 求職者ごとの最新応募媒体をマップ（application_date降順でソート済みなので最初のものが最新）
+    const latestSourceMap = new Map<string, string>()
     ;(applicationsData || []).forEach((app: any) => {
-      if (!applicationMap.has(app.candidate_id)) {
-        applicationMap.set(app.candidate_id, {
-          source: app.source,
-          application_date: app.application_date,
-        })
+      if (!latestSourceMap.has(app.candidate_id)) {
+        latestSourceMap.set(app.candidate_id, app.source)
       }
     })
 
     const formattedData: Candidate[] = (candidatesData || []).map((c: any) => {
       const latestContact = latestContactMap.get(c.id)
-      const application = applicationMap.get(c.id)
+      const latestSource = latestSourceMap.get(c.id)
       return {
         id: c.id,
         name: c.name,
@@ -189,8 +187,8 @@ export default function AttackListPage() {
         staff_name: c.employees?.name || null,
         notes: c.notes,
         created_at: c.created_at,
-        application_date: application?.application_date || null,
-        source_name: application?.source || null,
+        application_date: c.application_date || null,
+        source_name: latestSource || null,
         last_contact: latestContact?.contacted_at || null,
         last_contact_result: latestContact?.result || null,
         contact_count: c.contact_count || 0,
