@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 
 interface Introduction {
   id: string
-  introduced_date: string
+  introduction_date: string | null
   candidate_id: string
   candidate_name: string | null
   company_id: string
@@ -15,9 +15,9 @@ interface Introduction {
   job_id: string | null
   job_title: string | null
   status: string
-  employee_id: string | null
-  employee_name: string | null
-  fee_amount: number | null
+  staff_id: string | null
+  staff_name: string | null
+  salary_offered: number | null
 }
 
 function getStatusBadge(status: string | null) {
@@ -63,13 +63,13 @@ export default function IntroductionsPage() {
       .from('introductions')
       .select(`
         id,
-        introduced_date,
+        introduction_date,
         candidate_id,
         company_id,
         job_id,
         status,
-        employee_id,
-        fee_amount,
+        staff_id,
+        salary_offered,
         candidates:candidate_id (
           name
         ),
@@ -79,11 +79,11 @@ export default function IntroductionsPage() {
         jobs:job_id (
           title
         ),
-        employees:employee_id (
+        employees:staff_id (
           name
         )
       `)
-      .order('introduced_date', { ascending: false })
+      .order('introduction_date', { ascending: false })
 
     if (error) {
       console.error('Error fetching introductions:', error)
@@ -93,7 +93,7 @@ export default function IntroductionsPage() {
 
     const formattedData: Introduction[] = (data || []).map((d: any) => ({
       id: d.id,
-      introduced_date: d.introduced_date,
+      introduction_date: d.introduction_date,
       candidate_id: d.candidate_id,
       candidate_name: d.candidates?.name || null,
       company_id: d.company_id,
@@ -101,9 +101,9 @@ export default function IntroductionsPage() {
       job_id: d.job_id,
       job_title: d.jobs?.title || null,
       status: d.status,
-      employee_id: d.employee_id,
-      employee_name: d.employees?.name || null,
-      fee_amount: d.fee_amount,
+      staff_id: d.staff_id,
+      staff_name: d.employees?.name || null,
+      salary_offered: d.salary_offered,
     }))
 
     setIntroductions(formattedData)
@@ -156,7 +156,7 @@ export default function IntroductionsPage() {
               <TableBody>
                 {filteredIntroductions.map((intro) => (
                   <TableRow key={intro.id}>
-                    <TableCell>{intro.introduced_date || '-'}</TableCell>
+                    <TableCell>{intro.introduction_date || '-'}</TableCell>
                     <TableCell>
                       {intro.candidate_id ? (
                         <Link
@@ -194,11 +194,11 @@ export default function IntroductionsPage() {
                       )}
                     </TableCell>
                     <TableCell>{getStatusBadge(intro.status)}</TableCell>
-                    <TableCell>{intro.employee_name || '-'}</TableCell>
+                    <TableCell>{intro.staff_name || '-'}</TableCell>
                     <TableCell>
-                      {intro.fee_amount !== null && intro.fee_amount > 0 ? (
+                      {intro.salary_offered !== null && intro.salary_offered > 0 ? (
                         <span className="font-medium text-emerald-600">
-                          ¥{formatNumber(intro.fee_amount)}
+                          ¥{formatNumber(intro.salary_offered)}
                         </span>
                       ) : (
                         <span className="text-slate-400">-</span>
