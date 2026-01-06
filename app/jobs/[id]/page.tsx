@@ -78,6 +78,31 @@ function formatBoolean(value: boolean | null): string {
   return '-'
 }
 
+// 数値を安全にフォーマット
+function formatNumber(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '-'
+  return value.toLocaleString()
+}
+
+// 給与表示用のヘルパー
+function formatSalary(monthly: number | null, min: number | null, max: number | null): string {
+  if (monthly !== null && monthly !== undefined) {
+    return `月収 ¥${monthly.toLocaleString()}`
+  }
+  if (min !== null || max !== null) {
+    if (min !== null && max !== null) {
+      return `¥${min.toLocaleString()}〜¥${max.toLocaleString()}`
+    }
+    if (min !== null) {
+      return `¥${min.toLocaleString()}〜`
+    }
+    if (max !== null) {
+      return `〜¥${max.toLocaleString()}`
+    }
+  }
+  return '-'
+}
+
 export default function JobDetailPage() {
   const params = useParams()
   const jobId = params.id as string
@@ -174,7 +199,12 @@ export default function JobDetailPage() {
   if (!job) {
     return (
       <div className="p-6">
-        <div className="text-center text-slate-500">案件が見つかりません</div>
+        <div className="text-center py-12">
+          <p className="text-slate-500 mb-4">案件が見つかりません</p>
+          <Link href="/jobs">
+            <Button variant="secondary">一覧に戻る</Button>
+          </Link>
+        </div>
       </div>
     )
   }
@@ -264,17 +294,7 @@ export default function JobDetailPage() {
             <div className="p-3 bg-slate-50 rounded">
               <dt className="text-xs text-slate-500">給与</dt>
               <dd className="text-sm text-slate-800 mt-1">
-                {job.monthly_salary ? (
-                  `月収 ¥${job.monthly_salary.toLocaleString()}`
-                ) : job.salary_min || job.salary_max ? (
-                  job.salary_min && job.salary_max ? (
-                    `¥${job.salary_min.toLocaleString()}〜¥${job.salary_max.toLocaleString()}`
-                  ) : job.salary_min ? (
-                    `¥${job.salary_min.toLocaleString()}〜`
-                  ) : (
-                    `〜¥${job.salary_max!.toLocaleString()}`
-                  )
-                ) : '-'}
+                {formatSalary(job.monthly_salary, job.salary_min, job.salary_max)}
               </dd>
             </div>
             {job.salary_breakdown && (
@@ -293,10 +313,10 @@ export default function JobDetailPage() {
                 <dd className="text-sm text-slate-800 mt-1">{job.job_type}</dd>
               </div>
             )}
-            {job.referral_fee && (
+            {job.referral_fee !== null && job.referral_fee !== undefined && (
               <div className="p-3 bg-slate-50 rounded">
                 <dt className="text-xs text-slate-500">紹介料</dt>
-                <dd className="text-sm text-slate-800 mt-1">¥{job.referral_fee.toLocaleString()}</dd>
+                <dd className="text-sm text-slate-800 mt-1">¥{formatNumber(job.referral_fee)}</dd>
               </div>
             )}
             {job.remaining_slots !== null && (
@@ -364,10 +384,10 @@ export default function JobDetailPage() {
                 <dd className="text-sm text-slate-800 mt-1">{job.probation_period}</dd>
               </div>
             )}
-            {job.probation_salary !== null && (
+            {job.probation_salary !== null && job.probation_salary !== undefined && (
               <div className="p-3 bg-slate-50 rounded">
                 <dt className="text-xs text-slate-500">見習い給与</dt>
-                <dd className="text-sm text-slate-800 mt-1">¥{job.probation_salary.toLocaleString()}</dd>
+                <dd className="text-sm text-slate-800 mt-1">¥{formatNumber(job.probation_salary)}</dd>
               </div>
             )}
           </dl>
@@ -389,10 +409,10 @@ export default function JobDetailPage() {
               <dt className="text-xs text-slate-500">寮</dt>
               <dd className="text-sm text-slate-800 mt-1">{formatBoolean(job.dormitory_available)}</dd>
             </div>
-            {job.dormitory_cost !== null && (
+            {job.dormitory_cost !== null && job.dormitory_cost !== undefined && (
               <div className="p-3 bg-slate-50 rounded">
                 <dt className="text-xs text-slate-500">寮費</dt>
-                <dd className="text-sm text-slate-800 mt-1">¥{job.dormitory_cost.toLocaleString()}/月</dd>
+                <dd className="text-sm text-slate-800 mt-1">¥{formatNumber(job.dormitory_cost)}/月</dd>
               </div>
             )}
             <div className="p-3 bg-slate-50 rounded">
