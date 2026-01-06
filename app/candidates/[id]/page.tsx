@@ -255,6 +255,11 @@ export default function CandidateDetailPage() {
     notes: '',
   })
   const [filteredJobs, setFilteredJobs] = useState<Job[]>([])
+  // 案件オートコンプリート用
+  const [jobSearchQuery, setJobSearchQuery] = useState('')
+  const [jobSuggestions, setJobSuggestions] = useState<Job[]>([])
+  const [selectedJobName, setSelectedJobName] = useState('')
+  const [showJobSuggestions, setShowJobSuggestions] = useState(false)
 
   useEffect(() => {
     if (candidateId) {
@@ -506,6 +511,10 @@ export default function CandidateDetailPage() {
       notes: '',
     })
     setFilteredJobs([])
+    setJobSearchQuery('')
+    setSelectedJobName('')
+    setJobSuggestions([])
+    setShowJobSuggestions(false)
     setShowIntroductionModal(true)
   }
 
@@ -518,6 +527,51 @@ export default function CandidateDetailPage() {
     // 選択した企業の案件でフィルタリング
     const filtered = jobs.filter(j => j.company_id === companyId)
     setFilteredJobs(filtered)
+    // 案件選択をリセット
+    setJobSearchQuery('')
+    setSelectedJobName('')
+    setJobSuggestions([])
+    setShowJobSuggestions(false)
+  }
+
+  // 案件オートコンプリート
+  function handleJobSearchChange(query: string) {
+    setJobSearchQuery(query)
+    setSelectedJobName('')
+    setIntroductionFormData({ ...introductionFormData, job_id: '' })
+
+    if (query.trim() === '') {
+      setJobSuggestions([])
+      setShowJobSuggestions(false)
+      return
+    }
+
+    // 企業が選択されている場合はその企業の案件のみ、そうでなければ全案件から検索
+    const searchBase = introductionFormData.company_id
+      ? filteredJobs
+      : jobs
+
+    const suggestions = searchBase
+      .filter(j => j.title.toLowerCase().includes(query.toLowerCase()))
+      .slice(0, 10)
+
+    setJobSuggestions(suggestions)
+    setShowJobSuggestions(suggestions.length > 0)
+  }
+
+  function handleJobSelect(job: Job) {
+    setIntroductionFormData({ ...introductionFormData, job_id: job.id })
+    setSelectedJobName(job.title)
+    setJobSearchQuery(job.title)
+    setJobSuggestions([])
+    setShowJobSuggestions(false)
+  }
+
+  function handleJobInputBlur() {
+    // 少し遅延させて候補クリックを処理できるようにする
+    setTimeout(() => {
+      setShowJobSuggestions(false)
+    }, 200)
   }
 
   async function handleIntroductionSubmit(e: React.FormEvent) {
@@ -1142,15 +1196,50 @@ export default function CandidateDetailPage() {
                 onChange={(e) => handleIntroductionCompanyChange(e.target.value)}
                 required
               />
-              <Select
-                label="案件"
-                options={[
-                  { value: '', label: '選択してください' },
-                  ...filteredJobs.map((j) => ({ value: j.id, label: j.title })),
-                ]}
-                value={introductionFormData.job_id}
-                onChange={(e) => setIntroductionFormData({ ...introductionFormData, job_id: e.target.value })}
-              />
+              {/* 案件オートコンプリート */}
+              <div className="relative">
+                <label className="block text-sm font-medium text-slate-700 mb-1">案件</label>
+                <input
+                  type="text"
+                  value={selectedJobName || jobSearchQuery}
+                  onChange={(e) => handleJobSearchChange(e.target.value)}
+                  onFocus={() => {
+                    if (jobSearchQuery.trim() && jobSuggestions.length > 0) {
+                      setShowJobSuggestions(true)
+                    }
+                  }}
+                  onBlur={handleJobInputBlur}
+                  placeholder={introductionFormData.company_id ? "案件名を入力して検索" : "先に企業を選択するか、案件名を入力"}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                {selectedJobName && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedJobName('')
+                      setJobSearchQuery('')
+                      setIntroductionFormData({ ...introductionFormData, job_id: '' })
+                    }}
+                    className="absolute right-2 top-8 text-slate-400 hover:text-slate-600"
+                  >
+                    ×
+                  </button>
+                )}
+                {showJobSuggestions && jobSuggestions.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {jobSuggestions.map((job) => (
+                      <button
+                        key={job.id}
+                        type="button"
+                        onClick={() => handleJobSelect(job)}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 border-b border-slate-100 last:border-b-0"
+                      >
+                        {job.title}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <Input
                 label="紹介日"
                 type="date"
