@@ -581,8 +581,9 @@ export default function CandidateDetailPage() {
           {tabs.map((tab) => (
             <button
               key={tab.id}
+              type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`py-3 px-1 border-b-2 text-sm font-medium transition-colors ${
+              className={`py-3 px-1 border-b-2 text-sm font-medium transition-colors cursor-pointer ${
                 activeTab === tab.id
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-slate-500 hover:text-slate-700'
