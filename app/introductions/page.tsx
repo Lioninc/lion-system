@@ -1,79 +1,119 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button, Input, Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui'
+import { createClient } from '@/lib/supabase/client'
 
-// デモデータ
-const demoIntroductions = [
-  {
-    id: '1',
-    date: '2024/12/23',
-    candidate_name: '田中太郎',
-    candidate_id: '1',
-    company_name: '株式会社ABC',
-    job_title: '製造スタッフ',
-    status: '面接予定',
-    employee_name: '山田花子',
-    fee_amount: 300000,
-  },
-  {
-    id: '2',
-    date: '2024/12/20',
-    candidate_name: '高橋三郎',
-    candidate_id: '3',
-    company_name: '株式会社XYZ',
-    job_title: '倉庫作業員',
-    status: '採用',
-    employee_name: '山田花子',
-    fee_amount: 350000,
-  },
-  {
-    id: '3',
-    date: '2024/12/18',
-    candidate_name: '渡辺五郎',
-    candidate_id: '5',
-    company_name: '株式会社GHI',
-    job_title: '事務スタッフ',
-    status: '面接済',
-    employee_name: '鈴木一郎',
-    fee_amount: 280000,
-  },
-  {
-    id: '4',
-    date: '2024/12/15',
-    candidate_name: '佐藤次郎',
-    candidate_id: '2',
-    company_name: '株式会社DEF',
-    job_title: '検品スタッフ',
-    status: '不採用',
-    employee_name: '佐藤美咲',
-    fee_amount: 0,
-  },
-]
+interface Introduction {
+  id: string
+  introduced_date: string
+  candidate_id: string
+  candidate_name: string | null
+  company_id: string
+  company_name: string | null
+  job_id: string | null
+  job_title: string | null
+  status: string
+  employee_id: string | null
+  employee_name: string | null
+  fee_amount: number | null
+}
 
-function getStatusBadge(status: string) {
+function getStatusBadge(status: string | null) {
   switch (status) {
     case '採用':
+    case '採用決定':
       return <Badge variant="success">{status}</Badge>
     case '面接予定':
       return <Badge variant="info">{status}</Badge>
     case '面接済':
+    case '面接済み':
       return <Badge variant="purple">{status}</Badge>
     case '不採用':
+    case '辞退':
       return <Badge variant="danger">{status}</Badge>
+    case '紹介済み':
+      return <Badge variant="warning">{status}</Badge>
     default:
-      return <Badge>{status}</Badge>
+      return <Badge>{status || '-'}</Badge>
   }
 }
 
+// 数値を安全にフォーマット
+function formatNumber(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '-'
+  return value.toLocaleString()
+}
+
 export default function IntroductionsPage() {
+  const [introductions, setIntroductions] = useState<Introduction[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
 
-  const filteredIntroductions = demoIntroductions.filter((intro) =>
-    intro.candidate_name.includes(searchQuery) ||
-    intro.company_name.includes(searchQuery) ||
-    intro.job_title.includes(searchQuery)
+  useEffect(() => {
+    fetchIntroductions()
+  }, [])
+
+  async function fetchIntroductions() {
+    setLoading(true)
+    const supabase = createClient()
+
+    const { data, error } = await supabase
+      .from('introductions')
+      .select(`
+        id,
+        introduced_date,
+        candidate_id,
+        company_id,
+        job_id,
+        status,
+        employee_id,
+        fee_amount,
+        candidates:candidate_id (
+          name
+        ),
+        companies:company_id (
+          name
+        ),
+        jobs:job_id (
+          title
+        ),
+        employees:employee_id (
+          name
+        )
+      `)
+      .order('introduced_date', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching introductions:', error)
+      setLoading(false)
+      return
+    }
+
+    const formattedData: Introduction[] = (data || []).map((d: any) => ({
+      id: d.id,
+      introduced_date: d.introduced_date,
+      candidate_id: d.candidate_id,
+      candidate_name: d.candidates?.name || null,
+      company_id: d.company_id,
+      company_name: d.companies?.name || null,
+      job_id: d.job_id,
+      job_title: d.jobs?.title || null,
+      status: d.status,
+      employee_id: d.employee_id,
+      employee_name: d.employees?.name || null,
+      fee_amount: d.fee_amount,
+    }))
+
+    setIntroductions(formattedData)
+    setLoading(false)
+  }
+
+  const filteredIntroductions = introductions.filter((intro) =>
+    (intro.candidate_name || '').includes(searchQuery) ||
+    (intro.company_name || '').includes(searchQuery) ||
+    (intro.job_title || '').includes(searchQuery)
   )
 
   return (
@@ -95,51 +135,85 @@ export default function IntroductionsPage() {
 
       {/* テーブル */}
       <Card padding="none">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>日付</TableHead>
-              <TableHead>求職者</TableHead>
-              <TableHead>企業</TableHead>
-              <TableHead>案件</TableHead>
-              <TableHead>ステータス</TableHead>
-              <TableHead>担当</TableHead>
-              <TableHead>売上</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredIntroductions.map((intro) => (
-              <TableRow key={intro.id}>
-                <TableCell>{intro.date}</TableCell>
-                <TableCell>
-                  <Link
-                    href={`/candidates/${intro.candidate_id}`}
-                    className="font-medium text-blue-600 hover:underline"
-                  >
-                    {intro.candidate_name}
-                  </Link>
-                </TableCell>
-                <TableCell>{intro.company_name}</TableCell>
-                <TableCell>{intro.job_title}</TableCell>
-                <TableCell>{getStatusBadge(intro.status)}</TableCell>
-                <TableCell>{intro.employee_name}</TableCell>
-                <TableCell>
-                  {intro.fee_amount > 0 ? (
-                    <span className="font-medium text-emerald-600">
-                      ¥{intro.fee_amount.toLocaleString()}
-                    </span>
-                  ) : (
-                    <span className="text-slate-400">-</span>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        {filteredIntroductions.length === 0 && (
+        {loading ? (
           <div className="p-8 text-center text-slate-500">
-            該当する紹介が見つかりません
+            読み込み中...
           </div>
+        ) : (
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>日付</TableHead>
+                  <TableHead>求職者</TableHead>
+                  <TableHead>企業</TableHead>
+                  <TableHead>案件</TableHead>
+                  <TableHead>ステータス</TableHead>
+                  <TableHead>担当</TableHead>
+                  <TableHead>売上</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredIntroductions.map((intro) => (
+                  <TableRow key={intro.id}>
+                    <TableCell>{intro.introduced_date || '-'}</TableCell>
+                    <TableCell>
+                      {intro.candidate_id ? (
+                        <Link
+                          href={`/candidates/${intro.candidate_id}`}
+                          className="font-medium text-blue-600 hover:underline"
+                        >
+                          {intro.candidate_name || '-'}
+                        </Link>
+                      ) : (
+                        '-'
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {intro.company_id ? (
+                        <Link
+                          href={`/companies/${intro.company_id}`}
+                          className="text-blue-600 hover:underline"
+                        >
+                          {intro.company_name || '-'}
+                        </Link>
+                      ) : (
+                        '-'
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {intro.job_id ? (
+                        <Link
+                          href={`/jobs/${intro.job_id}`}
+                          className="text-blue-600 hover:underline"
+                        >
+                          {intro.job_title || '-'}
+                        </Link>
+                      ) : (
+                        intro.job_title || '-'
+                      )}
+                    </TableCell>
+                    <TableCell>{getStatusBadge(intro.status)}</TableCell>
+                    <TableCell>{intro.employee_name || '-'}</TableCell>
+                    <TableCell>
+                      {intro.fee_amount !== null && intro.fee_amount > 0 ? (
+                        <span className="font-medium text-emerald-600">
+                          ¥{formatNumber(intro.fee_amount)}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {filteredIntroductions.length === 0 && (
+              <div className="p-8 text-center text-slate-500">
+                {introductions.length === 0 ? '紹介データがありません' : '該当する紹介が見つかりません'}
+              </div>
+            )}
+          </>
         )}
       </Card>
     </div>
