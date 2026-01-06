@@ -12,8 +12,9 @@ interface Company {
   industry: string | null
   address: string | null
   phone: string | null
-  email: string | null
   contact_person: string | null
+  contact_email: string | null
+  contact_phone: string | null
   staff_id: string | null
   staff_name: string | null
   status: string
@@ -98,8 +99,9 @@ export default function CompanyDetailPage() {
         industry,
         address,
         phone,
-        email,
         contact_person,
+        contact_email,
+        contact_phone,
         staff_id,
         status,
         notes,
@@ -123,8 +125,9 @@ export default function CompanyDetailPage() {
       industry: data.industry,
       address: data.address,
       phone: data.phone,
-      email: data.email,
       contact_person: data.contact_person,
+      contact_email: data.contact_email,
+      contact_phone: data.contact_phone,
       staff_id: data.staff_id,
       staff_name: data.employees?.name || null,
       status: data.status,
@@ -218,10 +221,6 @@ export default function CompanyDetailPage() {
               <dt className="w-32 text-sm text-slate-500">電話番号</dt>
               <dd className="text-sm text-slate-800">{company.phone || '-'}</dd>
             </div>
-            <div className="flex">
-              <dt className="w-32 text-sm text-slate-500">メール</dt>
-              <dd className="text-sm text-slate-800">{company.email || '-'}</dd>
-            </div>
           </dl>
         </Card>
 
@@ -231,6 +230,14 @@ export default function CompanyDetailPage() {
             <div className="flex">
               <dt className="w-32 text-sm text-slate-500">先方担当者</dt>
               <dd className="text-sm text-slate-800">{company.contact_person || '-'}</dd>
+            </div>
+            <div className="flex">
+              <dt className="w-32 text-sm text-slate-500">担当者電話</dt>
+              <dd className="text-sm text-slate-800">{company.contact_phone || '-'}</dd>
+            </div>
+            <div className="flex">
+              <dt className="w-32 text-sm text-slate-500">担当者メール</dt>
+              <dd className="text-sm text-slate-800">{company.contact_email || '-'}</dd>
             </div>
             <div className="flex">
               <dt className="w-32 text-sm text-slate-500">弊社担当</dt>
