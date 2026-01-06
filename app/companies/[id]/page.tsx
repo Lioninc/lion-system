@@ -14,8 +14,8 @@ interface Company {
   phone: string | null
   email: string | null
   contact_person: string | null
-  employee_id: string | null
-  employee_name: string | null
+  staff_id: string | null
+  staff_name: string | null
   status: string
   notes: string | null
 }
@@ -100,10 +100,10 @@ export default function CompanyDetailPage() {
         phone,
         email,
         contact_person,
-        employee_id,
+        staff_id,
         status,
         notes,
-        employees:employee_id (
+        employees:staff_id (
           name
         )
       `)
@@ -125,8 +125,8 @@ export default function CompanyDetailPage() {
       phone: data.phone,
       email: data.email,
       contact_person: data.contact_person,
-      employee_id: data.employee_id,
-      employee_name: data.employees?.name || null,
+      staff_id: data.staff_id,
+      staff_name: data.employees?.name || null,
       status: data.status,
       notes: data.notes,
     })
@@ -234,7 +234,7 @@ export default function CompanyDetailPage() {
             </div>
             <div className="flex">
               <dt className="w-32 text-sm text-slate-500">弊社担当</dt>
-              <dd className="text-sm text-slate-800">{company.employee_name || '-'}</dd>
+              <dd className="text-sm text-slate-800">{company.staff_name || '-'}</dd>
             </div>
             <div className="flex">
               <dt className="w-32 text-sm text-slate-500">ステータス</dt>
