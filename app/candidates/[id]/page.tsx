@@ -60,11 +60,11 @@ interface Interview {
 
 interface Introduction {
   id: string
-  introduced_date: string
+  introduction_date: string
   status: string
   interview_date: string | null
   hire_date: string | null
-  fee_amount: number | null
+  salary_offered: number | null
   notes: string | null
   company_name: string | null
   job_title: string | null
@@ -78,6 +78,12 @@ interface Employee {
 interface Company {
   id: string
   name: string
+}
+
+interface Job {
+  id: string
+  title: string
+  company_id: string
 }
 
 interface Source {
@@ -103,6 +109,16 @@ const applicationStatusOptions = [
   { value: '', label: '選択してください' },
   { value: '有効応募', label: '有効応募' },
   { value: '無効応募', label: '無効応募' },
+]
+
+const introductionStatusOptions = [
+  { value: '', label: '選択してください' },
+  { value: '紹介済み', label: '紹介済み' },
+  { value: '面接予定', label: '面接予定' },
+  { value: '面接済み', label: '面接済み' },
+  { value: '採用決定', label: '採用決定' },
+  { value: '不採用', label: '不採用' },
+  { value: '辞退', label: '辞退' },
 ]
 
 const tabs = [
@@ -205,6 +221,7 @@ export default function CandidateDetailPage() {
   const [introductions, setIntroductions] = useState<Introduction[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
+  const [jobs, setJobs] = useState<Job[]>([])
   const [sources, setSources] = useState<Source[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('summary')
@@ -227,12 +244,24 @@ export default function CandidateDetailPage() {
     status: '有効応募',
     notes: '',
   })
+  // 新規紹介モーダル
+  const [showIntroductionModal, setShowIntroductionModal] = useState(false)
+  const [introductionFormData, setIntroductionFormData] = useState({
+    company_id: '',
+    job_id: '',
+    introduction_date: new Date().toISOString().split('T')[0],
+    status: '紹介済み',
+    salary_offered: '',
+    notes: '',
+  })
+  const [filteredJobs, setFilteredJobs] = useState<Job[]>([])
 
   useEffect(() => {
     if (candidateId) {
       fetchCandidateData()
       fetchEmployees()
       fetchCompanies()
+      fetchJobs()
       fetchSources()
     }
   }, [candidateId])
@@ -266,6 +295,22 @@ export default function CandidateDetailPage() {
     }
 
     setCompanies(data || [])
+  }
+
+  async function fetchJobs() {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('jobs')
+      .select('id, title, company_id')
+      .eq('status', '募集中')
+      .order('title')
+
+    if (error) {
+      console.error('Error fetching jobs:', error)
+      return
+    }
+
+    setJobs(data || [])
   }
 
   async function fetchSources() {
@@ -378,7 +423,7 @@ export default function CandidateDetailPage() {
         )
       `)
       .eq('candidate_id', candidateId)
-      .order('introduced_date', { ascending: false })
+      .order('introduction_date', { ascending: false })
 
     setIntroductions((introductionsData || []).map((i: any) => ({
       ...i,
@@ -448,6 +493,83 @@ export default function CandidateDetailPage() {
       ...i,
       employee_name: i.employees?.name || null,
     })))
+  }
+
+  // 新規紹介モーダル
+  function handleOpenIntroductionModal() {
+    setIntroductionFormData({
+      company_id: '',
+      job_id: '',
+      introduction_date: new Date().toISOString().split('T')[0],
+      status: '紹介済み',
+      salary_offered: '',
+      notes: '',
+    })
+    setFilteredJobs([])
+    setShowIntroductionModal(true)
+  }
+
+  function handleCloseIntroductionModal() {
+    setShowIntroductionModal(false)
+  }
+
+  function handleIntroductionCompanyChange(companyId: string) {
+    setIntroductionFormData({ ...introductionFormData, company_id: companyId, job_id: '' })
+    // 選択した企業の案件でフィルタリング
+    const filtered = jobs.filter(j => j.company_id === companyId)
+    setFilteredJobs(filtered)
+  }
+
+  async function handleIntroductionSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const supabase = createClient()
+
+    const payload = {
+      candidate_id: candidateId,
+      company_id: introductionFormData.company_id,
+      job_id: introductionFormData.job_id || null,
+      introduction_date: introductionFormData.introduction_date,
+      status: introductionFormData.status,
+      salary_offered: introductionFormData.salary_offered ? parseInt(introductionFormData.salary_offered, 10) : null,
+      notes: introductionFormData.notes || null,
+      staff_id: candidate?.staff_id || null,
+    }
+
+    const { error } = await (supabase
+      .from('introductions') as any)
+      .insert(payload)
+
+    if (error) {
+      console.error('Error creating introduction:', error)
+      alert('登録に失敗しました')
+      return
+    }
+
+    handleCloseIntroductionModal()
+
+    // 企業紹介履歴を再取得
+    const { data: introductionsData } = await supabase
+      .from('introductions')
+      .select(`
+        *,
+        companies:company_id (
+          name
+        ),
+        jobs:job_id (
+          title
+        )
+      `)
+      .eq('candidate_id', candidateId)
+      .order('introduction_date', { ascending: false })
+
+    setIntroductions((introductionsData || []).map((i: any) => ({
+      ...i,
+      company_name: i.companies?.name || null,
+      job_title: i.jobs?.title || null,
+    })))
+
+    // 企業紹介タブに切り替え
+    setActiveTab('introductions')
   }
 
   // 再応募モーダル
@@ -832,7 +954,7 @@ export default function CandidateDetailPage() {
         <Card padding="none">
           <div className="p-4 border-b border-slate-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-800">企業紹介</h2>
-            <Button size="sm">新規紹介</Button>
+            <Button size="sm" onClick={handleOpenIntroductionModal}>新規紹介</Button>
           </div>
           {introductions.length > 0 ? (
             <Table>
@@ -849,7 +971,7 @@ export default function CandidateDetailPage() {
               <TableBody>
                 {introductions.map((intro) => (
                   <TableRow key={intro.id}>
-                    <TableCell>{formatDate(intro.introduced_date)}</TableCell>
+                    <TableCell>{formatDate(intro.introduction_date)}</TableCell>
                     <TableCell>{intro.company_name || '-'}</TableCell>
                     <TableCell>{intro.job_title || '-'}</TableCell>
                     <TableCell>{getIntroductionStatusBadge(intro.status)}</TableCell>
@@ -991,6 +1113,76 @@ export default function CandidateDetailPage() {
               </div>
               <div className="flex gap-2 justify-end pt-4">
                 <Button type="button" variant="secondary" onClick={handleCloseApplicationModal}>
+                  キャンセル
+                </Button>
+                <Button type="submit">登録</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 新規紹介モーダル */}
+      {showIntroductionModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-bold text-slate-800 mb-4">新規紹介登録</h2>
+            <form onSubmit={handleIntroductionSubmit} className="space-y-4">
+              <div className="p-3 bg-slate-100 rounded">
+                <span className="text-sm text-slate-500">求職者：</span>
+                <span className="text-sm font-medium text-slate-800 ml-2">{candidate.name}</span>
+              </div>
+              <Select
+                label="企業"
+                options={[
+                  { value: '', label: '選択してください' },
+                  ...companies.map((c) => ({ value: c.id, label: c.name })),
+                ]}
+                value={introductionFormData.company_id}
+                onChange={(e) => handleIntroductionCompanyChange(e.target.value)}
+                required
+              />
+              <Select
+                label="案件"
+                options={[
+                  { value: '', label: '選択してください' },
+                  ...filteredJobs.map((j) => ({ value: j.id, label: j.title })),
+                ]}
+                value={introductionFormData.job_id}
+                onChange={(e) => setIntroductionFormData({ ...introductionFormData, job_id: e.target.value })}
+              />
+              <Input
+                label="紹介日"
+                type="date"
+                value={introductionFormData.introduction_date}
+                onChange={(e) => setIntroductionFormData({ ...introductionFormData, introduction_date: e.target.value })}
+                required
+              />
+              <Select
+                label="ステータス"
+                options={introductionStatusOptions}
+                value={introductionFormData.status}
+                onChange={(e) => setIntroductionFormData({ ...introductionFormData, status: e.target.value })}
+              />
+              <Input
+                label="提示給与"
+                type="number"
+                value={introductionFormData.salary_offered}
+                onChange={(e) => setIntroductionFormData({ ...introductionFormData, salary_offered: e.target.value })}
+                placeholder="例: 300000"
+              />
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">備考</label>
+                <textarea
+                  value={introductionFormData.notes}
+                  onChange={(e) => setIntroductionFormData({ ...introductionFormData, notes: e.target.value })}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="備考があれば入力"
+                />
+              </div>
+              <div className="flex gap-2 justify-end pt-4">
+                <Button type="button" variant="secondary" onClick={handleCloseIntroductionModal}>
                   キャンセル
                 </Button>
                 <Button type="submit">登録</Button>
