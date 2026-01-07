@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button, Input, Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
 
@@ -47,6 +47,7 @@ function formatNumber(value: number | null | undefined): string {
 }
 
 export default function IntroductionsPage() {
+  const router = useRouter()
   const [introductions, setIntroductions] = useState<Introduction[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -155,43 +156,26 @@ export default function IntroductionsPage() {
               </TableHeader>
               <TableBody>
                 {filteredIntroductions.map((intro) => (
-                  <TableRow key={intro.id}>
+                  <TableRow
+                    key={intro.id}
+                    className="cursor-pointer hover:bg-slate-50"
+                    onClick={() => router.push(`/introductions/${intro.id}`)}
+                  >
                     <TableCell>{intro.introduction_date || '-'}</TableCell>
                     <TableCell>
-                      {intro.candidate_id ? (
-                        <Link
-                          href={`/candidates/${intro.candidate_id}`}
-                          className="font-medium text-blue-600 hover:underline"
-                        >
-                          {intro.candidate_name || '-'}
-                        </Link>
-                      ) : (
-                        '-'
-                      )}
+                      <span className="font-medium text-slate-800">
+                        {intro.candidate_name || '-'}
+                      </span>
                     </TableCell>
                     <TableCell>
-                      {intro.company_id ? (
-                        <Link
-                          href={`/companies/${intro.company_id}`}
-                          className="text-blue-600 hover:underline"
-                        >
-                          {intro.company_name || '-'}
-                        </Link>
-                      ) : (
-                        '-'
-                      )}
+                      <span className="text-slate-800">
+                        {intro.company_name || '-'}
+                      </span>
                     </TableCell>
                     <TableCell>
-                      {intro.job_id ? (
-                        <Link
-                          href={`/jobs/${intro.job_id}`}
-                          className="text-blue-600 hover:underline"
-                        >
-                          {intro.job_title || '-'}
-                        </Link>
-                      ) : (
-                        intro.job_title || '-'
-                      )}
+                      <span className="text-slate-800">
+                        {intro.job_title || '-'}
+                      </span>
                     </TableCell>
                     <TableCell>{getStatusBadge(intro.status)}</TableCell>
                     <TableCell>{intro.staff_name || '-'}</TableCell>
