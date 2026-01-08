@@ -46,7 +46,7 @@ const statusOptions = [
 ]
 
 const paymentStatusOptions = [
-  { value: '未請求', label: '未請求' },
+  { value: '仮売上', label: '仮売上' },
   { value: '請求中', label: '請求中' },
   { value: '入金済み', label: '入金済み' },
 ]
@@ -101,10 +101,7 @@ export default function IntroductionDetailPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentFormData, setPaymentFormData] = useState({
     total_amount: '',
-    status: '未請求',
-    invoice_date: '',
-    due_date: '',
-    paid_date: '',
+    status: '仮売上',
     notes: '',
   })
 
@@ -238,15 +235,20 @@ export default function IntroductionDetailPage() {
 
   async function handlePaymentSubmit(e: React.FormEvent) {
     e.preventDefault()
+
+    // 金額のバリデーション
+    const amount = parseInt(paymentFormData.total_amount, 10)
+    if (isNaN(amount) || amount <= 0) {
+      alert('有効な金額を入力してください')
+      return
+    }
+
     const supabase = createClient()
 
     const payload = {
       introduction_id: introductionId,
-      total_amount: parseInt(paymentFormData.total_amount, 10),
+      total_amount: amount,
       status: paymentFormData.status,
-      invoice_date: paymentFormData.invoice_date || null,
-      due_date: paymentFormData.due_date || null,
-      paid_date: paymentFormData.paid_date || null,
       notes: paymentFormData.notes || null,
     }
 
@@ -261,10 +263,7 @@ export default function IntroductionDetailPage() {
     setShowPaymentModal(false)
     setPaymentFormData({
       total_amount: '',
-      status: '未請求',
-      invoice_date: '',
-      due_date: '',
-      paid_date: '',
+      status: '仮売上',
       notes: '',
     })
     fetchIntroductionData()
@@ -277,7 +276,7 @@ export default function IntroductionDetailPage() {
         return <Badge variant="success">{status}</Badge>
       case '請求中':
         return <Badge variant="warning">{status}</Badge>
-      case '未請求':
+      case '仮売上':
         return <Badge variant="info">{status}</Badge>
       default:
         return <Badge>{status || '-'}</Badge>
@@ -305,7 +304,8 @@ export default function IntroductionDetailPage() {
     )
   }
 
-  const isHired = introduction.status === '採用' || introduction.status === '採用決定'
+  // 入社日が入力されている場合に入金登録可能
+  const canRegisterPayment = !!introduction.start_work_date
 
   return (
     <div className="p-6 space-y-6">
@@ -323,7 +323,7 @@ export default function IntroductionDetailPage() {
           {getStatusBadge(introduction.status)}
         </div>
         <div className="flex gap-2">
-          {isHired && (
+          {canRegisterPayment && (
             <Button onClick={() => setShowPaymentModal(true)}>
               入金登録
             </Button>
@@ -486,12 +486,17 @@ export default function IntroductionDetailPage() {
       <Card>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-slate-800">入金情報</h2>
-          {isHired && payments.length === 0 && (
+          {canRegisterPayment && payments.length === 0 && (
             <Button size="sm" onClick={() => setShowPaymentModal(true)}>
               入金登録
             </Button>
           )}
         </div>
+        {!canRegisterPayment && payments.length === 0 && (
+          <div className="text-center py-8 text-slate-500">
+            入社日を入力すると入金登録ができます
+          </div>
+        )}
         {payments.length > 0 ? (
           <div className="space-y-4">
             {payments.map((payment) => (
@@ -519,11 +524,11 @@ export default function IntroductionDetailPage() {
               </div>
             ))}
           </div>
-        ) : (
+        ) : canRegisterPayment ? (
           <div className="text-center py-8 text-slate-500">
             入金情報がありません
           </div>
-        )}
+        ) : null}
       </Card>
 
       {/* 入金登録モーダル */}
@@ -536,6 +541,9 @@ export default function IntroductionDetailPage() {
                 <div className="text-sm text-slate-500">紹介情報</div>
                 <div className="text-sm font-medium text-slate-800">
                   {introduction.candidate_name} → {introduction.company_name}
+                </div>
+                <div className="text-sm text-slate-500 mt-1">
+                  入社日: {formatDate(introduction.start_work_date)}
                 </div>
               </div>
               <Input
@@ -551,24 +559,6 @@ export default function IntroductionDetailPage() {
                 options={paymentStatusOptions}
                 value={paymentFormData.status}
                 onChange={(e) => setPaymentFormData({ ...paymentFormData, status: e.target.value })}
-              />
-              <Input
-                label="請求日"
-                type="date"
-                value={paymentFormData.invoice_date}
-                onChange={(e) => setPaymentFormData({ ...paymentFormData, invoice_date: e.target.value })}
-              />
-              <Input
-                label="入金予定日"
-                type="date"
-                value={paymentFormData.due_date}
-                onChange={(e) => setPaymentFormData({ ...paymentFormData, due_date: e.target.value })}
-              />
-              <Input
-                label="入金日"
-                type="date"
-                value={paymentFormData.paid_date}
-                onChange={(e) => setPaymentFormData({ ...paymentFormData, paid_date: e.target.value })}
               />
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">備考</label>
