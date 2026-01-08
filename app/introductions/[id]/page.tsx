@@ -15,13 +15,13 @@ interface Introduction {
   company_name: string | null
   job_id: string | null
   job_title: string | null
+  referral_fee: number | null
   status: string
   company_interview_date: string | null
   company_interview_time: string | null
   company_interview_result: string | null
   hire_date: string | null
   start_work_date: string | null
-  salary_offered: number | null
   staff_id: string | null
   staff_name: string | null
   notes: string | null
@@ -95,7 +95,6 @@ export default function IntroductionDetailPage() {
     company_interview_result: '',
     hire_date: '',
     start_work_date: '',
-    salary_offered: '',
     notes: '',
   })
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -130,7 +129,6 @@ export default function IntroductionDetailPage() {
         company_interview_result,
         hire_date,
         start_work_date,
-        salary_offered,
         staff_id,
         notes,
         candidates:candidate_id (
@@ -140,7 +138,8 @@ export default function IntroductionDetailPage() {
           name
         ),
         jobs:job_id (
-          title
+          title,
+          referral_fee
         ),
         employees:staff_id (
           name
@@ -165,13 +164,13 @@ export default function IntroductionDetailPage() {
       company_name: data.companies?.name || null,
       job_id: data.job_id,
       job_title: data.jobs?.title || null,
+      referral_fee: data.jobs?.referral_fee || null,
       status: data.status,
       company_interview_date: data.company_interview_date,
       company_interview_time: data.company_interview_time,
       company_interview_result: data.company_interview_result,
       hire_date: data.hire_date,
       start_work_date: data.start_work_date,
-      salary_offered: data.salary_offered,
       staff_id: data.staff_id,
       staff_name: data.employees?.name || null,
       notes: data.notes,
@@ -184,7 +183,6 @@ export default function IntroductionDetailPage() {
       company_interview_result: intro.company_interview_result || '',
       hire_date: intro.hire_date || '',
       start_work_date: intro.start_work_date || '',
-      salary_offered: intro.salary_offered?.toString() || '',
       notes: intro.notes || '',
     })
 
@@ -214,7 +212,6 @@ export default function IntroductionDetailPage() {
       company_interview_result: editFormData.company_interview_result || null,
       hire_date: editFormData.hire_date || null,
       start_work_date: editFormData.start_work_date || null,
-      salary_offered: editFormData.salary_offered ? parseInt(editFormData.salary_offered, 10) : null,
       notes: editFormData.notes || null,
     }
 
@@ -324,7 +321,14 @@ export default function IntroductionDetailPage() {
         </div>
         <div className="flex gap-2">
           {canRegisterPayment && (
-            <Button onClick={() => setShowPaymentModal(true)}>
+            <Button onClick={() => {
+              setPaymentFormData({
+                total_amount: introduction.referral_fee?.toString() || '',
+                status: '仮売上',
+                notes: '',
+              })
+              setShowPaymentModal(true)
+            }}>
               入金登録
             </Button>
           )}
@@ -425,13 +429,6 @@ export default function IntroductionDetailPage() {
                 value={editFormData.start_work_date}
                 onChange={(e) => setEditFormData({ ...editFormData, start_work_date: e.target.value })}
               />
-              <Input
-                label="提示給与"
-                type="number"
-                value={editFormData.salary_offered}
-                onChange={(e) => setEditFormData({ ...editFormData, salary_offered: e.target.value })}
-                placeholder="例: 300000"
-              />
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">備考</label>
                 <textarea
@@ -468,9 +465,9 @@ export default function IntroductionDetailPage() {
                 <dd className="text-sm text-slate-800">{formatDate(introduction.start_work_date)}</dd>
               </div>
               <div className="flex">
-                <dt className="w-32 text-sm text-slate-500">提示給与</dt>
+                <dt className="w-32 text-sm text-slate-500">紹介料</dt>
                 <dd className="text-sm text-slate-800">
-                  {introduction.salary_offered ? `¥${formatNumber(introduction.salary_offered)}` : '-'}
+                  {introduction.referral_fee ? `¥${formatNumber(introduction.referral_fee)}` : '-'}
                 </dd>
               </div>
               <div className="flex">
@@ -487,7 +484,14 @@ export default function IntroductionDetailPage() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-slate-800">入金情報</h2>
           {canRegisterPayment && payments.length === 0 && (
-            <Button size="sm" onClick={() => setShowPaymentModal(true)}>
+            <Button size="sm" onClick={() => {
+              setPaymentFormData({
+                total_amount: introduction.referral_fee?.toString() || '',
+                status: '仮売上',
+                notes: '',
+              })
+              setShowPaymentModal(true)
+            }}>
               入金登録
             </Button>
           )}
@@ -545,6 +549,11 @@ export default function IntroductionDetailPage() {
                 <div className="text-sm text-slate-500 mt-1">
                   入社日: {formatDate(introduction.start_work_date)}
                 </div>
+                {introduction.referral_fee && (
+                  <div className="text-sm text-slate-500 mt-1">
+                    紹介料: ¥{formatNumber(introduction.referral_fee)}
+                  </div>
+                )}
               </div>
               <Input
                 label="金額"
