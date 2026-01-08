@@ -5,26 +5,26 @@ import Link from 'next/link'
 import { Input, Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
 
-interface Payment {
+interface PaymentItem {
   id: string
   introduction_id: string
-  total_amount: number
-  status: string
-  invoice_date: string | null
+  start_work_date: string
+  candidate_id: string
+  candidate_name: string | null
+  company_id: string
+  company_name: string | null
+  referral_fee: number | null
+  // paymentsテーブルから
+  payment_id: string | null
+  payment_status: string | null
   due_date: string | null
   paid_date: string | null
-  // introduction経由で取得
-  hire_date: string | null
-  candidate_id: string | null
-  candidate_name: string | null
-  company_id: string | null
-  company_name: string | null
 }
 
 interface Stats {
-  thisMonthTotal: number
-  paidAmount: number
-  pendingAmount: number
+  pendingAmount: number   // 入金予定（仮売上・入金予定）
+  waitingAmount: number   // 入金待ち（請求中）
+  paidAmount: number      // 入金済
 }
 
 function getStatusBadge(status: string | null) {
@@ -34,10 +34,11 @@ function getStatusBadge(status: string | null) {
       return <Badge variant="success">{status}</Badge>
     case '請求中':
       return <Badge variant="warning">{status}</Badge>
-    case '未請求':
+    case '仮売上':
+    case '入金予定':
       return <Badge variant="info">{status}</Badge>
     default:
-      return <Badge>{status || '-'}</Badge>
+      return <Badge variant="info">入金予定</Badge>
   }
 }
 
@@ -48,113 +49,128 @@ function formatNumber(value: number | null | undefined): string {
 }
 
 export default function PaymentsPage() {
-  const [payments, setPayments] = useState<Payment[]>([])
+  const [paymentItems, setPaymentItems] = useState<PaymentItem[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [stats, setStats] = useState<Stats>({
-    thisMonthTotal: 0,
-    paidAmount: 0,
     pendingAmount: 0,
+    waitingAmount: 0,
+    paidAmount: 0,
   })
 
   useEffect(() => {
-    fetchPayments()
+    fetchPaymentData()
   }, [])
 
-  async function fetchPayments() {
+  async function fetchPaymentData() {
     setLoading(true)
     const supabase = createClient()
 
-    // paymentsテーブルをintroductions経由でcandidate, companyと結合
-    const { data, error } = await supabase
-      .from('payments')
+    // introductionsテーブルから入社日が入力されているデータを取得
+    const { data: introductions, error: introError } = await supabase
+      .from('introductions')
       .select(`
         id,
-        introduction_id,
-        total_amount,
-        status,
-        invoice_date,
-        due_date,
-        paid_date,
-        introductions:introduction_id (
-          hire_date,
-          candidate_id,
-          company_id,
-          candidates:candidate_id (
-            name
-          ),
-          companies:company_id (
-            name
-          )
+        start_work_date,
+        candidate_id,
+        company_id,
+        job_id,
+        candidates:candidate_id (
+          name
+        ),
+        companies:company_id (
+          name
+        ),
+        jobs:job_id (
+          referral_fee
         )
       `)
-      .order('created_at', { ascending: false })
+      .not('start_work_date', 'is', null)
+      .order('start_work_date', { ascending: false })
 
-    if (error) {
-      console.error('Error fetching payments:', error)
+    if (introError) {
+      console.error('Error fetching introductions:', introError)
       setLoading(false)
       return
     }
 
-    const formattedData: Payment[] = (data || []).map((d: any) => ({
-      id: d.id,
-      introduction_id: d.introduction_id,
-      total_amount: d.total_amount,
-      status: d.status,
-      invoice_date: d.invoice_date,
-      due_date: d.due_date,
-      paid_date: d.paid_date,
-      hire_date: d.introductions?.hire_date || null,
-      candidate_id: d.introductions?.candidate_id || null,
-      candidate_name: d.introductions?.candidates?.name || null,
-      company_id: d.introductions?.company_id || null,
-      company_name: d.introductions?.companies?.name || null,
-    }))
+    // 紹介IDリストを取得してpaymentsを取得
+    const introIds = (introductions || []).map((i: any) => i.id)
+
+    let paymentsMap: Record<string, any> = {}
+    if (introIds.length > 0) {
+      const { data: payments, error: payError } = await supabase
+        .from('payments')
+        .select('*')
+        .in('introduction_id', introIds)
+
+      if (payError) {
+        console.error('Error fetching payments:', payError)
+      } else {
+        // introduction_idをキーにしたマップを作成
+        (payments || []).forEach((p: any) => {
+          paymentsMap[p.introduction_id] = p
+        })
+      }
+    }
+
+    // データを整形
+    const formattedData: PaymentItem[] = (introductions || []).map((intro: any) => {
+      const payment = paymentsMap[intro.id]
+      return {
+        id: intro.id,
+        introduction_id: intro.id,
+        start_work_date: intro.start_work_date,
+        candidate_id: intro.candidate_id,
+        candidate_name: intro.candidates?.name || null,
+        company_id: intro.company_id,
+        company_name: intro.companies?.name || null,
+        referral_fee: intro.jobs?.referral_fee || null,
+        payment_id: payment?.id || null,
+        payment_status: payment?.status || null,
+        due_date: payment?.due_date || null,
+        paid_date: payment?.paid_date || null,
+      }
+    })
 
     // 統計を計算
-    const now = new Date()
-    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    let pendingAmount = 0   // 入金予定（仮売上・入金予定・ステータスなし）
+    let waitingAmount = 0   // 入金待ち（請求中）
+    let paidAmount = 0      // 入金済
 
-    let thisMonthTotal = 0
-    let paidAmount = 0
-    let pendingAmount = 0
+    formattedData.forEach((item) => {
+      const amount = item.referral_fee || 0
+      const status = item.payment_status
 
-    formattedData.forEach((p) => {
-      // 今月の売上（hire_dateまたはinvoice_dateが今月のもの）
-      const hireMonth = p.hire_date ? p.hire_date.substring(0, 7) : null
-      const invoiceMonth = p.invoice_date ? p.invoice_date.substring(0, 7) : null
-
-      if (hireMonth === thisMonth || invoiceMonth === thisMonth) {
-        thisMonthTotal += p.total_amount || 0
-      }
-
-      // 入金済・請求中の集計
-      if (p.status === '入金済' || p.status === '入金済み') {
-        paidAmount += p.total_amount || 0
-      } else if (p.status === '請求中') {
-        pendingAmount += p.total_amount || 0
+      if (status === '入金済' || status === '入金済み') {
+        paidAmount += amount
+      } else if (status === '請求中') {
+        waitingAmount += amount
+      } else {
+        // 仮売上、入金予定、またはステータスなし
+        pendingAmount += amount
       }
     })
 
     setStats({
-      thisMonthTotal,
-      paidAmount,
       pendingAmount,
+      waitingAmount,
+      paidAmount,
     })
 
-    setPayments(formattedData)
+    setPaymentItems(formattedData)
     setLoading(false)
   }
 
-  const filteredPayments = payments.filter((payment) =>
-    (payment.candidate_name || '').includes(searchQuery) ||
-    (payment.company_name || '').includes(searchQuery)
+  const filteredItems = paymentItems.filter((item) =>
+    (item.candidate_name || '').includes(searchQuery) ||
+    (item.company_name || '').includes(searchQuery)
   )
 
   const statsDisplay = [
-    { label: '今月売上', value: `¥${formatNumber(stats.thisMonthTotal)}`, color: 'text-blue-600' },
+    { label: '入金予定売上', value: `¥${formatNumber(stats.pendingAmount)}`, color: 'text-blue-600' },
+    { label: '入金待ち', value: `¥${formatNumber(stats.waitingAmount)}`, color: 'text-amber-600' },
     { label: '入金済', value: `¥${formatNumber(stats.paidAmount)}`, color: 'text-emerald-600' },
-    { label: '請求中', value: `¥${formatNumber(stats.pendingAmount)}`, color: 'text-amber-600' },
   ]
 
   return (
@@ -202,42 +218,46 @@ export default function PaymentsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredPayments.map((payment) => (
-                  <TableRow key={payment.id}>
-                    <TableCell>{payment.hire_date || '-'}</TableCell>
+                {filteredItems.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell>{item.start_work_date || '-'}</TableCell>
                     <TableCell>
-                      {payment.candidate_id ? (
+                      {item.candidate_id ? (
                         <Link
-                          href={`/candidates/${payment.candidate_id}`}
+                          href={`/candidates/${item.candidate_id}`}
                           className="font-medium text-blue-600 hover:underline"
                         >
-                          {payment.candidate_name || '-'}
+                          {item.candidate_name || '-'}
                         </Link>
                       ) : (
                         '-'
                       )}
                     </TableCell>
                     <TableCell>
-                      {payment.company_id ? (
+                      {item.company_id ? (
                         <Link
-                          href={`/companies/${payment.company_id}`}
+                          href={`/companies/${item.company_id}`}
                           className="text-blue-600 hover:underline"
                         >
-                          {payment.company_name || '-'}
+                          {item.company_name || '-'}
                         </Link>
                       ) : (
                         '-'
                       )}
                     </TableCell>
                     <TableCell>
-                      <span className="font-medium">
-                        ¥{formatNumber(payment.total_amount)}
-                      </span>
+                      {item.referral_fee ? (
+                        <span className="font-medium">
+                          ¥{formatNumber(item.referral_fee)}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
                     </TableCell>
-                    <TableCell>{getStatusBadge(payment.status)}</TableCell>
-                    <TableCell>{payment.due_date || '-'}</TableCell>
+                    <TableCell>{getStatusBadge(item.payment_status)}</TableCell>
+                    <TableCell>{item.due_date || '-'}</TableCell>
                     <TableCell>
-                      {payment.paid_date || (
+                      {item.paid_date || (
                         <span className="text-slate-400">-</span>
                       )}
                     </TableCell>
@@ -245,9 +265,9 @@ export default function PaymentsPage() {
                 ))}
               </TableBody>
             </Table>
-            {filteredPayments.length === 0 && (
+            {filteredItems.length === 0 && (
               <div className="p-8 text-center text-slate-500">
-                {payments.length === 0 ? '入金データがありません' : '該当する入金が見つかりません'}
+                {paymentItems.length === 0 ? '入金データがありません' : '該当する入金が見つかりません'}
               </div>
             )}
           </>
