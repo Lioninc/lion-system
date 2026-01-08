@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { Button, Card, Badge, Input, Select } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
 
@@ -79,7 +79,6 @@ function formatNumber(value: number | null | undefined): string {
 
 export default function IntroductionDetailPage() {
   const params = useParams()
-  const router = useRouter()
   const introductionId = params.id as string
 
   const [introduction, setIntroduction] = useState<Introduction | null>(null)
@@ -196,7 +195,7 @@ export default function IntroductionDetailPage() {
   async function handleSaveEdit() {
     const supabase = createClient()
 
-    const updateData: any = {
+    const updateData = {
       status: editFormData.status,
       interview_date: editFormData.interview_date || null,
       hire_date: editFormData.hire_date || null,
@@ -204,8 +203,8 @@ export default function IntroductionDetailPage() {
       notes: editFormData.notes || null,
     }
 
-    const { error } = await supabase
-      .from('introductions')
+    const { error } = await (supabase
+      .from('introductions') as any)
       .update(updateData)
       .eq('id', introductionId)
 
