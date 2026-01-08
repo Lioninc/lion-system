@@ -17,13 +17,11 @@ interface PaymentItem {
   // paymentsテーブルから
   payment_id: string | null
   payment_status: string | null
-  due_date: string | null
-  paid_date: string | null
 }
 
 interface Stats {
-  pendingAmount: number   // 入金予定（仮売上・入金予定）
-  waitingAmount: number   // 入金待ち（請求中）
+  pendingAmount: number   // 入金予定（入金予定・仮売上）
+  waitingAmount: number   // 入金待ち（請求中・入金途中）
   paidAmount: number      // 入金済
 }
 
@@ -32,6 +30,8 @@ function getStatusBadge(status: string | null) {
     case '入金済':
     case '入金済み':
       return <Badge variant="success">{status}</Badge>
+    case '入金途中':
+      return <Badge variant="purple">{status}</Badge>
     case '請求中':
       return <Badge variant="warning">{status}</Badge>
     case '仮売上':
@@ -128,14 +128,12 @@ export default function PaymentsPage() {
         referral_fee: intro.jobs?.referral_fee || null,
         payment_id: payment?.id || null,
         payment_status: payment?.status || null,
-        due_date: payment?.due_date || null,
-        paid_date: payment?.paid_date || null,
       }
     })
 
     // 統計を計算
-    let pendingAmount = 0   // 入金予定（仮売上・入金予定・ステータスなし）
-    let waitingAmount = 0   // 入金待ち（請求中）
+    let pendingAmount = 0   // 入金予定（入金予定・仮売上・ステータスなし）
+    let waitingAmount = 0   // 入金待ち（請求中・入金途中）
     let paidAmount = 0      // 入金済
 
     formattedData.forEach((item) => {
@@ -144,7 +142,7 @@ export default function PaymentsPage() {
 
       if (status === '入金済' || status === '入金済み') {
         paidAmount += amount
-      } else if (status === '請求中') {
+      } else if (status === '請求中' || status === '入金途中') {
         waitingAmount += amount
       } else {
         // 仮売上、入金予定、またはステータスなし
@@ -213,8 +211,6 @@ export default function PaymentsPage() {
                   <TableHead>企業</TableHead>
                   <TableHead>金額</TableHead>
                   <TableHead>ステータス</TableHead>
-                  <TableHead>入金予定日</TableHead>
-                  <TableHead>入金日</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -255,12 +251,6 @@ export default function PaymentsPage() {
                       )}
                     </TableCell>
                     <TableCell>{getStatusBadge(item.payment_status)}</TableCell>
-                    <TableCell>{item.due_date || '-'}</TableCell>
-                    <TableCell>
-                      {item.paid_date || (
-                        <span className="text-slate-400">-</span>
-                      )}
-                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
