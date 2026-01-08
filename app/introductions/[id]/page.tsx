@@ -16,8 +16,11 @@ interface Introduction {
   job_id: string | null
   job_title: string | null
   status: string
-  interview_date: string | null
+  company_interview_date: string | null
+  company_interview_time: string | null
+  company_interview_result: string | null
   hire_date: string | null
+  start_work_date: string | null
   salary_offered: number | null
   staff_id: string | null
   staff_name: string | null
@@ -87,8 +90,11 @@ export default function IntroductionDetailPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [editFormData, setEditFormData] = useState({
     status: '',
-    interview_date: '',
+    company_interview_date: '',
+    company_interview_time: '',
+    company_interview_result: '',
     hire_date: '',
+    start_work_date: '',
     salary_offered: '',
     notes: '',
   })
@@ -122,8 +128,11 @@ export default function IntroductionDetailPage() {
         company_id,
         job_id,
         status,
-        interview_date,
+        company_interview_date,
+        company_interview_time,
+        company_interview_result,
         hire_date,
+        start_work_date,
         salary_offered,
         staff_id,
         notes,
@@ -160,8 +169,11 @@ export default function IntroductionDetailPage() {
       job_id: data.job_id,
       job_title: data.jobs?.title || null,
       status: data.status,
-      interview_date: data.interview_date,
+      company_interview_date: data.company_interview_date,
+      company_interview_time: data.company_interview_time,
+      company_interview_result: data.company_interview_result,
       hire_date: data.hire_date,
+      start_work_date: data.start_work_date,
       salary_offered: data.salary_offered,
       staff_id: data.staff_id,
       staff_name: data.employees?.name || null,
@@ -170,8 +182,11 @@ export default function IntroductionDetailPage() {
     setIntroduction(intro)
     setEditFormData({
       status: intro.status || '',
-      interview_date: intro.interview_date || '',
+      company_interview_date: intro.company_interview_date || '',
+      company_interview_time: intro.company_interview_time || '',
+      company_interview_result: intro.company_interview_result || '',
       hire_date: intro.hire_date || '',
+      start_work_date: intro.start_work_date || '',
       salary_offered: intro.salary_offered?.toString() || '',
       notes: intro.notes || '',
     })
@@ -197,8 +212,11 @@ export default function IntroductionDetailPage() {
 
     const updateData = {
       status: editFormData.status,
-      interview_date: editFormData.interview_date || null,
+      company_interview_date: editFormData.company_interview_date || null,
+      company_interview_time: editFormData.company_interview_time || null,
+      company_interview_result: editFormData.company_interview_result || null,
       hire_date: editFormData.hire_date || null,
+      start_work_date: editFormData.start_work_date || null,
       salary_offered: editFormData.salary_offered ? parseInt(editFormData.salary_offered, 10) : null,
       notes: editFormData.notes || null,
     }
@@ -378,16 +396,34 @@ export default function IntroductionDetailPage() {
                 onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
               />
               <Input
-                label="面接日"
+                label="企業面接日"
                 type="date"
-                value={editFormData.interview_date}
-                onChange={(e) => setEditFormData({ ...editFormData, interview_date: e.target.value })}
+                value={editFormData.company_interview_date}
+                onChange={(e) => setEditFormData({ ...editFormData, company_interview_date: e.target.value })}
+              />
+              <Input
+                label="面接時間"
+                type="time"
+                value={editFormData.company_interview_time}
+                onChange={(e) => setEditFormData({ ...editFormData, company_interview_time: e.target.value })}
+              />
+              <Input
+                label="面接結果"
+                value={editFormData.company_interview_result}
+                onChange={(e) => setEditFormData({ ...editFormData, company_interview_result: e.target.value })}
+                placeholder="例: 合格、不合格、保留"
               />
               <Input
                 label="採用日"
                 type="date"
                 value={editFormData.hire_date}
                 onChange={(e) => setEditFormData({ ...editFormData, hire_date: e.target.value })}
+              />
+              <Input
+                label="入社日"
+                type="date"
+                value={editFormData.start_work_date}
+                onChange={(e) => setEditFormData({ ...editFormData, start_work_date: e.target.value })}
               />
               <Input
                 label="提示給与"
@@ -413,12 +449,23 @@ export default function IntroductionDetailPage() {
                 <dd className="text-sm">{getStatusBadge(introduction.status)}</dd>
               </div>
               <div className="flex">
-                <dt className="w-32 text-sm text-slate-500">面接日</dt>
-                <dd className="text-sm text-slate-800">{formatDate(introduction.interview_date)}</dd>
+                <dt className="w-32 text-sm text-slate-500">企業面接日</dt>
+                <dd className="text-sm text-slate-800">
+                  {formatDate(introduction.company_interview_date)}
+                  {introduction.company_interview_time && ` ${introduction.company_interview_time}`}
+                </dd>
+              </div>
+              <div className="flex">
+                <dt className="w-32 text-sm text-slate-500">面接結果</dt>
+                <dd className="text-sm text-slate-800">{introduction.company_interview_result || '-'}</dd>
               </div>
               <div className="flex">
                 <dt className="w-32 text-sm text-slate-500">採用日</dt>
                 <dd className="text-sm text-slate-800">{formatDate(introduction.hire_date)}</dd>
+              </div>
+              <div className="flex">
+                <dt className="w-32 text-sm text-slate-500">入社日</dt>
+                <dd className="text-sm text-slate-800">{formatDate(introduction.start_work_date)}</dd>
               </div>
               <div className="flex">
                 <dt className="w-32 text-sm text-slate-500">提示給与</dt>
