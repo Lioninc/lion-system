@@ -45,11 +45,6 @@ const statusOptions = [
   { value: '辞退', label: '辞退' },
 ]
 
-const paymentStatusOptions = [
-  { value: '仮売上', label: '仮売上' },
-  { value: '請求中', label: '請求中' },
-  { value: '入金済み', label: '入金済み' },
-]
 
 function getStatusBadge(status: string | null) {
   switch (status) {
@@ -95,12 +90,6 @@ export default function IntroductionDetailPage() {
     company_interview_result: '',
     hire_date: '',
     start_work_date: '',
-    notes: '',
-  })
-  const [showPaymentModal, setShowPaymentModal] = useState(false)
-  const [paymentFormData, setPaymentFormData] = useState({
-    total_amount: '',
-    status: '仮売上',
     notes: '',
   })
 
@@ -205,6 +194,9 @@ export default function IntroductionDetailPage() {
   async function handleSaveEdit() {
     const supabase = createClient()
 
+    // 入社日が新しく入力されたかチェック
+    const isNewStartWorkDate = editFormData.start_work_date && !introduction?.start_work_date
+
     const updateData = {
       status: editFormData.status,
       company_interview_date: editFormData.company_interview_date || null,
@@ -226,43 +218,26 @@ export default function IntroductionDetailPage() {
       return
     }
 
+    // 入社日が新しく入力された場合、自動でpaymentsを作成
+    if (isNewStartWorkDate && payments.length === 0) {
+      const referralFee = introduction?.referral_fee
+      if (referralFee && referralFee > 0) {
+        const paymentPayload = {
+          introduction_id: introductionId,
+          total_amount: referralFee,
+          status: '仮売上',
+        }
+
+        const { error: paymentError } = await (supabase.from('payments') as any).insert(paymentPayload)
+
+        if (paymentError) {
+          console.error('Error creating payment:', paymentError)
+          // 入金作成に失敗してもアラートは出さない（紹介の更新は成功している）
+        }
+      }
+    }
+
     setIsEditing(false)
-    fetchIntroductionData()
-  }
-
-  async function handlePaymentSubmit(e: React.FormEvent) {
-    e.preventDefault()
-
-    // 金額のバリデーション
-    const amount = parseInt(paymentFormData.total_amount, 10)
-    if (isNaN(amount) || amount <= 0) {
-      alert('有効な金額を入力してください')
-      return
-    }
-
-    const supabase = createClient()
-
-    const payload = {
-      introduction_id: introductionId,
-      total_amount: amount,
-      status: paymentFormData.status,
-      notes: paymentFormData.notes || null,
-    }
-
-    const { error } = await (supabase.from('payments') as any).insert(payload)
-
-    if (error) {
-      console.error('Error creating payment:', error)
-      alert('入金登録に失敗しました')
-      return
-    }
-
-    setShowPaymentModal(false)
-    setPaymentFormData({
-      total_amount: '',
-      status: '仮売上',
-      notes: '',
-    })
     fetchIntroductionData()
   }
 
@@ -301,9 +276,6 @@ export default function IntroductionDetailPage() {
     )
   }
 
-  // 入社日が入力されている場合に入金登録可能
-  const canRegisterPayment = !!introduction.start_work_date
-
   return (
     <div className="p-6 space-y-6">
       {/* ヘッダー */}
@@ -320,18 +292,6 @@ export default function IntroductionDetailPage() {
           {getStatusBadge(introduction.status)}
         </div>
         <div className="flex gap-2">
-          {canRegisterPayment && (
-            <Button onClick={() => {
-              setPaymentFormData({
-                total_amount: introduction.referral_fee?.toString() || '',
-                status: '仮売上',
-                notes: '',
-              })
-              setShowPaymentModal(true)
-            }}>
-              入金登録
-            </Button>
-          )}
           {!isEditing ? (
             <Button onClick={() => setIsEditing(true)}>編集</Button>
           ) : (
@@ -481,26 +441,7 @@ export default function IntroductionDetailPage() {
 
       {/* 入金情報 */}
       <Card>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-slate-800">入金情報</h2>
-          {canRegisterPayment && payments.length === 0 && (
-            <Button size="sm" onClick={() => {
-              setPaymentFormData({
-                total_amount: introduction.referral_fee?.toString() || '',
-                status: '仮売上',
-                notes: '',
-              })
-              setShowPaymentModal(true)
-            }}>
-              入金登録
-            </Button>
-          )}
-        </div>
-        {!canRegisterPayment && payments.length === 0 && (
-          <div className="text-center py-8 text-slate-500">
-            入社日を入力すると入金登録ができます
-          </div>
-        )}
+        <h2 className="text-lg font-semibold text-slate-800 mb-4">入金情報</h2>
         {payments.length > 0 ? (
           <div className="space-y-4">
             {payments.map((payment) => (
@@ -528,67 +469,14 @@ export default function IntroductionDetailPage() {
               </div>
             ))}
           </div>
-        ) : canRegisterPayment ? (
+        ) : (
           <div className="text-center py-8 text-slate-500">
-            入金情報がありません
+            {introduction.start_work_date
+              ? '入金情報がありません'
+              : '入社日を入力すると自動で入金データが作成されます'}
           </div>
-        ) : null}
+        )}
       </Card>
-
-      {/* 入金登録モーダル */}
-      {showPaymentModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-bold text-slate-800 mb-4">入金登録</h2>
-            <form onSubmit={handlePaymentSubmit} className="space-y-4">
-              <div className="p-3 bg-slate-100 rounded">
-                <div className="text-sm text-slate-500">紹介情報</div>
-                <div className="text-sm font-medium text-slate-800">
-                  {introduction.candidate_name} → {introduction.company_name}
-                </div>
-                <div className="text-sm text-slate-500 mt-1">
-                  入社日: {formatDate(introduction.start_work_date)}
-                </div>
-                {introduction.referral_fee && (
-                  <div className="text-sm text-slate-500 mt-1">
-                    紹介料: ¥{formatNumber(introduction.referral_fee)}
-                  </div>
-                )}
-              </div>
-              <Input
-                label="金額"
-                type="number"
-                value={paymentFormData.total_amount}
-                onChange={(e) => setPaymentFormData({ ...paymentFormData, total_amount: e.target.value })}
-                placeholder="例: 300000"
-                required
-              />
-              <Select
-                label="ステータス"
-                options={paymentStatusOptions}
-                value={paymentFormData.status}
-                onChange={(e) => setPaymentFormData({ ...paymentFormData, status: e.target.value })}
-              />
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">備考</label>
-                <textarea
-                  value={paymentFormData.notes}
-                  onChange={(e) => setPaymentFormData({ ...paymentFormData, notes: e.target.value })}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="備考があれば入力"
-                />
-              </div>
-              <div className="flex gap-2 justify-end pt-4">
-                <Button type="button" variant="secondary" onClick={() => setShowPaymentModal(false)}>
-                  キャンセル
-                </Button>
-                <Button type="submit">登録</Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
