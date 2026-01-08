@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { Input, Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
@@ -25,27 +25,142 @@ interface Stats {
   paidAmount: number      // 入金済
 }
 
-function getStatusBadge(status: string | null) {
+const statusOptions = [
+  { value: '入金予定', label: '入金予定' },
+  { value: '請求中', label: '請求中' },
+  { value: '入金途中', label: '入金途中' },
+  { value: '入金済み', label: '入金済み' },
+]
+
+function getStatusBadgeVariant(status: string | null): 'success' | 'purple' | 'warning' | 'info' | 'default' {
   switch (status) {
     case '入金済':
     case '入金済み':
-      return <Badge variant="success">{status}</Badge>
+      return 'success'
     case '入金途中':
-      return <Badge variant="purple">{status}</Badge>
+      return 'purple'
     case '請求中':
-      return <Badge variant="warning">{status}</Badge>
+      return 'warning'
     case '仮売上':
     case '入金予定':
-      return <Badge variant="info">{status}</Badge>
+      return 'info'
     default:
-      return <Badge variant="info">入金予定</Badge>
+      return 'info'
   }
+}
+
+function getStatusLabel(status: string | null): string {
+  if (!status) return '入金予定'
+  return status
 }
 
 // 数値を安全にフォーマット
 function formatNumber(value: number | null | undefined): string {
   if (value === null || value === undefined) return '-'
   return value.toLocaleString()
+}
+
+// 統計を計算する関数
+function calculateStats(items: PaymentItem[]): Stats {
+  let pendingAmount = 0
+  let waitingAmount = 0
+  let paidAmount = 0
+
+  items.forEach((item) => {
+    const amount = item.referral_fee || 0
+    const status = item.payment_status
+
+    if (status === '入金済' || status === '入金済み') {
+      paidAmount += amount
+    } else if (status === '請求中' || status === '入金途中') {
+      waitingAmount += amount
+    } else {
+      pendingAmount += amount
+    }
+  })
+
+  return { pendingAmount, waitingAmount, paidAmount }
+}
+
+// ステータスドロップダウンコンポーネント
+function StatusDropdown({
+  item,
+  onStatusChange,
+}: {
+  item: PaymentItem
+  onStatusChange: (introductionId: string, newStatus: string, referralFee: number | null, paymentId: string | null) => Promise<void>
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  async function handleSelect(newStatus: string) {
+    if (newStatus === item.payment_status) {
+      setIsOpen(false)
+      return
+    }
+
+    setIsUpdating(true)
+    try {
+      await onStatusChange(item.introduction_id, newStatus, item.referral_fee, item.payment_id)
+    } finally {
+      setIsUpdating(false)
+      setIsOpen(false)
+    }
+  }
+
+  const currentStatus = getStatusLabel(item.payment_status)
+  const variant = getStatusBadgeVariant(item.payment_status)
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => !isUpdating && setIsOpen(!isOpen)}
+        disabled={isUpdating}
+        className="cursor-pointer disabled:cursor-wait"
+      >
+        {isUpdating ? (
+          <Badge variant={variant}>
+            <span className="flex items-center gap-1">
+              <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              保存中
+            </span>
+          </Badge>
+        ) : (
+          <Badge variant={variant}>{currentStatus}</Badge>
+        )}
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-20 mt-1 w-32 bg-white border border-slate-200 rounded-lg shadow-lg">
+          {statusOptions.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => handleSelect(option.value)}
+              className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-50 first:rounded-t-lg last:rounded-b-lg ${
+                option.value === currentStatus ? 'bg-slate-100 font-medium' : ''
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function PaymentsPage() {
@@ -132,32 +247,64 @@ export default function PaymentsPage() {
     })
 
     // 統計を計算
-    let pendingAmount = 0   // 入金予定（入金予定・仮売上・ステータスなし）
-    let waitingAmount = 0   // 入金待ち（請求中・入金途中）
-    let paidAmount = 0      // 入金済
-
-    formattedData.forEach((item) => {
-      const amount = item.referral_fee || 0
-      const status = item.payment_status
-
-      if (status === '入金済' || status === '入金済み') {
-        paidAmount += amount
-      } else if (status === '請求中' || status === '入金途中') {
-        waitingAmount += amount
-      } else {
-        // 仮売上、入金予定、またはステータスなし
-        pendingAmount += amount
-      }
-    })
-
-    setStats({
-      pendingAmount,
-      waitingAmount,
-      paidAmount,
-    })
-
+    setStats(calculateStats(formattedData))
     setPaymentItems(formattedData)
     setLoading(false)
+  }
+
+  async function handleStatusChange(
+    introductionId: string,
+    newStatus: string,
+    referralFee: number | null,
+    paymentId: string | null
+  ) {
+    const supabase = createClient()
+
+    if (paymentId) {
+      // 既存のpaymentをUPDATE
+      const { error } = await (supabase.from('payments') as any)
+        .update({ status: newStatus })
+        .eq('id', paymentId)
+
+      if (error) {
+        console.error('Error updating payment:', error)
+        alert('ステータスの更新に失敗しました')
+        return
+      }
+    } else {
+      // 新規INSERT
+      const payload = {
+        introduction_id: introductionId,
+        total_amount: referralFee || 0,
+        status: newStatus,
+      }
+
+      const { data, error } = await (supabase.from('payments') as any)
+        .insert(payload)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error creating payment:', error)
+        alert('ステータスの更新に失敗しました')
+        return
+      }
+
+      // 新しいpayment_idをセット
+      paymentId = data.id
+    }
+
+    // ローカルステートを更新
+    setPaymentItems((prev) => {
+      const updated = prev.map((item) =>
+        item.introduction_id === introductionId
+          ? { ...item, payment_status: newStatus, payment_id: paymentId }
+          : item
+      )
+      // 統計を再計算
+      setStats(calculateStats(updated))
+      return updated
+    })
   }
 
   const filteredItems = paymentItems.filter((item) =>
@@ -250,7 +397,12 @@ export default function PaymentsPage() {
                         <span className="text-slate-400">-</span>
                       )}
                     </TableCell>
-                    <TableCell>{getStatusBadge(item.payment_status)}</TableCell>
+                    <TableCell>
+                      <StatusDropdown
+                        item={item}
+                        onStatusChange={handleStatusChange}
+                      />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
