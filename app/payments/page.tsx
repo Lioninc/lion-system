@@ -329,6 +329,7 @@ export default function PaymentsPage() {
       // 新規INSERT
       const payload = {
         introduction_id: introductionId,
+        amount: referralFee || 0,
         total_amount: referralFee || 0,
         status: newStatus,
       }

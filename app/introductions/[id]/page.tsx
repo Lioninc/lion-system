@@ -224,6 +224,7 @@ export default function IntroductionDetailPage() {
       if (referralFee && referralFee > 0) {
         const paymentPayload = {
           introduction_id: introductionId,
+          amount: referralFee,
           total_amount: referralFee,
           status: '仮売上',
         }
