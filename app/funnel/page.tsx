@@ -90,10 +90,14 @@ export default function FunnelPage() {
     const endDate = `${year}-12-31`
 
     // 担当者一覧（全員取得）
-    const { data: employeesData } = await supabase
+    const { data: employeesData, error: employeesError } = await supabase
       .from('employees')
       .select('id, name')
       .order('name')
+
+    if (employeesError) {
+      console.error('Error fetching employees:', employeesError)
+    }
 
     // 面談データ
     const { data: interviewsData } = await supabase
@@ -317,6 +321,11 @@ export default function FunnelPage() {
             />
           </div>
         </div>
+      </div>
+
+      {/* デバッグ情報 */}
+      <div className="text-xs text-slate-400 bg-slate-100 p-2 rounded">
+        担当者数: {employees.length}名 / 表示中: {employeeDataList.length}名 / フィルター: {selectedEmployee}
       </div>
 
       {loading ? (
