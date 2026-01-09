@@ -17,6 +17,7 @@ interface PaymentItem {
   // paymentsテーブルから
   payment_id: string | null
   payment_status: string | null
+  paid_amount: number | null  // 入金済み金額（入金途中の場合に使用）
 }
 
 interface Stats {
@@ -69,12 +70,20 @@ function calculateStats(items: PaymentItem[]): Stats {
   items.forEach((item) => {
     const amount = item.referral_fee || 0
     const status = item.payment_status
+    const paidAmt = item.paid_amount || 0
 
     if (status === '入金済' || status === '入金済み') {
+      // 入金済み: 全額を入金済みに
       paidAmount += amount
-    } else if (status === '請求中' || status === '入金途中') {
+    } else if (status === '入金途中') {
+      // 入金途中: paid_amountを入金済みに、残りを入金待ちに
+      paidAmount += paidAmt
+      waitingAmount += (amount - paidAmt)
+    } else if (status === '請求中') {
+      // 請求中: 全額を入金待ちに
       waitingAmount += amount
     } else {
+      // 入金予定・仮売上など: 入金予定売上に
       pendingAmount += amount
     }
   })
@@ -92,27 +101,52 @@ function StatusModal({
   item: PaymentItem | null
   isOpen: boolean
   onClose: () => void
-  onStatusChange: (introductionId: string, newStatus: string, referralFee: number | null, paymentId: string | null) => Promise<void>
+  onStatusChange: (introductionId: string, newStatus: string, referralFee: number | null, paymentId: string | null, paidAmount: number | null) => Promise<void>
 }) {
   const [isUpdating, setIsUpdating] = useState(false)
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null)
+  const [paidAmountInput, setPaidAmountInput] = useState('')
+
+  // モーダルが開いたときに初期化
+  useEffect(() => {
+    if (isOpen && item) {
+      setSelectedStatus(null)
+      setPaidAmountInput(item.paid_amount ? String(item.paid_amount) : '')
+    }
+  }, [isOpen, item])
 
   if (!isOpen || !item) return null
 
-  async function handleSelect(newStatus: string) {
+  async function handleStatusClick(newStatus: string) {
+    if (newStatus === '入金途中') {
+      // 入金途中を選択した場合は入力フォームを表示
+      setSelectedStatus('入金途中')
+    } else {
+      // その他のステータスは直接保存
+      await handleSave(newStatus, null)
+    }
+  }
+
+  async function handleSave(status: string, paidAmount: number | null) {
     if (!item) return
 
-    if (newStatus === item.payment_status) {
+    if (status === item.payment_status && paidAmount === item.paid_amount) {
       onClose()
       return
     }
 
     setIsUpdating(true)
     try {
-      await onStatusChange(item.introduction_id, newStatus, item.referral_fee, item.payment_id)
+      await onStatusChange(item.introduction_id, status, item.referral_fee, item.payment_id, paidAmount)
       onClose()
     } finally {
       setIsUpdating(false)
     }
+  }
+
+  async function handlePartialPaymentSubmit() {
+    const paidAmount = parseInt(paidAmountInput, 10) || 0
+    await handleSave('入金途中', paidAmount)
   }
 
   const currentStatus = getStatusLabel(item.payment_status)
@@ -154,61 +188,110 @@ function StatusModal({
                 {item.referral_fee ? `¥${formatNumber(item.referral_fee)}` : '-'}
               </span>
             </div>
+            {item.payment_status === '入金途中' && item.paid_amount && (
+              <div className="flex">
+                <span className="w-20 text-slate-500">入金済</span>
+                <span className="font-medium text-purple-600">¥{formatNumber(item.paid_amount)}</span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* ステータスボタン */}
-        <div className="space-y-3 mb-6">
-          {statusOptions.map((option) => {
-            const colors = statusColors[option.value]
-            const isSelected = option.value === currentStatus
-
-            return (
+        {/* 入金途中選択時の入力フォーム */}
+        {selectedStatus === '入金途中' ? (
+          <div className="space-y-4 mb-6">
+            <div className="p-4 bg-purple-50 border-2 border-purple-500 rounded-lg">
+              <label className="block text-sm font-medium text-purple-700 mb-2">
+                入金済み金額を入力
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-purple-700">¥</span>
+                <input
+                  type="number"
+                  value={paidAmountInput}
+                  onChange={(e) => setPaidAmountInput(e.target.value)}
+                  placeholder="0"
+                  className="flex-1 px-3 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  autoFocus
+                />
+              </div>
+              <p className="text-xs text-purple-600 mt-2">
+                総額: ¥{formatNumber(item.referral_fee)} / 残り: ¥{formatNumber((item.referral_fee || 0) - (parseInt(paidAmountInput, 10) || 0))}
+              </p>
+            </div>
+            <div className="flex gap-2">
               <button
-                key={option.value}
-                onClick={() => handleSelect(option.value)}
+                onClick={() => setSelectedStatus(null)}
                 disabled={isUpdating}
-                className={`
-                  w-full h-[50px] rounded-lg font-medium text-base transition-all
-                  border-2 disabled:opacity-50 disabled:cursor-not-allowed
-                  ${isSelected
-                    ? `${colors.bg} ${colors.border} ${colors.text} ring-2 ring-offset-2 ring-${option.value === '入金予定' ? 'blue' : option.value === '請求中' ? 'amber' : option.value === '入金途中' ? 'purple' : 'emerald'}-300`
-                    : `bg-white border-slate-200 text-slate-700 ${colors.hover}`
-                  }
-                `}
+                className="flex-1 h-[44px] rounded-lg border border-slate-300 text-slate-600 font-medium hover:bg-slate-50 transition-colors disabled:opacity-50"
               >
-                {isUpdating && option.value !== currentStatus ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    保存中...
-                  </span>
-                ) : (
-                  <span className="flex items-center justify-center gap-2">
-                    {isSelected && (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                    {option.label}
-                    {isSelected && <span className="text-xs">（現在）</span>}
-                  </span>
-                )}
+                戻る
               </button>
-            )
-          })}
-        </div>
+              <button
+                onClick={handlePartialPaymentSubmit}
+                disabled={isUpdating || !paidAmountInput}
+                className="flex-1 h-[44px] rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
+              >
+                {isUpdating ? '保存中...' : '保存'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* ステータスボタン */}
+            <div className="space-y-3 mb-6">
+              {statusOptions.map((option) => {
+                const colors = statusColors[option.value]
+                const isSelected = option.value === currentStatus
 
-        {/* キャンセルボタン */}
-        <button
-          onClick={onClose}
-          disabled={isUpdating}
-          className="w-full h-[44px] rounded-lg border border-slate-300 text-slate-600 font-medium hover:bg-slate-50 transition-colors disabled:opacity-50"
-        >
-          キャンセル
-        </button>
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => handleStatusClick(option.value)}
+                    disabled={isUpdating}
+                    className={`
+                      w-full h-[50px] rounded-lg font-medium text-base transition-all
+                      border-2 disabled:opacity-50 disabled:cursor-not-allowed
+                      ${isSelected
+                        ? `${colors.bg} ${colors.border} ${colors.text} ring-2 ring-offset-2 ring-${option.value === '入金予定' ? 'blue' : option.value === '請求中' ? 'amber' : option.value === '入金途中' ? 'purple' : 'emerald'}-300`
+                        : `bg-white border-slate-200 text-slate-700 ${colors.hover}`
+                      }
+                    `}
+                  >
+                    {isUpdating ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        保存中...
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-2">
+                        {isSelected && (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                        {option.label}
+                        {isSelected && <span className="text-xs">（現在）</span>}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* キャンセルボタン */}
+            <button
+              onClick={onClose}
+              disabled={isUpdating}
+              className="w-full h-[44px] rounded-lg border border-slate-300 text-slate-600 font-medium hover:bg-slate-50 transition-colors disabled:opacity-50"
+            >
+              キャンセル
+            </button>
+          </>
+        )}
       </div>
     </div>
   )
@@ -297,6 +380,7 @@ export default function PaymentsPage() {
         referral_fee: intro.jobs?.referral_fee || null,
         payment_id: payment?.id || null,
         payment_status: payment?.status || null,
+        paid_amount: payment?.paid_amount || null,
       }
     })
 
@@ -310,14 +394,22 @@ export default function PaymentsPage() {
     introductionId: string,
     newStatus: string,
     referralFee: number | null,
-    paymentId: string | null
+    paymentId: string | null,
+    paidAmount: number | null
   ) {
     const supabase = createClient()
 
     if (paymentId) {
       // 既存のpaymentをUPDATE
+      const updateData: Record<string, any> = { status: newStatus }
+      if (newStatus === '入金途中') {
+        updateData.paid_amount = paidAmount || 0
+      } else {
+        updateData.paid_amount = null
+      }
+
       const { error } = await (supabase.from('payments') as any)
-        .update({ status: newStatus })
+        .update(updateData)
         .eq('id', paymentId)
 
       if (error) {
@@ -327,11 +419,14 @@ export default function PaymentsPage() {
       }
     } else {
       // 新規INSERT
-      const payload = {
+      const payload: Record<string, any> = {
         introduction_id: introductionId,
         amount: referralFee || 0,
         total_amount: referralFee || 0,
         status: newStatus,
+      }
+      if (newStatus === '入金途中') {
+        payload.paid_amount = paidAmount || 0
       }
 
       const { data, error } = await (supabase.from('payments') as any)
@@ -353,7 +448,12 @@ export default function PaymentsPage() {
     setPaymentItems((prev) => {
       const updated = prev.map((item) =>
         item.introduction_id === introductionId
-          ? { ...item, payment_status: newStatus, payment_id: paymentId }
+          ? {
+              ...item,
+              payment_status: newStatus,
+              payment_id: paymentId,
+              paid_amount: newStatus === '入金途中' ? paidAmount : null
+            }
           : item
       )
       // 統計を再計算
@@ -445,9 +545,16 @@ export default function PaymentsPage() {
                     </TableCell>
                     <TableCell>
                       {item.referral_fee ? (
-                        <span className="font-medium">
-                          ¥{formatNumber(item.referral_fee)}
-                        </span>
+                        <div>
+                          <span className="font-medium">
+                            ¥{formatNumber(item.referral_fee)}
+                          </span>
+                          {item.payment_status === '入金途中' && item.paid_amount !== null && (
+                            <span className="text-xs text-purple-600 ml-1">
+                              (入金済: ¥{formatNumber(item.paid_amount)})
+                            </span>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-slate-400">-</span>
                       )}
