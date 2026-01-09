@@ -28,6 +28,7 @@ interface Candidate {
 interface Employee {
   id: string
   name: string
+  division_name: string | null
 }
 
 interface Company {
@@ -164,7 +165,13 @@ export default function InterviewsPage() {
     const supabase = createClient()
     const { data, error } = await supabase
       .from('employees')
-      .select('id, name')
+      .select(`
+        id,
+        name,
+        divisions (
+          name
+        )
+      `)
       .eq('is_active', true)
       .order('name')
 
@@ -173,7 +180,16 @@ export default function InterviewsPage() {
       return
     }
 
-    setEmployees(data || [])
+    // 管理部の担当者を除外
+    const filteredEmployees: Employee[] = (data || [])
+      .map((emp: any) => ({
+        id: emp.id,
+        name: emp.name,
+        division_name: emp.divisions?.name || null,
+      }))
+      .filter((emp: Employee) => emp.division_name !== '管理部')
+
+    setEmployees(filteredEmployees)
   }
 
   async function fetchCompanies() {

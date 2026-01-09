@@ -26,6 +26,7 @@ interface Candidate {
 interface Employee {
   id: string
   name: string
+  division_name: string | null
 }
 
 
@@ -95,14 +96,29 @@ export default function AttackListPage() {
     setLoading(true)
     const supabase = createClient()
 
-    // 従業員を取得
+    // 従業員を取得（管理部を除外）
     const { data: employeesData } = await supabase
       .from('employees')
-      .select('id, name')
+      .select(`
+        id,
+        name,
+        divisions (
+          name
+        )
+      `)
       .eq('is_active', true)
       .order('name')
 
-    setEmployees(employeesData || [])
+    // 管理部の担当者を除外
+    const filteredEmployees: Employee[] = (employeesData || [])
+      .map((emp: any) => ({
+        id: emp.id,
+        name: emp.name,
+        division_name: emp.divisions?.name || null,
+      }))
+      .filter((emp: Employee) => emp.division_name !== '管理部')
+
+    setEmployees(filteredEmployees)
 
     // 対象ステージの求職者を取得
     const targetStages = ['新規', '電話出ず', '連絡済み', '面談予定', '保留', '就業時期が先']

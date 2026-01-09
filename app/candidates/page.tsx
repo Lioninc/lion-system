@@ -219,7 +219,13 @@ export default function CandidatesPage() {
 
     const { data, error } = await supabase
       .from('employees')
-      .select('id, name')
+      .select(`
+        id,
+        name,
+        divisions (
+          name
+        )
+      `)
       .order('name')
 
     if (error) {
@@ -227,9 +233,13 @@ export default function CandidatesPage() {
       return
     }
 
+    // 管理部の担当者を除外
+    const filteredEmployees = (data || [])
+      .filter((emp: any) => emp.divisions?.name !== '管理部')
+
     const options = [
       { value: '', label: 'すべて' },
-      ...(data || []).map((emp: any) => ({ value: emp.name, label: emp.name }))
+      ...filteredEmployees.map((emp: any) => ({ value: emp.name, label: emp.name }))
     ]
     setEmployees(options)
   }

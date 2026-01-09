@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 interface Employee {
   id: string
   name: string
+  division_name: string | null
 }
 
 interface Interview {
@@ -89,15 +90,30 @@ export default function FunnelPage() {
     const startDate = `${year}-01-01`
     const endDate = `${year}-12-31`
 
-    // 担当者一覧（全員取得）
+    // 担当者一覧（管理部を除外）
     const { data: employeesData, error: employeesError } = await supabase
       .from('employees')
-      .select('id, name')
+      .select(`
+        id,
+        name,
+        divisions (
+          name
+        )
+      `)
       .order('name')
 
     if (employeesError) {
       console.error('Error fetching employees:', employeesError)
     }
+
+    // 管理部の担当者を除外
+    const filteredEmployees: Employee[] = (employeesData || [])
+      .map((emp: any) => ({
+        id: emp.id,
+        name: emp.name,
+        division_name: emp.divisions?.name || null,
+      }))
+      .filter((emp: Employee) => emp.division_name !== '管理部')
 
     // 面談データ
     const { data: interviewsData } = await supabase
@@ -123,7 +139,7 @@ export default function FunnelPage() {
       .from('jobs')
       .select('id, referral_fee')
 
-    setEmployees(employeesData || [])
+    setEmployees(filteredEmployees)
     setInterviews(interviewsData || [])
     setIntroductions(introductionsData || [])
     setPayments(paymentsData || [])

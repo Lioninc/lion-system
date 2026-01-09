@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 interface Employee {
   id: string
   name: string
+  division_name: string | null
 }
 
 const genderOptions = [
@@ -118,7 +119,13 @@ export default function EditCandidatePage() {
         .single(),
       supabase
         .from('employees')
-        .select('id, name')
+        .select(`
+          id,
+          name,
+          divisions (
+            name
+          )
+        `)
         .eq('is_active', true)
         .order('name'),
     ])
@@ -126,7 +133,15 @@ export default function EditCandidatePage() {
     if (employeesResult.error) {
       console.error('Error fetching employees:', employeesResult.error)
     } else {
-      setEmployees(employeesResult.data || [])
+      // 管理部の担当者を除外
+      const filteredEmployees: Employee[] = (employeesResult.data || [])
+        .map((emp: any) => ({
+          id: emp.id,
+          name: emp.name,
+          division_name: emp.divisions?.name || null,
+        }))
+        .filter((emp: Employee) => emp.division_name !== '管理部')
+      setEmployees(filteredEmployees)
     }
 
     if (candidateResult.error) {

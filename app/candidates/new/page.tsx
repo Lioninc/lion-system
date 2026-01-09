@@ -104,7 +104,13 @@ export default function NewCandidatePage() {
     const supabase = createClient()
     const { data, error } = await supabase
       .from('employees')
-      .select('id, name')
+      .select(`
+        id,
+        name,
+        divisions (
+          name
+        )
+      `)
       .eq('is_active', true)
       .order('name')
 
@@ -113,9 +119,13 @@ export default function NewCandidatePage() {
       return
     }
 
+    // 管理部の担当者を除外
+    const filteredEmployees = (data || [])
+      .filter((emp: any) => emp.divisions?.name !== '管理部')
+
     setEmployeeOptions([
       { value: '', label: '選択してください' },
-      ...(data || []).map((e: any) => ({ value: e.id, label: e.name })),
+      ...filteredEmployees.map((e: any) => ({ value: e.id, label: e.name })),
     ])
   }
 
