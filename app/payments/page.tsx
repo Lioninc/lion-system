@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Input, Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
@@ -82,83 +82,134 @@ function calculateStats(items: PaymentItem[]): Stats {
   return { pendingAmount, waitingAmount, paidAmount }
 }
 
-// ステータスドロップダウンコンポーネント
-function StatusDropdown({
+// ステータス変更モーダルコンポーネント
+function StatusModal({
   item,
+  isOpen,
+  onClose,
   onStatusChange,
 }: {
-  item: PaymentItem
+  item: PaymentItem | null
+  isOpen: boolean
+  onClose: () => void
   onStatusChange: (introductionId: string, newStatus: string, referralFee: number | null, paymentId: string | null) => Promise<void>
 }) {
-  const [isOpen, setIsOpen] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+  if (!isOpen || !item) return null
 
   async function handleSelect(newStatus: string) {
+    if (!item) return
+
     if (newStatus === item.payment_status) {
-      setIsOpen(false)
+      onClose()
       return
     }
 
     setIsUpdating(true)
     try {
       await onStatusChange(item.introduction_id, newStatus, item.referral_fee, item.payment_id)
+      onClose()
     } finally {
       setIsUpdating(false)
-      setIsOpen(false)
     }
   }
 
   const currentStatus = getStatusLabel(item.payment_status)
-  const variant = getStatusBadgeVariant(item.payment_status)
+
+  // ステータスごとの色設定
+  const statusColors: Record<string, { bg: string; border: string; text: string; hover: string }> = {
+    '入金予定': { bg: 'bg-blue-50', border: 'border-blue-500', text: 'text-blue-700', hover: 'hover:bg-blue-100' },
+    '請求中': { bg: 'bg-amber-50', border: 'border-amber-500', text: 'text-amber-700', hover: 'hover:bg-amber-100' },
+    '入金途中': { bg: 'bg-purple-50', border: 'border-purple-500', text: 'text-purple-700', hover: 'hover:bg-purple-100' },
+    '入金済み': { bg: 'bg-emerald-50', border: 'border-emerald-500', text: 'text-emerald-700', hover: 'hover:bg-emerald-100' },
+  }
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      <button
-        onClick={() => !isUpdating && setIsOpen(!isOpen)}
-        disabled={isUpdating}
-        className="cursor-pointer disabled:cursor-wait"
-      >
-        {isUpdating ? (
-          <Badge variant={variant}>
-            <span className="flex items-center gap-1">
-              <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-              保存中
-            </span>
-          </Badge>
-        ) : (
-          <Badge variant={variant}>{currentStatus}</Badge>
-        )}
-      </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* オーバーレイ */}
+      <div
+        className="absolute inset-0 bg-black/50"
+        onClick={() => !isUpdating && onClose()}
+      />
 
-      {isOpen && (
-        <div className="absolute z-20 mt-1 w-32 bg-white border border-slate-200 rounded-lg shadow-lg">
-          {statusOptions.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => handleSelect(option.value)}
-              className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-50 first:rounded-t-lg last:rounded-b-lg ${
-                option.value === currentStatus ? 'bg-slate-100 font-medium' : ''
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
+      {/* モーダル本体 */}
+      <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
+        <h2 className="text-xl font-bold text-slate-800 mb-4">ステータス変更</h2>
+
+        {/* 対象情報 */}
+        <div className="bg-slate-50 rounded-lg p-4 mb-6">
+          <div className="space-y-2 text-sm">
+            <div className="flex">
+              <span className="w-20 text-slate-500">求職者</span>
+              <span className="font-medium text-slate-800">{item.candidate_name || '-'}</span>
+            </div>
+            <div className="flex">
+              <span className="w-20 text-slate-500">企業</span>
+              <span className="font-medium text-slate-800">{item.company_name || '-'}</span>
+            </div>
+            <div className="flex">
+              <span className="w-20 text-slate-500">金額</span>
+              <span className="font-bold text-emerald-600">
+                {item.referral_fee ? `¥${formatNumber(item.referral_fee)}` : '-'}
+              </span>
+            </div>
+          </div>
         </div>
-      )}
+
+        {/* ステータスボタン */}
+        <div className="space-y-3 mb-6">
+          {statusOptions.map((option) => {
+            const colors = statusColors[option.value]
+            const isSelected = option.value === currentStatus
+
+            return (
+              <button
+                key={option.value}
+                onClick={() => handleSelect(option.value)}
+                disabled={isUpdating}
+                className={`
+                  w-full h-[50px] rounded-lg font-medium text-base transition-all
+                  border-2 disabled:opacity-50 disabled:cursor-not-allowed
+                  ${isSelected
+                    ? `${colors.bg} ${colors.border} ${colors.text} ring-2 ring-offset-2 ring-${option.value === '入金予定' ? 'blue' : option.value === '請求中' ? 'amber' : option.value === '入金途中' ? 'purple' : 'emerald'}-300`
+                    : `bg-white border-slate-200 text-slate-700 ${colors.hover}`
+                  }
+                `}
+              >
+                {isUpdating && option.value !== currentStatus ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    保存中...
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    {isSelected && (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                    {option.label}
+                    {isSelected && <span className="text-xs">（現在）</span>}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* キャンセルボタン */}
+        <button
+          onClick={onClose}
+          disabled={isUpdating}
+          className="w-full h-[44px] rounded-lg border border-slate-300 text-slate-600 font-medium hover:bg-slate-50 transition-colors disabled:opacity-50"
+        >
+          キャンセル
+        </button>
+      </div>
     </div>
   )
 }
@@ -172,6 +223,9 @@ export default function PaymentsPage() {
     waitingAmount: 0,
     paidAmount: 0,
   })
+  // モーダル用state
+  const [modalItem, setModalItem] = useState<PaymentItem | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   useEffect(() => {
     fetchPaymentData()
@@ -398,10 +452,17 @@ export default function PaymentsPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <StatusDropdown
-                        item={item}
-                        onStatusChange={handleStatusChange}
-                      />
+                      <button
+                        onClick={() => {
+                          setModalItem(item)
+                          setIsModalOpen(true)
+                        }}
+                        className="cursor-pointer"
+                      >
+                        <Badge variant={getStatusBadgeVariant(item.payment_status)}>
+                          {getStatusLabel(item.payment_status)}
+                        </Badge>
+                      </button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -415,6 +476,17 @@ export default function PaymentsPage() {
           </>
         )}
       </Card>
+
+      {/* ステータス変更モーダル */}
+      <StatusModal
+        item={modalItem}
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false)
+          setModalItem(null)
+        }}
+        onStatusChange={handleStatusChange}
+      />
     </div>
   )
 }
