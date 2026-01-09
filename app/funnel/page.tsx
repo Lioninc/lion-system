@@ -147,130 +147,87 @@ export default function FunnelPage() {
     return map
   }, [payments])
 
-  // 担当者別データを計算
-  const employeeDataList = useMemo((): EmployeeData[] => {
-    const filteredEmployees = selectedEmployee === 'all'
-      ? employees
-      : employees.filter(e => e.id === selectedEmployee)
+  // 全体データ（全担当者選択時に使用）
+  const companyWideData = useMemo(() => {
+    const monthlyData: MonthlyData[] = months.map(month => {
+      // 該当月の面談数（全担当者）
+      const monthInterviews = interviews.filter(i => {
+        const date = new Date(i.interview_date)
+        return date.getMonth() + 1 === month
+      })
 
-    return filteredEmployees.map(employee => {
-      const monthlyData: MonthlyData[] = months.map(month => {
-        // 該当月の面談数
-        const monthInterviews = interviews.filter(i => {
-          if (i.employee_id !== employee.id) return false
-          const date = new Date(i.interview_date)
-          return date.getMonth() + 1 === month
-        })
+      // 該当月の紹介数（全担当者）
+      const monthIntroductions = introductions.filter(i => {
+        if (!i.introduction_date) return false
+        const date = new Date(i.introduction_date)
+        return date.getMonth() + 1 === month
+      })
 
-        // 該当月の紹介数（繋ぎ数）
-        const monthIntroductions = introductions.filter(i => {
-          if (i.staff_id !== employee.id) return false
-          if (!i.introduction_date) return false
-          const date = new Date(i.introduction_date)
-          return date.getMonth() + 1 === month
-        })
+      // 稼働数（入社した人数）
+      const activeWorkers = monthIntroductions.filter(i => i.start_work_date).length
 
-        // 稼働数（入社した人数）
-        const activeWorkers = monthIntroductions.filter(i => i.start_work_date).length
-
-        // 売上見込み（紹介料の合計）
-        let expectedRevenue = 0
-        monthIntroductions.forEach(intro => {
-          if (intro.job_id) {
-            const job = jobsMap.get(intro.job_id)
-            if (job?.referral_fee) {
-              expectedRevenue += job.referral_fee
-            }
+      // 売上見込み（紹介料の合計）
+      let expectedRevenue = 0
+      monthIntroductions.forEach(intro => {
+        if (intro.job_id) {
+          const job = jobsMap.get(intro.job_id)
+          if (job?.referral_fee) {
+            expectedRevenue += job.referral_fee
           }
-        })
-
-        // 売上実績（入金済みの金額）
-        let actualRevenue = 0
-        monthIntroductions.forEach(intro => {
-          const introPayments = paymentsMap.get(intro.id) || []
-          introPayments.forEach(p => {
-            if (p.status === '入金済み' || p.status === '入金済') {
-              actualRevenue += p.total_amount
-            }
-          })
-        })
-
-        // 繋ぎ率 = 紹介数 / 面接数
-        const connectionRate = monthInterviews.length > 0
-          ? Math.round((monthIntroductions.length / monthInterviews.length) * 100)
-          : 0
-
-        // 稼働率 = 稼働数 / 紹介数
-        const activeRate = monthIntroductions.length > 0
-          ? Math.round((activeWorkers / monthIntroductions.length) * 100)
-          : 0
-
-        // 入金率 = 売上実績 / 売上見込み
-        const paymentRate = expectedRevenue > 0
-          ? Math.round((actualRevenue / expectedRevenue) * 100)
-          : 0
-
-        return {
-          month,
-          interviews: monthInterviews.length,
-          connections: monthIntroductions.length,
-          connectionRate,
-          activeWorkers,
-          activeRate,
-          expectedRevenue,
-          actualRevenue,
-          paymentRate,
         }
       })
 
-      // 年間合計
-      const totals: MonthlyData = {
-        month: 0,
-        interviews: monthlyData.reduce((sum, d) => sum + d.interviews, 0),
-        connections: monthlyData.reduce((sum, d) => sum + d.connections, 0),
-        connectionRate: 0,
-        activeWorkers: monthlyData.reduce((sum, d) => sum + d.activeWorkers, 0),
-        activeRate: 0,
-        expectedRevenue: monthlyData.reduce((sum, d) => sum + d.expectedRevenue, 0),
-        actualRevenue: monthlyData.reduce((sum, d) => sum + d.actualRevenue, 0),
-        paymentRate: 0,
+      // 売上実績（入金済みの金額）
+      let actualRevenue = 0
+      monthIntroductions.forEach(intro => {
+        const introPayments = paymentsMap.get(intro.id) || []
+        introPayments.forEach(p => {
+          if (p.status === '入金済み' || p.status === '入金済') {
+            actualRevenue += p.total_amount
+          }
+        })
+      })
+
+      // 繋ぎ率 = 紹介数 / 面接数
+      const connectionRate = monthInterviews.length > 0
+        ? Math.round((monthIntroductions.length / monthInterviews.length) * 100)
+        : 0
+
+      // 稼働率 = 稼働数 / 紹介数
+      const activeRate = monthIntroductions.length > 0
+        ? Math.round((activeWorkers / monthIntroductions.length) * 100)
+        : 0
+
+      // 入金率 = 売上実績 / 売上見込み
+      const paymentRate = expectedRevenue > 0
+        ? Math.round((actualRevenue / expectedRevenue) * 100)
+        : 0
+
+      return {
+        month,
+        interviews: monthInterviews.length,
+        connections: monthIntroductions.length,
+        connectionRate,
+        activeWorkers,
+        activeRate,
+        expectedRevenue,
+        actualRevenue,
+        paymentRate,
       }
-      totals.connectionRate = totals.interviews > 0
-        ? Math.round((totals.connections / totals.interviews) * 100)
-        : 0
-      totals.activeRate = totals.connections > 0
-        ? Math.round((totals.activeWorkers / totals.connections) * 100)
-        : 0
-      totals.paymentRate = totals.expectedRevenue > 0
-        ? Math.round((totals.actualRevenue / totals.expectedRevenue) * 100)
-        : 0
-
-      return { employee, monthlyData, totals }
     })
-  }, [employees, interviews, introductions, jobsMap, paymentsMap, selectedEmployee])
 
-  // 全体合計
-  const grandTotals = useMemo((): MonthlyData => {
+    // 年間合計
     const totals: MonthlyData = {
       month: 0,
-      interviews: 0,
-      connections: 0,
+      interviews: monthlyData.reduce((sum, d) => sum + d.interviews, 0),
+      connections: monthlyData.reduce((sum, d) => sum + d.connections, 0),
       connectionRate: 0,
-      activeWorkers: 0,
+      activeWorkers: monthlyData.reduce((sum, d) => sum + d.activeWorkers, 0),
       activeRate: 0,
-      expectedRevenue: 0,
-      actualRevenue: 0,
+      expectedRevenue: monthlyData.reduce((sum, d) => sum + d.expectedRevenue, 0),
+      actualRevenue: monthlyData.reduce((sum, d) => sum + d.actualRevenue, 0),
       paymentRate: 0,
     }
-
-    employeeDataList.forEach(ed => {
-      totals.interviews += ed.totals.interviews
-      totals.connections += ed.totals.connections
-      totals.activeWorkers += ed.totals.activeWorkers
-      totals.expectedRevenue += ed.totals.expectedRevenue
-      totals.actualRevenue += ed.totals.actualRevenue
-    })
-
     totals.connectionRate = totals.interviews > 0
       ? Math.round((totals.connections / totals.interviews) * 100)
       : 0
@@ -281,8 +238,127 @@ export default function FunnelPage() {
       ? Math.round((totals.actualRevenue / totals.expectedRevenue) * 100)
       : 0
 
-    return totals
-  }, [employeeDataList])
+    return { monthlyData, totals }
+  }, [interviews, introductions, jobsMap, paymentsMap])
+
+  // 個別担当者データ（個別選択時に使用）
+  const selectedEmployeeData = useMemo((): EmployeeData | null => {
+    if (selectedEmployee === 'all') return null
+
+    const employee = employees.find(e => e.id === selectedEmployee)
+    if (!employee) return null
+
+    const monthlyData: MonthlyData[] = months.map(month => {
+      // 該当月の面談数（該当担当者のみ）
+      const monthInterviews = interviews.filter(i => {
+        if (i.employee_id !== employee.id) return false
+        const date = new Date(i.interview_date)
+        return date.getMonth() + 1 === month
+      })
+
+      // 該当月の紹介数（該当担当者のみ）
+      const monthIntroductions = introductions.filter(i => {
+        if (i.staff_id !== employee.id) return false
+        if (!i.introduction_date) return false
+        const date = new Date(i.introduction_date)
+        return date.getMonth() + 1 === month
+      })
+
+      // 稼働数（入社した人数）
+      const activeWorkers = monthIntroductions.filter(i => i.start_work_date).length
+
+      // 売上見込み（紹介料の合計）
+      let expectedRevenue = 0
+      monthIntroductions.forEach(intro => {
+        if (intro.job_id) {
+          const job = jobsMap.get(intro.job_id)
+          if (job?.referral_fee) {
+            expectedRevenue += job.referral_fee
+          }
+        }
+      })
+
+      // 売上実績（入金済みの金額）
+      let actualRevenue = 0
+      monthIntroductions.forEach(intro => {
+        const introPayments = paymentsMap.get(intro.id) || []
+        introPayments.forEach(p => {
+          if (p.status === '入金済み' || p.status === '入金済') {
+            actualRevenue += p.total_amount
+          }
+        })
+      })
+
+      // 繋ぎ率 = 紹介数 / 面接数
+      const connectionRate = monthInterviews.length > 0
+        ? Math.round((monthIntroductions.length / monthInterviews.length) * 100)
+        : 0
+
+      // 稼働率 = 稼働数 / 紹介数
+      const activeRate = monthIntroductions.length > 0
+        ? Math.round((activeWorkers / monthIntroductions.length) * 100)
+        : 0
+
+      // 入金率 = 売上実績 / 売上見込み
+      const paymentRate = expectedRevenue > 0
+        ? Math.round((actualRevenue / expectedRevenue) * 100)
+        : 0
+
+      return {
+        month,
+        interviews: monthInterviews.length,
+        connections: monthIntroductions.length,
+        connectionRate,
+        activeWorkers,
+        activeRate,
+        expectedRevenue,
+        actualRevenue,
+        paymentRate,
+      }
+    })
+
+    // 年間合計
+    const totals: MonthlyData = {
+      month: 0,
+      interviews: monthlyData.reduce((sum, d) => sum + d.interviews, 0),
+      connections: monthlyData.reduce((sum, d) => sum + d.connections, 0),
+      connectionRate: 0,
+      activeWorkers: monthlyData.reduce((sum, d) => sum + d.activeWorkers, 0),
+      activeRate: 0,
+      expectedRevenue: monthlyData.reduce((sum, d) => sum + d.expectedRevenue, 0),
+      actualRevenue: monthlyData.reduce((sum, d) => sum + d.actualRevenue, 0),
+      paymentRate: 0,
+    }
+    totals.connectionRate = totals.interviews > 0
+      ? Math.round((totals.connections / totals.interviews) * 100)
+      : 0
+    totals.activeRate = totals.connections > 0
+      ? Math.round((totals.activeWorkers / totals.connections) * 100)
+      : 0
+    totals.paymentRate = totals.expectedRevenue > 0
+      ? Math.round((totals.actualRevenue / totals.expectedRevenue) * 100)
+      : 0
+
+    return { employee, monthlyData, totals }
+  }, [employees, interviews, introductions, jobsMap, paymentsMap, selectedEmployee])
+
+  // サマリーカード用の合計（全担当者選択時は全体、個別選択時はその担当者）
+  const grandTotals = useMemo((): MonthlyData => {
+    if (selectedEmployee === 'all') {
+      return companyWideData.totals
+    }
+    return selectedEmployeeData?.totals || {
+      month: 0,
+      interviews: 0,
+      connections: 0,
+      connectionRate: 0,
+      activeWorkers: 0,
+      activeRate: 0,
+      expectedRevenue: 0,
+      actualRevenue: 0,
+      paymentRate: 0,
+    }
+  }, [selectedEmployee, companyWideData, selectedEmployeeData])
 
   const employeeOptions = [
     { value: 'all', label: '全担当者' },
@@ -321,11 +397,6 @@ export default function FunnelPage() {
             />
           </div>
         </div>
-      </div>
-
-      {/* デバッグ情報 */}
-      <div className="text-xs text-slate-400 bg-slate-100 p-2 rounded">
-        担当者数: {employees.length}名 / 表示中: {employeeDataList.length}名 / フィルター: {selectedEmployee}
       </div>
 
       {loading ? (
@@ -374,13 +445,12 @@ export default function FunnelPage() {
             </Card>
           </div>
 
-          {/* 担当者別マトリックス */}
-          {employeeDataList.map((employeeData) => (
-            <Card key={employeeData.employee.id} padding="none">
+          {/* データテーブル */}
+          {selectedEmployee === 'all' ? (
+            // 全担当者選択時: 会社全体の合計テーブル
+            <Card padding="none">
               <div className="p-4 border-b border-slate-200 bg-slate-50">
-                <h2 className="text-lg font-semibold text-slate-800">
-                  {employeeData.employee.name}
-                </h2>
+                <h2 className="text-lg font-semibold text-slate-800">全体</h2>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -395,7 +465,7 @@ export default function FunnelPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {employeeData.monthlyData.map((data) => (
+                    {companyWideData.monthlyData.map((data: MonthlyData) => (
                       <tr key={data.month} className="hover:bg-slate-50">
                         <td className="px-3 py-2 border-b text-slate-800">{data.month}月</td>
                         <td className="px-3 py-2 border-b text-right">{data.interviews || '-'}</td>
@@ -412,23 +482,73 @@ export default function FunnelPage() {
                     {/* 年間合計行 */}
                     <tr className="bg-slate-100 font-semibold">
                       <td className="px-3 py-2 text-slate-800">合計</td>
-                      <td className="px-3 py-2 text-right">{employeeData.totals.interviews}</td>
-                      <td className="px-3 py-2 text-right">{employeeData.totals.connections}</td>
-                      <td className="px-3 py-2 text-right">{employeeData.totals.activeWorkers}</td>
+                      <td className="px-3 py-2 text-right">{companyWideData.totals.interviews}</td>
+                      <td className="px-3 py-2 text-right">{companyWideData.totals.connections}</td>
+                      <td className="px-3 py-2 text-right">{companyWideData.totals.activeWorkers}</td>
                       <td className="px-3 py-2 text-right text-blue-600">
-                        {formatCurrency(employeeData.totals.expectedRevenue)}
+                        {formatCurrency(companyWideData.totals.expectedRevenue)}
                       </td>
                       <td className="px-3 py-2 text-right text-emerald-600">
-                        {formatCurrency(employeeData.totals.actualRevenue)}
+                        {formatCurrency(companyWideData.totals.actualRevenue)}
                       </td>
                     </tr>
                   </tbody>
                 </table>
               </div>
             </Card>
-          ))}
-
-          {employeeDataList.length === 0 && (
+          ) : selectedEmployeeData ? (
+            // 個別担当者選択時: その担当者のテーブル
+            <Card padding="none">
+              <div className="p-4 border-b border-slate-200 bg-slate-50">
+                <h2 className="text-lg font-semibold text-slate-800">
+                  {selectedEmployeeData.employee.name}
+                </h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-100">
+                      <th className="px-3 py-2 text-left font-medium text-slate-600 border-b">月度</th>
+                      <th className="px-3 py-2 text-right font-medium text-slate-600 border-b">面接数</th>
+                      <th className="px-3 py-2 text-right font-medium text-slate-600 border-b">繋ぎ数</th>
+                      <th className="px-3 py-2 text-right font-medium text-slate-600 border-b">稼働数</th>
+                      <th className="px-3 py-2 text-right font-medium text-slate-600 border-b">売上見込み</th>
+                      <th className="px-3 py-2 text-right font-medium text-slate-600 border-b">売上実績</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedEmployeeData.monthlyData.map((data: MonthlyData) => (
+                      <tr key={data.month} className="hover:bg-slate-50">
+                        <td className="px-3 py-2 border-b text-slate-800">{data.month}月</td>
+                        <td className="px-3 py-2 border-b text-right">{data.interviews || '-'}</td>
+                        <td className="px-3 py-2 border-b text-right">{data.connections || '-'}</td>
+                        <td className="px-3 py-2 border-b text-right">{data.activeWorkers || '-'}</td>
+                        <td className="px-3 py-2 border-b text-right text-blue-600">
+                          {formatCurrency(data.expectedRevenue)}
+                        </td>
+                        <td className="px-3 py-2 border-b text-right text-emerald-600">
+                          {formatCurrency(data.actualRevenue)}
+                        </td>
+                      </tr>
+                    ))}
+                    {/* 年間合計行 */}
+                    <tr className="bg-slate-100 font-semibold">
+                      <td className="px-3 py-2 text-slate-800">合計</td>
+                      <td className="px-3 py-2 text-right">{selectedEmployeeData.totals.interviews}</td>
+                      <td className="px-3 py-2 text-right">{selectedEmployeeData.totals.connections}</td>
+                      <td className="px-3 py-2 text-right">{selectedEmployeeData.totals.activeWorkers}</td>
+                      <td className="px-3 py-2 text-right text-blue-600">
+                        {formatCurrency(selectedEmployeeData.totals.expectedRevenue)}
+                      </td>
+                      <td className="px-3 py-2 text-right text-emerald-600">
+                        {formatCurrency(selectedEmployeeData.totals.actualRevenue)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          ) : (
             <Card>
               <div className="text-center py-8 text-slate-500">
                 該当するデータがありません
