@@ -89,11 +89,10 @@ export default function FunnelPage() {
     const startDate = `${year}-01-01`
     const endDate = `${year}-12-31`
 
-    // 担当者一覧
+    // 担当者一覧（全員取得）
     const { data: employeesData } = await supabase
       .from('employees')
       .select('id, name')
-      .eq('is_active', true)
       .order('name')
 
     // 面談データ
