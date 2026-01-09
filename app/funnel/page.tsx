@@ -381,12 +381,9 @@ export default function FunnelPage() {
                       <th className="px-3 py-2 text-left font-medium text-slate-600 border-b">月度</th>
                       <th className="px-3 py-2 text-right font-medium text-slate-600 border-b">面接数</th>
                       <th className="px-3 py-2 text-right font-medium text-slate-600 border-b">繋ぎ数</th>
-                      <th className="px-3 py-2 text-right font-medium text-slate-600 border-b">繋ぎ率</th>
                       <th className="px-3 py-2 text-right font-medium text-slate-600 border-b">稼働数</th>
-                      <th className="px-3 py-2 text-right font-medium text-slate-600 border-b">稼働率</th>
                       <th className="px-3 py-2 text-right font-medium text-slate-600 border-b">売上見込み</th>
                       <th className="px-3 py-2 text-right font-medium text-slate-600 border-b">売上実績</th>
-                      <th className="px-3 py-2 text-right font-medium text-slate-600 border-b">入金率</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -395,21 +392,12 @@ export default function FunnelPage() {
                         <td className="px-3 py-2 border-b text-slate-800">{data.month}月</td>
                         <td className="px-3 py-2 border-b text-right">{data.interviews || '-'}</td>
                         <td className="px-3 py-2 border-b text-right">{data.connections || '-'}</td>
-                        <td className={`px-3 py-2 border-b text-right ${getRateColor(data.connectionRate)}`}>
-                          {data.connectionRate > 0 ? `${data.connectionRate}%` : '-'}
-                        </td>
                         <td className="px-3 py-2 border-b text-right">{data.activeWorkers || '-'}</td>
-                        <td className={`px-3 py-2 border-b text-right ${getRateColor(data.activeRate)}`}>
-                          {data.activeRate > 0 ? `${data.activeRate}%` : '-'}
-                        </td>
                         <td className="px-3 py-2 border-b text-right text-blue-600">
                           {formatCurrency(data.expectedRevenue)}
                         </td>
                         <td className="px-3 py-2 border-b text-right text-emerald-600">
                           {formatCurrency(data.actualRevenue)}
-                        </td>
-                        <td className={`px-3 py-2 border-b text-right ${getRateColor(data.paymentRate)}`}>
-                          {data.paymentRate > 0 ? `${data.paymentRate}%` : '-'}
                         </td>
                       </tr>
                     ))}
@@ -418,21 +406,12 @@ export default function FunnelPage() {
                       <td className="px-3 py-2 text-slate-800">合計</td>
                       <td className="px-3 py-2 text-right">{employeeData.totals.interviews}</td>
                       <td className="px-3 py-2 text-right">{employeeData.totals.connections}</td>
-                      <td className={`px-3 py-2 text-right ${getRateColor(employeeData.totals.connectionRate)}`}>
-                        {employeeData.totals.connectionRate}%
-                      </td>
                       <td className="px-3 py-2 text-right">{employeeData.totals.activeWorkers}</td>
-                      <td className={`px-3 py-2 text-right ${getRateColor(employeeData.totals.activeRate)}`}>
-                        {employeeData.totals.activeRate}%
-                      </td>
                       <td className="px-3 py-2 text-right text-blue-600">
                         {formatCurrency(employeeData.totals.expectedRevenue)}
                       </td>
                       <td className="px-3 py-2 text-right text-emerald-600">
                         {formatCurrency(employeeData.totals.actualRevenue)}
-                      </td>
-                      <td className={`px-3 py-2 text-right ${getRateColor(employeeData.totals.paymentRate)}`}>
-                        {employeeData.totals.paymentRate}%
                       </td>
                     </tr>
                   </tbody>
