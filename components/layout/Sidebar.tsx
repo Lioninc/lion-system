@@ -1,7 +1,15 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+
+interface CurrentUser {
+  id: string
+  name: string
+  role: string
+}
 
 const menuItems = [
   { href: '/dashboard', icon: '🏠', label: 'ダッシュボード' },
@@ -16,6 +24,10 @@ const menuItems = [
   { href: '/jobs', icon: '📝', label: '案件管理' },
 ]
 
+const managerItems = [
+  { href: '/manager', icon: '📈', label: '経営ダッシュボード' },
+]
+
 const settingsItems = [
   { href: '/employees', icon: '👥', label: '担当者管理' },
   { href: '/sources', icon: '📢', label: '媒体管理' },
@@ -23,6 +35,46 @@ const settingsItems = [
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
+
+  useEffect(() => {
+    fetchCurrentUser()
+  }, [])
+
+  async function fetchCurrentUser() {
+    // ローカルストレージから現在のユーザーIDを取得
+    const savedUserId = localStorage.getItem('currentUserId')
+    if (!savedUserId) {
+      // 初回はadminまたはmanagerロールの最初のユーザーを設定
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('employees')
+        .select('id, name, role')
+        .in('role', ['admin', 'manager'])
+        .limit(1)
+        .single()
+
+      if (data) {
+        const user = data as CurrentUser
+        setCurrentUser(user)
+        localStorage.setItem('currentUserId', user.id)
+      }
+      return
+    }
+
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('employees')
+      .select('id, name, role')
+      .eq('id', savedUserId)
+      .single()
+
+    if (data) {
+      setCurrentUser(data as CurrentUser)
+    }
+  }
+
+  const isManagerOrAdmin = currentUser?.role === 'admin' || currentUser?.role === 'manager'
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-[200px] bg-[#1e293b] text-white flex flex-col">
@@ -50,6 +102,32 @@ export default function Sidebar() {
             </Link>
           )
         })}
+
+        {/* 事業管理グループ（管理者・マネージャーのみ表示） */}
+        {isManagerOrAdmin && (
+          <div className="mt-4 pt-4 border-t border-slate-700">
+            <div className="px-4 py-2 text-xs text-slate-500 uppercase tracking-wider">
+              事業管理
+            </div>
+            {managerItems.map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+                    isActive
+                      ? 'bg-[#3b82f6] text-white'
+                      : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                  }`}
+                >
+                  <span>{item.icon}</span>
+                  <span className="text-sm">{item.label}</span>
+                </Link>
+              )
+            })}
+          </div>
+        )}
 
         {/* 設定グループ */}
         <div className="mt-4 pt-4 border-t border-slate-700">
