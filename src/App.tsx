@@ -5,6 +5,7 @@ import { useAuthStore } from './stores/authStore'
 import { MainLayout } from './components/layout'
 import { LoginPage } from './pages/auth/LoginPage'
 import { DashboardPage } from './pages/dashboard/DashboardPage'
+import { JobSeekerListPage, JobSeekerNewPage, JobSeekerDetailPage } from './pages/job-seekers'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -83,9 +84,9 @@ function App() {
             }
           >
             <Route path="/" element={<DashboardPage />} />
-            <Route path="/job-seekers" element={<PlaceholderPage title="求職者管理" />} />
-            <Route path="/job-seekers/new" element={<PlaceholderPage title="求職者登録" />} />
-            <Route path="/job-seekers/:id" element={<PlaceholderPage title="求職者詳細" />} />
+            <Route path="/job-seekers" element={<JobSeekerListPage />} />
+            <Route path="/job-seekers/new" element={<JobSeekerNewPage />} />
+            <Route path="/job-seekers/:id" element={<JobSeekerDetailPage />} />
             <Route path="/companies" element={<PlaceholderPage title="派遣会社管理" />} />
             <Route path="/referrals" element={<PlaceholderPage title="紹介管理" />} />
             <Route path="/sales" element={<PlaceholderPage title="売上・入金" />} />

@@ -4,9 +4,10 @@ import { Button } from '../ui'
 
 interface HeaderProps {
   title: string
+  action?: React.ReactNode
 }
 
-export function Header({ title }: HeaderProps) {
+export function Header({ title, action }: HeaderProps) {
   const { user, logout } = useAuthStore()
 
   const handleLogout = async () => {
@@ -18,6 +19,7 @@ export function Header({ title }: HeaderProps) {
       <h1 className="text-xl font-bold text-slate-800">{title}</h1>
 
       <div className="flex items-center gap-4">
+        {action}
         {/* Notifications */}
         <button className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
           <Bell className="w-5 h-5" />

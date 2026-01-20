@@ -33,6 +33,18 @@ export function formatDate(date: string | Date, format: 'short' | 'long' = 'shor
   })
 }
 
+// Format date and time
+export function formatDateTime(date: string | Date): string {
+  const d = typeof date === 'string' ? new Date(date) : date
+  return d.toLocaleString('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 // Format phone number
 export function formatPhone(phone: string): string {
   const cleaned = phone.replace(/\D/g, '')
