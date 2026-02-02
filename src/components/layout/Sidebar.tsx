@@ -10,6 +10,7 @@ import {
   FileText,
   Send,
   Calendar,
+  X,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../stores/authStore'
@@ -37,7 +38,11 @@ const settingsMenuItems: MenuItem[] = [
   { href: '/settings', icon: Settings, label: '設定', roles: ['super_admin', 'admin'] },
 ]
 
-export function Sidebar() {
+interface SidebarProps {
+  onClose?: () => void
+}
+
+export function Sidebar({ onClose }: SidebarProps) {
   const location = useLocation()
   const { user } = useAuthStore()
 
@@ -54,11 +59,17 @@ export function Sidebar() {
     return roles.includes(user.role)
   }
 
+  const handleLinkClick = () => {
+    if (onClose) {
+      onClose()
+    }
+  }
+
   return (
-    <aside className="fixed left-0 top-0 h-screen w-60 bg-slate-900 text-white flex flex-col">
+    <aside className="h-screen w-60 bg-slate-900 text-white flex flex-col">
       {/* Logo */}
-      <div className="p-4 border-b border-slate-700">
-        <Link to="/" className="flex items-center gap-3">
+      <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+        <Link to="/" className="flex items-center gap-3" onClick={handleLinkClick}>
           <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
             <span className="text-xl font-bold">R</span>
           </div>
@@ -67,6 +78,14 @@ export function Sidebar() {
             <p className="text-xs text-slate-400">人材紹介管理</p>
           </div>
         </Link>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="lg:hidden p-2 rounded-lg hover:bg-slate-800"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* Main Menu */}
@@ -82,6 +101,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               to={item.href}
+              onClick={handleLinkClick}
               className={cn(
                 'flex items-center gap-3 px-4 py-3 mx-2 rounded-lg transition-colors',
                 isActive
@@ -89,7 +109,7 @@ export function Sidebar() {
                   : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               )}
             >
-              <Icon className="w-5 h-5" />
+              <Icon className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm font-medium">{item.label}</span>
             </Link>
           )
@@ -108,6 +128,7 @@ export function Sidebar() {
               <Link
                 key={item.href}
                 to={item.href}
+                onClick={handleLinkClick}
                 className={cn(
                   'flex items-center gap-3 px-4 py-3 mx-2 rounded-lg transition-colors',
                   isActive
@@ -115,7 +136,7 @@ export function Sidebar() {
                     : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                 )}
               >
-                <Icon className="w-5 h-5" />
+                <Icon className="w-5 h-5 flex-shrink-0" />
                 <span className="text-sm font-medium">{item.label}</span>
               </Link>
             )
@@ -127,7 +148,7 @@ export function Sidebar() {
       {user && (
         <div className="p-4 border-t border-slate-700">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center">
+            <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center flex-shrink-0">
               <span className="text-sm font-medium">{user.name.charAt(0)}</span>
             </div>
             <div className="flex-1 min-w-0">

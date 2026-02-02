@@ -393,21 +393,21 @@ export function JobSeekerListPage() {
         title="求職者管理"
         action={
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setShowCSVImport(true)}>
-              <Upload className="w-4 h-4 mr-2" />
-              CSV取り込み
+            <Button variant="outline" size="sm" className="hidden sm:flex" onClick={() => setShowCSVImport(true)}>
+              <Upload className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">CSV取り込み</span>
             </Button>
             <Link to="/job-seekers/new">
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                新規登録
+              <Button size="sm">
+                <Plus className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">新規登録</span>
               </Button>
             </Link>
           </div>
         }
       />
 
-      <div className="p-6 space-y-4">
+      <div className="p-4 lg:p-6 space-y-4">
         {/* Search and Filter Bar */}
         <Card>
           <div className="flex flex-col sm:flex-row gap-4">
@@ -489,102 +489,138 @@ export function JobSeekerListPage() {
         {/* Job Seeker List */}
         <Card padding="none">
           {loading ? (
-            <div className="p-8 text-center text-slate-500">読み込み中...</div>
+            <div className="p-8 text-center text-slate-500 text-sm">読み込み中...</div>
           ) : jobSeekers.length === 0 ? (
-            <div className="p-8 text-center text-slate-500">
+            <div className="p-8 text-center text-slate-500 text-sm">
               該当する求職者が見つかりません
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      求職者
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      連絡先
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      ステータス
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      進捗
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      担当者
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      流入元
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      応募日
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {jobSeekers.map((js) => (
-                    <tr
-                      key={js.application_id}
-                      className="hover:bg-slate-50 cursor-pointer"
-                      onClick={() => window.location.href = `/job-seekers/${js.application_id}`}
-                    >
-                      <td className="px-4 py-4">
-                        <div>
-                          <p className="font-medium text-slate-900">{js.name}</p>
-                          {js.prefecture && (
-                            <p className="text-sm text-slate-500">{js.prefecture}</p>
-                          )}
+            <>
+              {/* Mobile Card View */}
+              <div className="lg:hidden divide-y divide-slate-200">
+                {jobSeekers.map((js) => (
+                  <div
+                    key={js.application_id}
+                    className="p-4 hover:bg-slate-50 cursor-pointer"
+                    onClick={() => window.location.href = `/job-seekers/${js.application_id}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-slate-900 truncate">{js.name}</p>
+                        <div className="flex items-center gap-1 text-sm text-slate-600 mt-1">
+                          <Phone className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate">{js.phone}</span>
                         </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-1 text-sm text-slate-600">
-                            <Phone className="w-3 h-3" />
-                            {js.phone}
-                          </div>
-                          {js.email && (
-                            <div className="flex items-center gap-1 text-sm text-slate-500">
-                              <Mail className="w-3 h-3" />
-                              {js.email}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <Badge variant={getStatusBadgeVariant(js.application_status)}>
-                          {APPLICATION_STATUS_LABELS[js.application_status]}
+                      </div>
+                      <Badge variant={getStatusBadgeVariant(js.application_status)} className="flex-shrink-0">
+                        {APPLICATION_STATUS_LABELS[js.application_status]}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      {js.progress_status && (
+                        <Badge variant="default" className="text-xs">
+                          {PROGRESS_STATUS_LABELS[js.progress_status]}
                         </Badge>
-                      </td>
-                      <td className="px-4 py-4">
-                        {js.progress_status ? (
-                          <Badge variant="default">
-                            {PROGRESS_STATUS_LABELS[js.progress_status]}
-                          </Badge>
-                        ) : (
-                          <span className="text-sm text-slate-400">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="text-sm text-slate-600">
-                          {js.coordinator_name || '-'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="text-sm text-slate-600">
-                          {js.source_name || '-'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="text-sm text-slate-600">
-                          {formatDate(js.applied_at)}
-                        </span>
-                      </td>
+                      )}
+                      {js.coordinator_name && <span>担当: {js.coordinator_name}</span>}
+                      <span>{formatDate(js.applied_at)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden lg:block overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        求職者
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        連絡先
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        ステータス
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        進捗
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        担当者
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        流入元
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        応募日
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {jobSeekers.map((js) => (
+                      <tr
+                        key={js.application_id}
+                        className="hover:bg-slate-50 cursor-pointer"
+                        onClick={() => window.location.href = `/job-seekers/${js.application_id}`}
+                      >
+                        <td className="px-4 py-4">
+                          <div>
+                            <p className="font-medium text-slate-900">{js.name}</p>
+                            {js.prefecture && (
+                              <p className="text-sm text-slate-500">{js.prefecture}</p>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1 text-sm text-slate-600">
+                              <Phone className="w-3 h-3" />
+                              {js.phone}
+                            </div>
+                            {js.email && (
+                              <div className="flex items-center gap-1 text-sm text-slate-500">
+                                <Mail className="w-3 h-3" />
+                                {js.email}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <Badge variant={getStatusBadgeVariant(js.application_status)}>
+                            {APPLICATION_STATUS_LABELS[js.application_status]}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-4">
+                          {js.progress_status ? (
+                            <Badge variant="default">
+                              {PROGRESS_STATUS_LABELS[js.progress_status]}
+                            </Badge>
+                          ) : (
+                            <span className="text-sm text-slate-400">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="text-sm text-slate-600">
+                            {js.coordinator_name || '-'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="text-sm text-slate-600">
+                            {js.source_name || '-'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="text-sm text-slate-600">
+                            {formatDate(js.applied_at)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </Card>
 

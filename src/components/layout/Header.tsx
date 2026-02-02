@@ -15,19 +15,19 @@ export function Header({ title, action }: HeaderProps) {
   }
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6">
-      <h1 className="text-xl font-bold text-slate-800">{title}</h1>
+    <header className="h-14 lg:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-6">
+      <h1 className="text-lg lg:text-xl font-bold text-slate-800 truncate">{title}</h1>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 lg:gap-4">
         {action}
         {/* Notifications */}
         <button className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
           <Bell className="w-5 h-5" />
         </button>
 
-        {/* User Menu */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg">
+        {/* User Menu - hide name on mobile */}
+        <div className="flex items-center gap-2 lg:gap-3">
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg">
             <User className="w-4 h-4 text-slate-500" />
             <span className="text-sm font-medium text-slate-700">{user?.name}</span>
           </div>

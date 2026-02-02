@@ -183,10 +183,10 @@ export function InterviewSchedulePage() {
     <div>
       <Header title="面談予定" />
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 lg:p-6 space-y-4 lg:space-y-6">
         {/* Controls */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" size="sm" onClick={goToToday}>
               今日
             </Button>
@@ -196,13 +196,13 @@ export function InterviewSchedulePage() {
             <Button variant="outline" size="sm" onClick={() => navigateDate(1)}>
               <ChevronRight className="w-4 h-4" />
             </Button>
-            <span className="text-lg font-semibold text-slate-800 ml-2">
+            <span className="text-sm lg:text-lg font-semibold text-slate-800 ml-1 lg:ml-2">
               {viewMode === 'day'
                 ? formatDate(currentDate.toISOString())
                 : `${formatDate(getWeekDays()[0].toISOString())} 〜 ${formatDate(getWeekDays()[6].toISOString())}`}
             </span>
           </div>
-          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 self-start sm:self-auto">
             <button
               className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
                 viewMode === 'day' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'
@@ -250,48 +250,90 @@ export function InterviewSchedulePage() {
           </Card>
         ) : (
           /* Week View */
-          <div className="grid grid-cols-7 gap-2">
-            {getWeekDays().map((day) => {
-              const dayInterviews = getInterviewsForDate(day)
-              const isToday =
-                day.toDateString() === new Date().toDateString()
+          <>
+            {/* Mobile: List view */}
+            <div className="lg:hidden space-y-3">
+              {getWeekDays().map((day) => {
+                const dayInterviews = getInterviewsForDate(day)
+                const isToday = day.toDateString() === new Date().toDateString()
 
-              return (
-                <div key={day.toISOString()} className="min-h-[200px]">
-                  <div
-                    className={`text-center py-2 rounded-t-lg text-sm font-medium ${
-                      isToday ? 'bg-primary text-white' : 'bg-slate-100 text-slate-700'
-                    }`}
-                  >
-                    <div>{DAY_NAMES[day.getDay()]}</div>
-                    <div className="text-lg">{day.getDate()}</div>
-                  </div>
-                  <div className="border border-t-0 border-slate-200 rounded-b-lg p-1 space-y-1">
+                return (
+                  <Card key={day.toISOString()} className={isToday ? 'border-primary' : ''}>
+                    <div className={`flex items-center gap-2 mb-2 ${isToday ? 'text-primary' : 'text-slate-700'}`}>
+                      <span className="font-semibold">{day.getMonth() + 1}/{day.getDate()}</span>
+                      <span className="text-sm">({DAY_NAMES[day.getDay()]})</span>
+                      <span className="text-xs text-slate-500">{dayInterviews.length}件</span>
+                    </div>
                     {dayInterviews.length > 0 ? (
-                      dayInterviews.map((interview) => (
-                        <div
-                          key={interview.id}
-                          className={`p-1.5 rounded text-xs cursor-pointer transition-colors ${
-                            interview.conducted_at
-                              ? 'bg-green-50 border border-green-200 hover:bg-green-100'
-                              : 'bg-blue-50 border border-blue-200 hover:bg-blue-100'
-                          }`}
-                          onClick={() => navigate(`/job-seekers/${interview.application?.id}`)}
-                        >
-                          <div className="font-medium">{formatTime(interview.scheduled_at)}</div>
-                          <div className="text-slate-600 truncate">
-                            {interview.application?.job_seeker?.name}
+                      <div className="space-y-2">
+                        {dayInterviews.map((interview) => (
+                          <div
+                            key={interview.id}
+                            className={`p-2 rounded text-sm cursor-pointer transition-colors ${
+                              interview.conducted_at
+                                ? 'bg-green-50 border border-green-200'
+                                : 'bg-blue-50 border border-blue-200'
+                            }`}
+                            onClick={() => navigate(`/job-seekers/${interview.application?.id}`)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{formatTime(interview.scheduled_at)}</span>
+                              <span className="text-slate-600">{interview.application?.job_seeker?.name}</span>
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        ))}
+                      </div>
                     ) : (
-                      <div className="py-4 text-center text-xs text-slate-400">-</div>
+                      <p className="text-xs text-slate-400">予定なし</p>
                     )}
+                  </Card>
+                )
+              })}
+            </div>
+
+            {/* Desktop: Grid view */}
+            <div className="hidden lg:grid grid-cols-7 gap-2">
+              {getWeekDays().map((day) => {
+                const dayInterviews = getInterviewsForDate(day)
+                const isToday = day.toDateString() === new Date().toDateString()
+
+                return (
+                  <div key={day.toISOString()} className="min-h-[200px]">
+                    <div
+                      className={`text-center py-2 rounded-t-lg text-sm font-medium ${
+                        isToday ? 'bg-primary text-white' : 'bg-slate-100 text-slate-700'
+                      }`}
+                    >
+                      <div>{DAY_NAMES[day.getDay()]}</div>
+                      <div className="text-lg">{day.getDate()}</div>
+                    </div>
+                    <div className="border border-t-0 border-slate-200 rounded-b-lg p-1 space-y-1">
+                      {dayInterviews.length > 0 ? (
+                        dayInterviews.map((interview) => (
+                          <div
+                            key={interview.id}
+                            className={`p-1.5 rounded text-xs cursor-pointer transition-colors ${
+                              interview.conducted_at
+                                ? 'bg-green-50 border border-green-200 hover:bg-green-100'
+                                : 'bg-blue-50 border border-blue-200 hover:bg-blue-100'
+                            }`}
+                            onClick={() => navigate(`/job-seekers/${interview.application?.id}`)}
+                          >
+                            <div className="font-medium">{formatTime(interview.scheduled_at)}</div>
+                            <div className="text-slate-600 truncate">
+                              {interview.application?.job_seeker?.name}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="py-4 text-center text-xs text-slate-400">-</div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          </>
         )}
       </div>
     </div>
