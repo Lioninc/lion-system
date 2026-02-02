@@ -9,8 +9,9 @@ import {
   ChevronRight,
   Filter,
   X,
+  Upload,
 } from 'lucide-react'
-import { Card, Button, Select, Badge } from '../../components/ui'
+import { Card, Button, Select, Badge, CSVImportModal, type DuplicateAction } from '../../components/ui'
 import { Header } from '../../components/layout'
 import { supabase } from '../../lib/supabase'
 import type { ApplicationStatus, ProgressStatus } from '../../types/database'
@@ -41,6 +42,21 @@ interface FilterState {
 
 const PAGE_SIZE = 20
 
+const JOB_SEEKER_CSV_COLUMNS = [
+  { key: 'name', label: '氏名', required: true },
+  { key: 'phone', label: '電話番号', required: true },
+  { key: 'email', label: 'メールアドレス' },
+  { key: 'name_kana', label: 'フリガナ' },
+  { key: 'birth_date', label: '生年月日' },
+  { key: 'gender', label: '性別' },
+  { key: 'postal_code', label: '郵便番号' },
+  { key: 'prefecture', label: '都道府県' },
+  { key: 'city', label: '市区町村' },
+  { key: 'address', label: '番地' },
+  { key: 'source_name', label: '流入元' },
+  { key: 'notes', label: '備考' },
+]
+
 export function JobSeekerListPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [jobSeekers, setJobSeekers] = useState<JobSeekerWithApplication[]>([])
@@ -58,6 +74,7 @@ export function JobSeekerListPage() {
     coordinator: searchParams.get('coordinator') || '',
     source: searchParams.get('source') || '',
   })
+  const [showCSVImport, setShowCSVImport] = useState(false)
 
   useEffect(() => {
     fetchFilterOptions()
@@ -211,6 +228,144 @@ export function JobSeekerListPage() {
     label,
   }))
 
+  async function handleCSVImport(data: Record<string, string>[], duplicateAction: DuplicateAction): Promise<{ success: number; skipped: number; updated: number; errors: string[] }> {
+    const errors: string[] = []
+    let success = 0
+    let skipped = 0
+    let updated = 0
+
+    // Get sources for mapping
+    const { data: sourcesData } = await supabase
+      .from('sources')
+      .select('id, name')
+
+    const sourceMap = new Map(sourcesData?.map((s) => [s.name, s.id]) || [])
+
+    // Get existing job seekers by phone for duplicate check
+    const phones = data.map((row) => row.phone).filter(Boolean)
+    const { data: existingJobSeekers } = await supabase
+      .from('job_seekers')
+      .select('id, phone')
+      .in('phone', phones)
+
+    const existingPhoneMap = new Map(existingJobSeekers?.map((js) => [js.phone, js.id]) || [])
+
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i]
+      const rowNum = i + 2 // CSV row number (header is row 1)
+
+      // Validate required fields
+      if (!row.name || !row.phone) {
+        errors.push(`行${rowNum}: 氏名と電話番号は必須です`)
+        continue
+      }
+
+      // Check for duplicate
+      const existingId = existingPhoneMap.get(row.phone)
+
+      if (existingId) {
+        // Handle duplicate based on selected action
+        if (duplicateAction === 'skip') {
+          skipped++
+          continue
+        } else if (duplicateAction === 'update') {
+          // Update existing job seeker info
+          const { error: updateError } = await supabase
+            .from('job_seekers')
+            .update({
+              name: row.name,
+              email: row.email || null,
+              name_kana: row.name_kana || null,
+              birth_date: row.birth_date || null,
+              gender: row.gender === '男性' ? 'male' : row.gender === '女性' ? 'female' : null,
+              postal_code: row.postal_code || null,
+              prefecture: row.prefecture || null,
+              city: row.city || null,
+              address: row.address || null,
+              notes: row.notes || null,
+            })
+            .eq('id', existingId)
+
+          if (updateError) {
+            errors.push(`行${rowNum}: 更新エラー - ${updateError.message}`)
+            continue
+          }
+
+          // Also create new application record (re-application)
+          const sourceId = row.source_name ? sourceMap.get(row.source_name) : null
+
+          const { error: appError } = await supabase
+            .from('applications')
+            .insert({
+              job_seeker_id: existingId,
+              source_id: sourceId,
+              application_status: 'new',
+              applied_at: new Date().toISOString(),
+            })
+
+          if (appError) {
+            errors.push(`行${rowNum}: 応募作成エラー - ${appError.message}`)
+            continue
+          }
+
+          updated++
+          continue
+        }
+        // If duplicateAction === 'create', continue to create new record
+      }
+
+      // Insert job seeker
+      const { data: jobSeeker, error: jsError } = await supabase
+        .from('job_seekers')
+        .insert({
+          name: row.name,
+          phone: row.phone,
+          email: row.email || null,
+          name_kana: row.name_kana || null,
+          birth_date: row.birth_date || null,
+          gender: row.gender === '男性' ? 'male' : row.gender === '女性' ? 'female' : null,
+          postal_code: row.postal_code || null,
+          prefecture: row.prefecture || null,
+          city: row.city || null,
+          address: row.address || null,
+          notes: row.notes || null,
+        })
+        .select('id')
+        .single()
+
+      if (jsError) {
+        errors.push(`行${rowNum}: ${jsError.message}`)
+        continue
+      }
+
+      // Create application
+      const sourceId = row.source_name ? sourceMap.get(row.source_name) : null
+
+      const { error: appError } = await supabase
+        .from('applications')
+        .insert({
+          job_seeker_id: jobSeeker.id,
+          source_id: sourceId,
+          application_status: 'new',
+          applied_at: new Date().toISOString(),
+        })
+
+      if (appError) {
+        errors.push(`行${rowNum}: 応募作成エラー - ${appError.message}`)
+        continue
+      }
+
+      success++
+    }
+
+    // Refresh list after import
+    if (success > 0 || updated > 0) {
+      fetchJobSeekers()
+    }
+
+    return { success, skipped, updated, errors }
+  }
+
   function getStatusBadgeVariant(status: ApplicationStatus): 'default' | 'success' | 'warning' | 'danger' | 'info' | 'purple' {
     switch (status) {
       case 'new':
@@ -237,12 +392,18 @@ export function JobSeekerListPage() {
       <Header
         title="求職者管理"
         action={
-          <Link to="/job-seekers/new">
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              新規登録
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowCSVImport(true)}>
+              <Upload className="w-4 h-4 mr-2" />
+              CSV取り込み
             </Button>
-          </Link>
+            <Link to="/job-seekers/new">
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                新規登録
+              </Button>
+            </Link>
+          </div>
         }
       />
 
@@ -478,6 +639,18 @@ export function JobSeekerListPage() {
           </div>
         )}
       </div>
+
+      {/* CSV Import Modal */}
+      <CSVImportModal
+        isOpen={showCSVImport}
+        onClose={() => setShowCSVImport(false)}
+        title="求職者CSV取り込み"
+        templateColumns={JOB_SEEKER_CSV_COLUMNS}
+        templateFileName="job_seekers_template.csv"
+        onImport={handleCSVImport}
+        duplicateCheckKey="phone"
+        duplicateCheckLabel="電話番号"
+      />
     </div>
   )
 }

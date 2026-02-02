@@ -8,6 +8,8 @@ import {
   BarChart3,
   Settings,
   FileText,
+  Send,
+  Calendar,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../stores/authStore'
@@ -22,8 +24,10 @@ interface MenuItem {
 const mainMenuItems: MenuItem[] = [
   { href: '/', icon: Home, label: 'ダッシュボード' },
   { href: '/job-seekers', icon: Users, label: '求職者管理' },
+  { href: '/interviews', icon: Calendar, label: '面談予定' },
   { href: '/companies', icon: Building2, label: '派遣会社管理' },
-  { href: '/referrals', icon: Briefcase, label: '紹介管理' },
+  { href: '/jobs', icon: Briefcase, label: '求人管理' },
+  { href: '/referrals', icon: Send, label: '紹介管理' },
   { href: '/sales', icon: DollarSign, label: '売上・入金' },
   { href: '/reports', icon: BarChart3, label: 'レポート' },
 ]

@@ -124,16 +124,25 @@ export interface Job {
   company_id: string
   title: string
   job_type: string | null
+  postal_code: string | null
   prefecture: string | null
   city: string | null
   address: string | null
   salary_type: 'hourly' | 'daily' | 'monthly' | null
   salary_min: number | null
   salary_max: number | null
+  working_hours: string | null
+  holidays: string | null
+  benefits: string | null
   employment_type: string | null
   description: string | null
   requirements: string | null
   has_dormitory: boolean
+  dormitory_details: string | null
+  fee_type: 'fixed' | 'percentage' | null
+  fee_amount: number | null
+  fee_percentage: number | null
+  notes: string | null
   status: 'open' | 'closed' | 'paused'
   created_at: string
   updated_at: string
@@ -158,27 +167,52 @@ export interface Referral {
   job?: Job
 }
 
+export type ContactResult = 'connected' | 'absent' | 'callback' | 'voicemail' | 'other'
+
+export const CONTACT_RESULT_LABELS: Record<ContactResult, string> = {
+  connected: '繋がった',
+  absent: '不在',
+  callback: '折り返し依頼',
+  voicemail: '留守電',
+  other: 'その他',
+}
+
 export interface ContactLog {
   id: string
   tenant_id: string
   application_id: string
   contact_type: 'phone' | 'email' | 'line' | 'other'
   direction: 'inbound' | 'outbound'
-  result: string | null
+  result: ContactResult | null
   notes: string | null
   contacted_by: string | null
   contacted_at: string
   created_at: string
 }
 
+export type InterviewResult = 'connected' | 'not_connected' | 'considering' | 'waiting_referral'
+
+export const INTERVIEW_RESULT_LABELS: Record<InterviewResult, string> = {
+  connected: 'つなぎ',
+  not_connected: 'つなげず',
+  considering: '検討中',
+  waiting_referral: '紹介先連絡待ち',
+}
+
 export interface Interview {
   id: string
   tenant_id: string
   application_id: string
-  interview_type: 'phone' | 'video' | 'in_person'
+  contact_log_id: string | null
   scheduled_at: string
   conducted_at: string | null
-  result: string | null
+  result: InterviewResult | null
+  transcript: string | null
+  eval_hearing: number | null
+  eval_proposal: number | null
+  eval_closing: number | null
+  eval_impression: number | null
+  eval_comment: string | null
   notes: string | null
   interviewer_id: string | null
   created_at: string
@@ -240,4 +274,36 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
   admin: '管理者',
   coordinator: 'コーディネーター',
   viewer: '閲覧者',
+}
+
+export type ReferralStatus =
+  | 'referred'
+  | 'interview_scheduled'
+  | 'interview_done'
+  | 'hired'
+  | 'pre_assignment'
+  | 'assigned'
+  | 'working'
+  | 'cancelled'
+  | 'declined'
+
+export const REFERRAL_STATUS_LABELS: Record<ReferralStatus, string> = {
+  referred: '紹介済み',
+  interview_scheduled: '面接予定',
+  interview_done: '面接済み',
+  hired: '採用',
+  pre_assignment: '赴任前',
+  assigned: '赴任済み',
+  working: '稼働中',
+  cancelled: 'キャンセル',
+  declined: '不採用',
+}
+
+export type SaleStatus = 'expected' | 'confirmed' | 'invoiced' | 'paid'
+
+export const SALE_STATUS_LABELS: Record<SaleStatus, string> = {
+  expected: '売上見込',
+  confirmed: '売上確定',
+  invoiced: '請求済み',
+  paid: '入金済み',
 }

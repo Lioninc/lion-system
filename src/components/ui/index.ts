@@ -12,3 +12,6 @@ export type { BadgeProps } from './Badge'
 
 export { Select } from './Select'
 export type { SelectProps, SelectOption } from './Select'
+
+export { CSVImportModal } from './CSVImportModal'
+export type { DuplicateAction } from './CSVImportModal'

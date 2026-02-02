@@ -27,7 +27,6 @@ interface TodayInterview {
   id: string
   scheduled_at: string
   job_seeker_name: string
-  interview_type: string
 }
 
 interface DigUpItem {
@@ -82,15 +81,15 @@ export function DashboardPage() {
           .select(`
             id,
             scheduled_at,
-            interview_type,
-            applications (
-              job_seekers (
+            application:applications (
+              job_seeker:job_seekers (
                 name
               )
             )
           `)
           .gte('scheduled_at', `${today}T00:00:00`)
           .lte('scheduled_at', `${today}T23:59:59`)
+          .is('conducted_at', null)
           .order('scheduled_at'),
 
         // Pending referrals
@@ -122,8 +121,7 @@ export function DashboardPage() {
           interviewsResult.data.map((i: any) => ({
             id: i.id,
             scheduled_at: i.scheduled_at,
-            job_seeker_name: i.applications?.job_seekers?.name || '不明',
-            interview_type: i.interview_type,
+            job_seeker_name: i.application?.job_seeker?.name || '不明',
           }))
         )
       }
@@ -252,7 +250,7 @@ export function DashboardPage() {
                 <Calendar className="w-5 h-5 text-slate-500" />
                 <h3 className="font-semibold text-slate-800">本日の面談予定</h3>
               </div>
-              <Link to="/job-seekers" className="text-sm text-primary hover:underline flex items-center gap-1">
+              <Link to="/interviews" className="text-sm text-primary hover:underline flex items-center gap-1">
                 すべて見る <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
@@ -272,10 +270,7 @@ export function DashboardPage() {
                           })}
                         </p>
                       </div>
-                      <Badge variant={interview.interview_type === 'phone' ? 'info' : 'purple'}>
-                        {interview.interview_type === 'phone' ? '電話' :
-                         interview.interview_type === 'video' ? 'Web' : '対面'}
-                      </Badge>
+                      <Badge variant="info">電話面談</Badge>
                     </div>
                   </div>
                 ))
