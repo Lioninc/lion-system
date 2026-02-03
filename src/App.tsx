@@ -12,6 +12,7 @@ import { ReferralListPage, ReferralNewPage, ReferralDetailPage } from './pages/r
 import { InterviewSchedulePage } from './pages/interviews'
 import { SalesListPage, SaleDetailPage } from './pages/sales'
 import { ReportsPage, LegalDocumentsPage } from './pages/reports'
+import { SettingsPage, UserManagementPage } from './pages/settings'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -107,7 +108,8 @@ function App() {
             <Route path="/sales/:id" element={<SaleDetailPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/reports/legal" element={<LegalDocumentsPage />} />
-            <Route path="/settings" element={<PlaceholderPage title="設定" />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings/users" element={<UserManagementPage />} />
           </Route>
 
           {/* Catch all */}
@@ -115,18 +117,6 @@ function App() {
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
-  )
-}
-
-// Placeholder component for pages not yet implemented
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold text-slate-800 mb-4">{title}</h1>
-      <div className="bg-white rounded-lg border border-slate-200 p-8 text-center">
-        <p className="text-slate-500">このページは準備中です</p>
-      </div>
-    </div>
   )
 }
 
