@@ -62,18 +62,21 @@ export function DashboardPage() {
 
     try {
       // Fetch stats in parallel
+      // 今月の最終日
+      const endOfMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]
+
       const [
         applicationsResult,
         interviewsResult,
         referralsResult,
         revenueResult,
       ] = await Promise.all([
-        // New applications this month
+        // New applications this month (今月作成された応募をカウント)
         supabase
           .from('applications')
           .select('id', { count: 'exact' })
-          .eq('application_status', 'new')
-          .gte('created_at', startOfMonth),
+          .gte('applied_at', startOfMonth)
+          .lte('applied_at', endOfMonth),
 
         // Today's interviews
         supabase
@@ -98,12 +101,13 @@ export function DashboardPage() {
           .select('id', { count: 'exact' })
           .in('referral_status', ['referred', 'dispatch_interview_scheduled']),
 
-        // Monthly revenue
+        // Monthly revenue (今月の売上日でフィルタ)
         supabase
           .from('sales')
           .select('amount')
           .in('status', ['confirmed', 'invoiced', 'paid'])
-          .gte('created_at', startOfMonth),
+          .gte('sales_date', startOfMonth)
+          .lte('sales_date', endOfMonth),
       ])
 
       // Calculate stats
