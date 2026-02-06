@@ -44,9 +44,7 @@ interface ReferralWithDetails {
       id: string
       name: string
     }
-    fee_amount: number | null
-    fee_percentage: number | null
-  }
+    }
 }
 
 const REFERRAL_STATUS_OPTIONS = [
@@ -93,8 +91,6 @@ export function ReferralListPage() {
         job:jobs (
           id,
           title,
-          fee_amount,
-          fee_percentage,
           company:companies (
             id,
             name
@@ -289,11 +285,6 @@ export function ReferralListPage() {
                       </div>
                     </div>
                     <div className="text-right">
-                      {referral.job?.fee_amount && (
-                        <p className="text-lg font-semibold text-emerald-600">
-                          ¥{referral.job.fee_amount.toLocaleString()}
-                        </p>
-                      )}
                       <ChevronRight className="w-5 h-5 text-slate-400 ml-auto" />
                     </div>
                   </div>
