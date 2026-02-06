@@ -95,11 +95,18 @@ export function DashboardPage() {
           .is('conducted_at', null)
           .order('scheduled_at'),
 
-        // Pending referrals
+        // Pending referrals (進行中のみ - 最終結果が出ていないもの)
+        // 除外: hired, pre_assignment, assigned, working, cancelled, declined
         supabase
           .from('referrals')
           .select('id', { count: 'exact' })
-          .in('referral_status', ['referred', 'dispatch_interview_scheduled']),
+          .in('referral_status', [
+            'referred',
+            'interview_scheduled',
+            'interview_done',
+            'dispatch_interview_scheduled',
+            'dispatch_interview_done'
+          ]),
 
         // Monthly revenue (今月の売上日でフィルタ)
         supabase
