@@ -15,7 +15,7 @@ type LoginFormData = z.infer<typeof loginSchema>
 
 // 社員番号からメールアドレスを生成
 function employeeIdToEmail(employeeId: string): string {
-  return `${employeeId}@rion.internal`
+  return `${employeeId}@rion.example.com`
 }
 
 export function LoginPage() {
