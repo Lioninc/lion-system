@@ -49,6 +49,8 @@ const COL = {
   JOB_TYPE: 10,      // 職種 [11]
 
   // 求職者情報
+  NAME_LAST: 13,     // 氏名（姓）[14]
+  NAME_FIRST: 14,    // 氏名（名）[15]
   NAME: 15,          // 氏名 [16]
   NAME_KANA: 18,     // カナ [19]
   PHONE: 19,         // 電話番号 [20]
@@ -354,7 +356,16 @@ async function main() {
       for (const row of batch) {
         try {
           const phone = normalizePhone(row[COL.PHONE] || '')
-          const name = row[COL.NAME]?.trim() || ''
+
+          // 名前を組み立て：氏名[15]が空の場合、姓[13]+名[14]でフルネームを作成
+          let name = row[COL.NAME]?.trim() || ''
+          if (!name) {
+            const lastName = row[COL.NAME_LAST]?.trim() || ''
+            const firstName = row[COL.NAME_FIRST]?.trim() || ''
+            if (lastName || firstName) {
+              name = `${lastName} ${firstName}`.trim()
+            }
+          }
 
           // 電話番号も名前もない行はスキップ
           if (!phone && !name) {
