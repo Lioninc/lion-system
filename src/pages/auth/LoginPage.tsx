@@ -15,7 +15,7 @@ type LoginFormData = z.infer<typeof loginSchema>
 
 // 社員番号からメールアドレスを生成（内部用、ユーザーには非表示）
 function employeeIdToEmail(employeeId: string): string {
-  return `emp${employeeId}@system.local`
+  return `emp${employeeId}@gmail.com`
 }
 
 export function LoginPage() {
