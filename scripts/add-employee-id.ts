@@ -61,7 +61,7 @@ FROM numbered_users
 WHERE users.id = numbered_users.id;
 
 -- メールアドレスを社員番号ベースに更新（任意）
--- UPDATE users SET email = 'emp' || employee_id || '@example.com' WHERE employee_id IS NOT NULL;`)
+-- UPDATE users SET email = 'emp' || employee_id || '@system.local' WHERE employee_id IS NOT NULL;`)
   console.log('```')
   console.log('\n実行後、再度このスクリプトを実行して確認してください。')
 }

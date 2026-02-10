@@ -13,9 +13,9 @@ interface UserWithStatus extends User {
   is_active: boolean
 }
 
-// 社員番号からメールアドレスを生成
+// 社員番号からメールアドレスを生成（内部用、ユーザーには非表示）
 function employeeIdToEmail(employeeId: string): string {
-  return `emp${employeeId}@example.com`
+  return `emp${employeeId}@system.local`
 }
 
 // 次の社員番号を生成（3桁の連番）
