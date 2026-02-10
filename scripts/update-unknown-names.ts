@@ -32,10 +32,13 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 
 // CSVカラムインデックス（0始まり）
 const COL = {
-  NAME_LAST: 13,     // 氏名（姓）[14]
-  NAME_FIRST: 14,    // 氏名（名）[15]
-  NAME: 15,          // 氏名 [16]
-  PHONE: 19,         // 電話番号 [20]
+  NAME_LAST: 13,       // 氏名（姓）[14]
+  NAME_FIRST: 14,      // 氏名（名）[15]
+  NAME: 15,            // 氏名 [16]
+  NAME_KANA_LAST: 16,  // カナ（姓）[17]
+  NAME_KANA_FIRST: 17, // カナ（名）[18]
+  NAME_KANA: 18,       // カナ [19]
+  PHONE: 19,           // 電話番号 [20]
 }
 
 // 電話番号を正規化
@@ -45,20 +48,36 @@ function normalizePhone(phone: string): string {
   return normalized.slice(0, 20)
 }
 
-// 名前を組み立て
+// 名前を組み立て（優先順位）
+// 1. 氏名[15] → 2. 姓+名 → 3. 姓のみ → 4. 名のみ
+// 5. カナ[18] → 6. カナ姓+カナ名 → 7. カナ姓のみ → 8. カナ名のみ
 function buildName(row: string[]): string {
-  // まず氏名[15]を確認
-  let name = row[COL.NAME]?.trim() || ''
-  if (name) return name
-
-  // 空なら姓[13] + 名[14]でフルネームを作成
+  const fullName = row[COL.NAME]?.trim() || ''
   const lastName = row[COL.NAME_LAST]?.trim() || ''
   const firstName = row[COL.NAME_FIRST]?.trim() || ''
-  if (lastName || firstName) {
-    name = `${lastName} ${firstName}`.trim()
+  const fullKana = row[COL.NAME_KANA]?.trim() || ''
+  const lastKana = row[COL.NAME_KANA_LAST]?.trim() || ''
+  const firstKana = row[COL.NAME_KANA_FIRST]?.trim() || ''
+
+  if (fullName) {
+    return fullName
+  } else if (lastName && firstName) {
+    return `${lastName} ${firstName}`
+  } else if (lastName) {
+    return lastName
+  } else if (firstName) {
+    return firstName
+  } else if (fullKana) {
+    return fullKana
+  } else if (lastKana && firstKana) {
+    return `${lastKana} ${firstKana}`
+  } else if (lastKana) {
+    return lastKana
+  } else if (firstKana) {
+    return firstKana
   }
 
-  return name
+  return ''
 }
 
 async function main() {
