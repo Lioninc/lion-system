@@ -126,8 +126,9 @@ export function JobSeekerDetailPage() {
   async function fetchCoordinators() {
     const { data } = await supabase
       .from('users')
-      .select('id, name, department')
+      .select('id, name, department, employment_status')
       .neq('department', '管理部')
+      .or('employment_status.eq.active,employment_status.is.null')
       .order('name')
 
     if (data) {

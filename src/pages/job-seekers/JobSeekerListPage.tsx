@@ -85,11 +85,12 @@ export function JobSeekerListPage() {
   }, [currentPage, filters])
 
   async function fetchFilterOptions() {
-    // Fetch coordinators (users with coordinator role, excluding 管理部)
+    // Fetch coordinators (users with coordinator role, excluding 管理部, only active)
     const { data: usersData } = await supabase
       .from('users')
-      .select('id, name, department')
+      .select('id, name, department, employment_status')
       .neq('department', '管理部')
+      .or('employment_status.eq.active,employment_status.is.null')
       .order('name')
 
     if (usersData) {

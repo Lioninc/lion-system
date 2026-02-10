@@ -23,14 +23,23 @@ export type ProgressStatus =
 
 export type UserRole = 'super_admin' | 'admin' | 'coordinator' | 'viewer'
 
+export type EmploymentStatus = 'active' | 'retired'
+
 export interface User {
   id: string
   email: string
   name: string
   role: UserRole
+  department: string | null
+  employment_status: EmploymentStatus
   tenant_id: string | null
   created_at: string
   updated_at: string
+}
+
+export const EMPLOYMENT_STATUS_LABELS: Record<EmploymentStatus, string> = {
+  active: '在職中',
+  retired: '退職済み',
 }
 
 export interface Tenant {

@@ -6,8 +6,8 @@ import { Header } from '../../components/layout'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 import { formatDate } from '../../lib/utils'
-import type { User, UserRole } from '../../types/database'
-import { USER_ROLE_LABELS } from '../../types/database'
+import type { User, UserRole, EmploymentStatus } from '../../types/database'
+import { USER_ROLE_LABELS, EMPLOYMENT_STATUS_LABELS } from '../../types/database'
 
 interface UserWithStatus extends User {
   is_active: boolean
@@ -20,6 +20,7 @@ export function UserManagementPage() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
+  const [employmentFilter, setEmploymentFilter] = useState<EmploymentStatus | ''>('')
   const [showModal, setShowModal] = useState(false)
   const [editingUser, setEditingUser] = useState<UserWithStatus | null>(null)
 
@@ -63,7 +64,8 @@ export function UserManagementPage() {
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesRole = !roleFilter || user.role === roleFilter
-    return matchesSearch && matchesRole
+    const matchesEmployment = !employmentFilter || user.employment_status === employmentFilter
+    return matchesSearch && matchesRole && matchesEmployment
   })
 
   function getRoleBadgeVariant(role: UserRole): 'danger' | 'info' | 'success' | 'warning' {
@@ -147,6 +149,16 @@ export function UserManagementPage() {
               onChange={(e) => setRoleFilter(e.target.value)}
               className="w-full sm:w-48"
             />
+            <Select
+              options={[
+                { value: '', label: 'すべてのステータス' },
+                { value: 'active', label: '在職中' },
+                { value: 'retired', label: '退職済み' },
+              ]}
+              value={employmentFilter}
+              onChange={(e) => setEmploymentFilter(e.target.value as EmploymentStatus | '')}
+              className="w-full sm:w-40"
+            />
           </div>
         </Card>
 
@@ -171,6 +183,9 @@ export function UserManagementPage() {
                           {!user.is_active && (
                             <Badge variant="danger">無効</Badge>
                           )}
+                          <Badge variant={user.employment_status === 'retired' ? 'default' : 'success'}>
+                            {EMPLOYMENT_STATUS_LABELS[user.employment_status || 'active']}
+                          </Badge>
                         </div>
                         <p className="text-sm text-slate-500 truncate">{user.email}</p>
                       </div>
@@ -227,7 +242,10 @@ export function UserManagementPage() {
                         権限
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                        ステータス
+                        在職ステータス
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        アカウント
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         登録日
@@ -249,6 +267,11 @@ export function UserManagementPage() {
                         <td className="px-4 py-4">
                           <Badge variant={getRoleBadgeVariant(user.role)}>
                             {USER_ROLE_LABELS[user.role]}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-4">
+                          <Badge variant={user.employment_status === 'retired' ? 'default' : 'success'}>
+                            {EMPLOYMENT_STATUS_LABELS[user.employment_status || 'active']}
                           </Badge>
                         </td>
                         <td className="px-4 py-4">
@@ -331,6 +354,7 @@ function UserModal({
   const [email, setEmail] = useState(user?.email || '')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<UserRole>(user?.role || 'coordinator')
+  const [employmentStatus, setEmploymentStatus] = useState<EmploymentStatus>(user?.employment_status || 'active')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -363,6 +387,7 @@ function UserModal({
           .update({
             name: name.trim(),
             role,
+            employment_status: employmentStatus,
             updated_at: new Date().toISOString(),
           })
           .eq('id', user.id)
@@ -409,6 +434,7 @@ function UserModal({
             email: email.trim(),
             name: name.trim(),
             role,
+            employment_status: employmentStatus,
             tenant_id: tenantId,
             is_active: true,
           })
@@ -493,6 +519,16 @@ function UserModal({
             ]}
             value={role}
             onChange={(e) => setRole(e.target.value as UserRole)}
+          />
+
+          <Select
+            label="在職ステータス"
+            options={[
+              { value: 'active', label: '在職中' },
+              { value: 'retired', label: '退職済み' },
+            ]}
+            value={employmentStatus}
+            onChange={(e) => setEmploymentStatus(e.target.value as EmploymentStatus)}
           />
         </div>
         <div className="flex justify-end gap-2 p-4 border-t border-slate-200 bg-slate-50">
