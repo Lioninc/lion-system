@@ -7,11 +7,16 @@ import { Button, Input, Card } from '../../components/ui'
 import { useAuthStore } from '../../stores/authStore'
 
 const loginSchema = z.object({
-  email: z.string().email('有効なメールアドレスを入力してください'),
+  employeeId: z.string().min(1, '社員番号を入力してください'),
   password: z.string().min(6, 'パスワードは6文字以上で入力してください'),
 })
 
 type LoginFormData = z.infer<typeof loginSchema>
+
+// 社員番号からメールアドレスを生成
+function employeeIdToEmail(employeeId: string): string {
+  return `${employeeId}@rion.internal`
+}
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -31,12 +36,14 @@ export function LoginPage() {
     setIsLoading(true)
     setError(null)
 
-    const result = await login(data.email, data.password)
+    // 社員番号をメールアドレスに変換してログイン
+    const email = employeeIdToEmail(data.employeeId)
+    const result = await login(email, data.password)
 
     if (result.success) {
       navigate('/')
     } else {
-      setError(result.error || 'ログインに失敗しました')
+      setError('社員番号またはパスワードが正しくありません')
     }
 
     setIsLoading(false)
@@ -61,11 +68,11 @@ export function LoginPage() {
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <Input
-            label="メールアドレス"
-            type="email"
-            placeholder="your@email.com"
-            error={errors.email?.message}
-            {...register('email')}
+            label="社員番号"
+            type="text"
+            placeholder="001"
+            error={errors.employeeId?.message}
+            {...register('employeeId')}
           />
 
           <Input

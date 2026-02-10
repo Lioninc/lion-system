@@ -13,6 +13,22 @@ interface UserWithStatus extends User {
   is_active: boolean
 }
 
+// 社員番号からメールアドレスを生成
+function employeeIdToEmail(employeeId: string): string {
+  return `${employeeId}@rion.internal`
+}
+
+// 次の社員番号を生成（3桁の連番）
+function generateNextEmployeeId(existingIds: (string | null)[]): string {
+  const numericIds = existingIds
+    .filter((id): id is string => id !== null)
+    .map(id => parseInt(id, 10))
+    .filter(n => !isNaN(n))
+
+  const maxId = numericIds.length > 0 ? Math.max(...numericIds) : 0
+  return String(maxId + 1).padStart(3, '0')
+}
+
 export function UserManagementPage() {
   const navigate = useNavigate()
   const { user: currentUser } = useAuthStore()
@@ -23,6 +39,7 @@ export function UserManagementPage() {
   const [employmentFilter, setEmploymentFilter] = useState<EmploymentStatus | ''>('')
   const [showModal, setShowModal] = useState(false)
   const [editingUser, setEditingUser] = useState<UserWithStatus | null>(null)
+  const [nextEmployeeId, setNextEmployeeId] = useState('001')
 
   // 管理者以外はアクセス不可
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin'
@@ -41,7 +58,7 @@ export function UserManagementPage() {
     let query = supabase
       .from('users')
       .select('*')
-      .order('created_at', { ascending: false })
+      .order('employee_id', { ascending: true })
 
     if (currentUser?.role !== 'super_admin') {
       // 管理者は同じテナントのユーザーのみ
@@ -53,7 +70,11 @@ export function UserManagementPage() {
     if (error) {
       console.error('Error fetching users:', error)
     } else {
-      setUsers((data || []).map(u => ({ ...u, is_active: u.is_active !== false })))
+      const userData = (data || []).map(u => ({ ...u, is_active: u.is_active !== false }))
+      setUsers(userData)
+      // 次の社員番号を計算
+      const employeeIds = userData.map(u => u.employee_id)
+      setNextEmployeeId(generateNextEmployeeId(employeeIds))
     }
 
     setLoading(false)
@@ -62,7 +83,7 @@ export function UserManagementPage() {
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase())
+      (user.employee_id || '').toLowerCase().includes(searchQuery.toLowerCase())
     const matchesRole = !roleFilter || user.role === roleFilter
     const matchesEmployment = !employmentFilter || user.employment_status === employmentFilter
     return matchesSearch && matchesRole && matchesEmployment
@@ -132,7 +153,7 @@ export function UserManagementPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 type="text"
-                placeholder="名前またはメールで検索..."
+                placeholder="名前または社員番号で検索..."
                 className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -179,6 +200,7 @@ export function UserManagementPage() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
+                          <span className="text-sm font-mono text-slate-500">{user.employee_id || '-'}</span>
                           <p className="font-medium text-slate-900 truncate">{user.name}</p>
                           {!user.is_active && (
                             <Badge variant="danger">無効</Badge>
@@ -187,7 +209,6 @@ export function UserManagementPage() {
                             {EMPLOYMENT_STATUS_LABELS[user.employment_status || 'active']}
                           </Badge>
                         </div>
-                        <p className="text-sm text-slate-500 truncate">{user.email}</p>
                       </div>
                       <Badge variant={getRoleBadgeVariant(user.role)}>
                         {USER_ROLE_LABELS[user.role]}
@@ -233,10 +254,10 @@ export function UserManagementPage() {
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                        ユーザー
+                        社員番号
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                        メールアドレス
+                        名前
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         権限
@@ -259,10 +280,10 @@ export function UserManagementPage() {
                     {filteredUsers.map((user) => (
                       <tr key={user.id} className="hover:bg-slate-50">
                         <td className="px-4 py-4">
-                          <p className="font-medium text-slate-900">{user.name}</p>
+                          <span className="font-mono text-slate-600">{user.employee_id || '-'}</span>
                         </td>
                         <td className="px-4 py-4">
-                          <span className="text-sm text-slate-600">{user.email}</span>
+                          <p className="font-medium text-slate-900">{user.name}</p>
                         </td>
                         <td className="px-4 py-4">
                           <Badge variant={getRoleBadgeVariant(user.role)}>
@@ -324,6 +345,7 @@ export function UserManagementPage() {
         <UserModal
           user={editingUser}
           tenantId={currentUser?.tenant_id || null}
+          nextEmployeeId={nextEmployeeId}
           onClose={() => {
             setShowModal(false)
             setEditingUser(null)
@@ -342,16 +364,18 @@ export function UserManagementPage() {
 function UserModal({
   user,
   tenantId,
+  nextEmployeeId,
   onClose,
   onSave,
 }: {
   user: UserWithStatus | null
   tenantId: string | null
+  nextEmployeeId: string
   onClose: () => void
   onSave: () => void
 }) {
   const [name, setName] = useState(user?.name || '')
-  const [email, setEmail] = useState(user?.email || '')
+  const [employeeId, setEmployeeId] = useState(user?.employee_id || nextEmployeeId)
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<UserRole>(user?.role || 'coordinator')
   const [employmentStatus, setEmploymentStatus] = useState<EmploymentStatus>(user?.employment_status || 'active')
@@ -361,8 +385,8 @@ function UserModal({
   const isEditing = !!user
 
   async function handleSave() {
-    if (!name.trim() || !email.trim()) {
-      setError('名前とメールアドレスは必須です')
+    if (!name.trim() || !employeeId.trim()) {
+      setError('名前と社員番号は必須です')
       return
     }
 
@@ -380,12 +404,15 @@ function UserModal({
     setError('')
 
     try {
+      const email = employeeIdToEmail(employeeId.trim())
+
       if (isEditing) {
         // ユーザー情報を更新
         const { error: updateError } = await supabase
           .from('users')
           .update({
             name: name.trim(),
+            employee_id: employeeId.trim(),
             role,
             employment_status: employmentStatus,
             updated_at: new Date().toISOString(),
@@ -408,7 +435,7 @@ function UserModal({
       } else {
         // 新規ユーザー作成（Supabase Authに登録）
         const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: email.trim(),
+          email,
           password,
           options: {
             data: { name: name.trim() }
@@ -417,7 +444,7 @@ function UserModal({
 
         if (authError) {
           if (authError.message.includes('already registered')) {
-            throw new Error('このメールアドレスは既に登録されています')
+            throw new Error('この社員番号は既に登録されています')
           }
           throw authError
         }
@@ -431,7 +458,8 @@ function UserModal({
           .from('users')
           .insert({
             id: authData.user.id,
-            email: email.trim(),
+            email,
+            employee_id: employeeId.trim(),
             name: name.trim(),
             role,
             employment_status: employmentStatus,
@@ -469,6 +497,23 @@ function UserModal({
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
+              社員番号 <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent font-mono disabled:bg-slate-100"
+              value={employeeId}
+              onChange={(e) => setEmployeeId(e.target.value)}
+              placeholder="001"
+              disabled={isEditing}
+            />
+            {isEditing && (
+              <p className="text-xs text-slate-500 mt-1">社員番号は変更できません</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
               名前 <span className="text-red-500">*</span>
             </label>
             <input
@@ -478,23 +523,6 @@ function UserModal({
               onChange={(e) => setName(e.target.value)}
               placeholder="山田 太郎"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              メールアドレス <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="email"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:bg-slate-100"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="user@example.com"
-              disabled={isEditing}
-            />
-            {isEditing && (
-              <p className="text-xs text-slate-500 mt-1">メールアドレスは変更できません</p>
-            )}
           </div>
 
           <div>

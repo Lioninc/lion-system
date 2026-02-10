@@ -27,6 +27,7 @@ export type EmploymentStatus = 'active' | 'retired'
 
 export interface User {
   id: string
+  employee_id: string | null
   email: string
   name: string
   role: UserRole
