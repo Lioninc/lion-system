@@ -304,14 +304,35 @@ async function main() {
 
     existingSources?.forEach(s => sourceMap.set(s.name, s.id))
 
-    // 担当者マスターを取得
+    // 担当者マスターを取得（名字→フルネームでマッチング）
+    // CSVの担当CD[53]は名字のみ（例：山田）→ システムの「山田太郎」に自動マッチング
     const coordinatorMap = new Map<string, string>()
+    const coordinatorFullNames: { id: string; name: string }[] = []
     const { data: users } = await supabase
       .from('users')
       .select('id, name')
       .eq('tenant_id', tenantId)
 
-    users?.forEach(u => coordinatorMap.set(u.name, u.id))
+    users?.forEach(u => {
+      coordinatorFullNames.push({ id: u.id, name: u.name })
+      // フルネームでもマッチできるように登録
+      coordinatorMap.set(u.name, u.id)
+    })
+
+    // 名字からフルネームを検索する関数
+    function findCoordinatorByLastName(lastName: string): string | null {
+      if (!lastName) return null
+      // 完全一致を先に確認
+      if (coordinatorMap.has(lastName)) {
+        return coordinatorMap.get(lastName)!
+      }
+      // フルネームに名字が含まれている人を検索
+      const matches = coordinatorFullNames.filter(u => u.name.startsWith(lastName))
+      if (matches.length === 1) {
+        return matches[0].id
+      }
+      return null
+    }
 
     // 派遣会社マスターを取得/作成
     const companyMap = new Map<string, string>()
@@ -460,11 +481,11 @@ async function main() {
             }
           }
 
-          // 担当者IDを取得
+          // 担当者IDを取得（名字からフルネームでマッチング）
           let coordinatorId: string | null = null
           const coordinatorName = row[COL.COORDINATOR]?.trim()
-          if (coordinatorName && coordinatorMap.has(coordinatorName)) {
-            coordinatorId = coordinatorMap.get(coordinatorName)!
+          if (coordinatorName) {
+            coordinatorId = findCoordinatorByLastName(coordinatorName)
           }
 
           // ステータスを変換
