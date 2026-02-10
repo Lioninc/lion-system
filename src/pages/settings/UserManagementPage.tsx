@@ -15,7 +15,7 @@ interface UserWithStatus extends User {
 
 // 社員番号からメールアドレスを生成
 function employeeIdToEmail(employeeId: string): string {
-  return `${employeeId}@rion.example.com`
+  return `emp${employeeId}@example.com`
 }
 
 // 次の社員番号を生成（3桁の連番）
