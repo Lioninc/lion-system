@@ -10,6 +10,7 @@ import {
   Filter,
   X,
   Upload,
+  FileText,
 } from 'lucide-react'
 import { Card, Button, Select, Badge, CSVImportModal, type DuplicateAction } from '../../components/ui'
 import { Header } from '../../components/layout'
@@ -18,18 +19,19 @@ import type { ApplicationStatus, ProgressStatus } from '../../types/database'
 import { APPLICATION_STATUS_LABELS, PROGRESS_STATUS_LABELS } from '../../types/database'
 import { formatDate } from '../../lib/utils'
 
-interface JobSeekerWithApplication {
+interface JobSeekerSummary {
   id: string
   name: string
   phone: string
   email: string | null
   prefecture: string | null
-  application_id: string
-  application_status: ApplicationStatus
-  progress_status: ProgressStatus | null
-  coordinator_name: string | null
-  source_name: string | null
-  applied_at: string
+  application_count: number
+  latest_application_id: string
+  latest_application_status: ApplicationStatus
+  latest_progress_status: ProgressStatus | null
+  latest_coordinator_name: string | null
+  latest_source_name: string | null
+  latest_applied_at: string
 }
 
 interface FilterState {
@@ -59,7 +61,7 @@ const JOB_SEEKER_CSV_COLUMNS = [
 
 export function JobSeekerListPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [jobSeekers, setJobSeekers] = useState<JobSeekerWithApplication[]>([])
+  const [jobSeekers, setJobSeekers] = useState<JobSeekerSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [totalCount, setTotalCount] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
@@ -86,7 +88,6 @@ export function JobSeekerListPage() {
 
   async function fetchFilterOptions() {
     // Fetch coordinators (users excluding 管理部)
-    // Include all users (active and retired) as they may have application data
     const { data: usersData } = await supabase
       .from('users')
       .select('id, name, department, employment_status')
@@ -94,7 +95,6 @@ export function JobSeekerListPage() {
       .order('name')
 
     if (usersData) {
-      // Add "未設定" option at the beginning
       const coordinatorOptions = [
         { value: 'unset', label: '未設定' },
         ...usersData.map((u) => ({
@@ -120,52 +120,38 @@ export function JobSeekerListPage() {
   async function fetchJobSeekers() {
     setLoading(true)
 
+    // 求職者ベースでデータを取得
     let query = supabase
-      .from('applications')
+      .from('job_seekers')
       .select(`
         id,
-        application_status,
-        progress_status,
-        applied_at,
-        job_seekers (
+        name,
+        phone,
+        email,
+        prefecture,
+        applications (
           id,
-          name,
-          phone,
-          email,
-          prefecture
-        ),
-        coordinator:users!applications_coordinator_id_fkey (
-          name
-        ),
-        sources (
-          name
+          application_status,
+          progress_status,
+          applied_at,
+          coordinator_id,
+          source_id,
+          coordinator:users!applications_coordinator_id_fkey (
+            name
+          ),
+          sources (
+            name
+          )
         )
       `, { count: 'exact' })
-      .order('applied_at', { ascending: false })
-      .range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1)
+      .order('created_at', { ascending: false })
 
-    // Apply filters
-    if (filters.status) {
-      query = query.eq('application_status', filters.status)
+    // 検索フィルター
+    if (filters.search) {
+      query = query.or(`name.ilike.%${filters.search}%,phone.ilike.%${filters.search}%`)
     }
 
-    if (filters.progressStatus) {
-      query = query.eq('progress_status', filters.progressStatus)
-    }
-
-    if (filters.coordinator) {
-      if (filters.coordinator === 'unset') {
-        query = query.is('coordinator_id', null)
-      } else {
-        query = query.eq('coordinator_id', filters.coordinator)
-      }
-    }
-
-    if (filters.source) {
-      query = query.eq('source_id', filters.source)
-    }
-
-    const { data, count, error } = await query
+    const { data, error } = await query
 
     if (error) {
       console.error('Error fetching job seekers:', error)
@@ -173,32 +159,75 @@ export function JobSeekerListPage() {
       return
     }
 
-    // Filter by search term (name or phone)
-    let results = (data || []).map((item: any) => ({
-      id: item.job_seekers?.id || '',
-      name: item.job_seekers?.name || '不明',
-      phone: item.job_seekers?.phone || '',
-      email: item.job_seekers?.email || null,
-      prefecture: item.job_seekers?.prefecture || null,
-      application_id: item.id,
-      application_status: item.application_status,
-      progress_status: item.progress_status,
-      coordinator_name: item.coordinator?.name || null,
-      source_name: item.sources?.name || null,
-      applied_at: item.applied_at,
-    }))
+    // 求職者ごとにデータを集計し、フィルターを適用
+    let results: JobSeekerSummary[] = (data || [])
+      .map((js: any) => {
+        const applications = js.applications || []
 
-    if (filters.search) {
-      const searchLower = filters.search.toLowerCase()
-      results = results.filter(
-        (js) =>
-          js.name.toLowerCase().includes(searchLower) ||
-          js.phone.includes(filters.search)
-      )
+        // 最新の応募を取得
+        const sortedApps = [...applications].sort(
+          (a: any, b: any) => new Date(b.applied_at).getTime() - new Date(a.applied_at).getTime()
+        )
+        const latestApp = sortedApps[0]
+
+        if (!latestApp) return null
+
+        return {
+          id: js.id,
+          name: js.name,
+          phone: js.phone,
+          email: js.email,
+          prefecture: js.prefecture,
+          application_count: applications.length,
+          latest_application_id: latestApp.id,
+          latest_application_status: latestApp.application_status,
+          latest_progress_status: latestApp.progress_status,
+          latest_coordinator_name: latestApp.coordinator?.name || null,
+          latest_source_name: latestApp.sources?.name || null,
+          latest_applied_at: latestApp.applied_at,
+        }
+      })
+      .filter((js: any): js is JobSeekerSummary => js !== null)
+
+    // ステータスフィルター
+    if (filters.status) {
+      results = results.filter((js) => js.latest_application_status === filters.status)
     }
 
-    setJobSeekers(results)
-    setTotalCount(count || 0)
+    if (filters.progressStatus) {
+      results = results.filter((js) => js.latest_progress_status === filters.progressStatus)
+    }
+
+    // 担当者フィルター
+    if (filters.coordinator) {
+      if (filters.coordinator === 'unset') {
+        results = results.filter((js) => !js.latest_coordinator_name)
+      } else {
+        const selectedCoordinator = coordinators.find((c) => c.value === filters.coordinator)
+        if (selectedCoordinator) {
+          const coordinatorName = selectedCoordinator.label.replace('（退職）', '')
+          results = results.filter((js) => js.latest_coordinator_name === coordinatorName)
+        }
+      }
+    }
+
+    // 流入元フィルター
+    if (filters.source) {
+      const selectedSource = sources.find((s) => s.value === filters.source)
+      if (selectedSource) {
+        results = results.filter((js) => js.latest_source_name === selectedSource.label)
+      }
+    }
+
+    // 最新応募日でソート
+    results.sort((a, b) => new Date(b.latest_applied_at).getTime() - new Date(a.latest_applied_at).getTime())
+
+    // ページネーション
+    const startIndex = (currentPage - 1) * PAGE_SIZE
+    const paginatedResults = results.slice(startIndex, startIndex + PAGE_SIZE)
+
+    setJobSeekers(paginatedResults)
+    setTotalCount(results.length)
     setLoading(false)
   }
 
@@ -207,7 +236,6 @@ export function JobSeekerListPage() {
     setFilters(newFilters)
     setCurrentPage(1)
 
-    // Update URL params
     const params = new URLSearchParams()
     Object.entries(newFilters).forEach(([k, v]) => {
       if (v) params.set(k, v)
@@ -247,14 +275,9 @@ export function JobSeekerListPage() {
     let skipped = 0
     let updated = 0
 
-    // Get sources for mapping
-    const { data: sourcesData } = await supabase
-      .from('sources')
-      .select('id, name')
-
+    const { data: sourcesData } = await supabase.from('sources').select('id, name')
     const sourceMap = new Map(sourcesData?.map((s) => [s.name, s.id]) || [])
 
-    // Get existing job seekers by phone for duplicate check
     const phones = data.map((row) => row.phone).filter(Boolean)
     const { data: existingJobSeekers } = await supabase
       .from('job_seekers')
@@ -265,24 +288,20 @@ export function JobSeekerListPage() {
 
     for (let i = 0; i < data.length; i++) {
       const row = data[i]
-      const rowNum = i + 2 // CSV row number (header is row 1)
+      const rowNum = i + 2
 
-      // Validate required fields
       if (!row.name || !row.phone) {
         errors.push(`行${rowNum}: 氏名と電話番号は必須です`)
         continue
       }
 
-      // Check for duplicate
       const existingId = existingPhoneMap.get(row.phone)
 
       if (existingId) {
-        // Handle duplicate based on selected action
         if (duplicateAction === 'skip') {
           skipped++
           continue
         } else if (duplicateAction === 'update') {
-          // Update existing job seeker info
           const { error: updateError } = await supabase
             .from('job_seekers')
             .update({
@@ -304,17 +323,13 @@ export function JobSeekerListPage() {
             continue
           }
 
-          // Also create new application record (re-application)
           const sourceId = row.source_name ? sourceMap.get(row.source_name) : null
-
-          const { error: appError } = await supabase
-            .from('applications')
-            .insert({
-              job_seeker_id: existingId,
-              source_id: sourceId,
-              application_status: 'new',
-              applied_at: new Date().toISOString(),
-            })
+          const { error: appError } = await supabase.from('applications').insert({
+            job_seeker_id: existingId,
+            source_id: sourceId,
+            application_status: 'new',
+            applied_at: new Date().toISOString(),
+          })
 
           if (appError) {
             errors.push(`行${rowNum}: 応募作成エラー - ${appError.message}`)
@@ -324,10 +339,8 @@ export function JobSeekerListPage() {
           updated++
           continue
         }
-        // If duplicateAction === 'create', continue to create new record
       }
 
-      // Insert job seeker
       const { data: jobSeeker, error: jsError } = await supabase
         .from('job_seekers')
         .insert({
@@ -351,17 +364,13 @@ export function JobSeekerListPage() {
         continue
       }
 
-      // Create application
       const sourceId = row.source_name ? sourceMap.get(row.source_name) : null
-
-      const { error: appError } = await supabase
-        .from('applications')
-        .insert({
-          job_seeker_id: jobSeeker.id,
-          source_id: sourceId,
-          application_status: 'new',
-          applied_at: new Date().toISOString(),
-        })
+      const { error: appError } = await supabase.from('applications').insert({
+        job_seeker_id: jobSeeker.id,
+        source_id: sourceId,
+        application_status: 'new',
+        applied_at: new Date().toISOString(),
+      })
 
       if (appError) {
         errors.push(`行${rowNum}: 応募作成エラー - ${appError.message}`)
@@ -371,7 +380,6 @@ export function JobSeekerListPage() {
       success++
     }
 
-    // Refresh list after import
     if (success > 0 || updated > 0) {
       fetchJobSeekers()
     }
@@ -381,22 +389,14 @@ export function JobSeekerListPage() {
 
   function getStatusBadgeVariant(status: ApplicationStatus): 'default' | 'success' | 'warning' | 'danger' | 'info' | 'purple' {
     switch (status) {
-      case 'new':
-        return 'info'
-      case 'valid':
-        return 'success'
-      case 'invalid':
-        return 'danger'
-      case 'no_answer':
-        return 'warning'
-      case 'connected':
-        return 'purple'
-      case 'working':
-        return 'success'
-      case 'completed':
-        return 'default'
-      default:
-        return 'default'
+      case 'new': return 'info'
+      case 'valid': return 'success'
+      case 'invalid': return 'danger'
+      case 'no_answer': return 'warning'
+      case 'connected': return 'purple'
+      case 'working': return 'success'
+      case 'completed': return 'default'
+      default: return 'default'
     }
   }
 
@@ -421,7 +421,6 @@ export function JobSeekerListPage() {
       />
 
       <div className="p-4 lg:p-6 space-y-4">
-        {/* Search and Filter Bar */}
         <Card>
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1 relative">
@@ -448,33 +447,32 @@ export function JobSeekerListPage() {
             </Button>
           </div>
 
-          {/* Filter Panel */}
           {showFilters && (
             <div className="mt-4 pt-4 border-t border-slate-200">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Select
-                  label="応募ステータス"
+                  label="最新応募ステータス"
                   options={statusOptions}
                   placeholder="すべて"
                   value={filters.status}
                   onChange={(e) => handleFilterChange('status', e.target.value)}
                 />
                 <Select
-                  label="進捗ステータス"
+                  label="最新進捗ステータス"
                   options={progressStatusOptions}
                   placeholder="すべて"
                   value={filters.progressStatus}
                   onChange={(e) => handleFilterChange('progressStatus', e.target.value)}
                 />
                 <Select
-                  label="担当者"
+                  label="最新担当者"
                   options={coordinators}
                   placeholder="すべて"
                   value={filters.coordinator}
                   onChange={(e) => handleFilterChange('coordinator', e.target.value)}
                 />
                 <Select
-                  label="流入元"
+                  label="最新流入元"
                   options={sources}
                   placeholder="すべて"
                   value={filters.source}
@@ -493,13 +491,11 @@ export function JobSeekerListPage() {
           )}
         </Card>
 
-        {/* Results Count */}
         <div className="text-sm text-slate-500">
-          {totalCount}件中 {(currentPage - 1) * PAGE_SIZE + 1}-
-          {Math.min(currentPage * PAGE_SIZE, totalCount)}件を表示
+          {totalCount}人中 {Math.min((currentPage - 1) * PAGE_SIZE + 1, totalCount)}-
+          {Math.min(currentPage * PAGE_SIZE, totalCount)}人を表示
         </div>
 
-        {/* Job Seeker List */}
         <Card padding="none">
           {loading ? (
             <div className="p-8 text-center text-slate-500 text-sm">読み込み中...</div>
@@ -513,30 +509,38 @@ export function JobSeekerListPage() {
               <div className="lg:hidden divide-y divide-slate-200">
                 {jobSeekers.map((js) => (
                   <div
-                    key={js.application_id}
+                    key={js.id}
                     className="p-4 hover:bg-slate-50 cursor-pointer"
-                    onClick={() => window.location.href = `/job-seekers/${js.application_id}`}
+                    onClick={() => window.location.href = `/job-seekers/${js.latest_application_id}`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-slate-900 truncate">{js.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-slate-900 truncate">{js.name}</p>
+                          {js.application_count > 1 && (
+                            <span className="flex items-center gap-0.5 text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                              <FileText className="w-3 h-3" />
+                              {js.application_count}
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1 text-sm text-slate-600 mt-1">
                           <Phone className="w-3 h-3 flex-shrink-0" />
                           <span className="truncate">{js.phone}</span>
                         </div>
                       </div>
-                      <Badge variant={getStatusBadgeVariant(js.application_status)} className="flex-shrink-0">
-                        {APPLICATION_STATUS_LABELS[js.application_status]}
+                      <Badge variant={getStatusBadgeVariant(js.latest_application_status)} className="flex-shrink-0">
+                        {APPLICATION_STATUS_LABELS[js.latest_application_status]}
                       </Badge>
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                      {js.progress_status && (
+                      {js.latest_progress_status && (
                         <Badge variant="default" className="text-xs">
-                          {PROGRESS_STATUS_LABELS[js.progress_status]}
+                          {PROGRESS_STATUS_LABELS[js.latest_progress_status]}
                         </Badge>
                       )}
-                      {js.coordinator_name && <span>担当: {js.coordinator_name}</span>}
-                      <span>{formatDate(js.applied_at)}</span>
+                      {js.latest_coordinator_name && <span>担当: {js.latest_coordinator_name}</span>}
+                      <span>{formatDate(js.latest_applied_at)}</span>
                     </div>
                   </div>
                 ))}
@@ -554,28 +558,28 @@ export function JobSeekerListPage() {
                         連絡先
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                        ステータス
+                        応募回数
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                        進捗
+                        最新ステータス
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                        担当者
+                        最新進捗
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                        流入元
+                        最新担当者
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                        応募日
+                        最新応募日
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     {jobSeekers.map((js) => (
                       <tr
-                        key={js.application_id}
+                        key={js.id}
                         className="hover:bg-slate-50 cursor-pointer"
-                        onClick={() => window.location.href = `/job-seekers/${js.application_id}`}
+                        onClick={() => window.location.href = `/job-seekers/${js.latest_application_id}`}
                       >
                         <td className="px-4 py-4">
                           <div>
@@ -600,14 +604,22 @@ export function JobSeekerListPage() {
                           </div>
                         </td>
                         <td className="px-4 py-4">
-                          <Badge variant={getStatusBadgeVariant(js.application_status)}>
-                            {APPLICATION_STATUS_LABELS[js.application_status]}
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm font-medium text-slate-700">{js.application_count}回</span>
+                            {js.application_count > 1 && (
+                              <span className="text-xs text-slate-400">(再応募あり)</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <Badge variant={getStatusBadgeVariant(js.latest_application_status)}>
+                            {APPLICATION_STATUS_LABELS[js.latest_application_status]}
                           </Badge>
                         </td>
                         <td className="px-4 py-4">
-                          {js.progress_status ? (
+                          {js.latest_progress_status ? (
                             <Badge variant="default">
-                              {PROGRESS_STATUS_LABELS[js.progress_status]}
+                              {PROGRESS_STATUS_LABELS[js.latest_progress_status]}
                             </Badge>
                           ) : (
                             <span className="text-sm text-slate-400">-</span>
@@ -615,17 +627,12 @@ export function JobSeekerListPage() {
                         </td>
                         <td className="px-4 py-4">
                           <span className="text-sm text-slate-600">
-                            {js.coordinator_name || '-'}
+                            {js.latest_coordinator_name || '-'}
                           </span>
                         </td>
                         <td className="px-4 py-4">
                           <span className="text-sm text-slate-600">
-                            {js.source_name || '-'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4">
-                          <span className="text-sm text-slate-600">
-                            {formatDate(js.applied_at)}
+                            {formatDate(js.latest_applied_at)}
                           </span>
                         </td>
                       </tr>
@@ -637,7 +644,6 @@ export function JobSeekerListPage() {
           )}
         </Card>
 
-        {/* Pagination */}
         {totalPages > 1 && (
           <div className="flex items-center justify-between">
             <Button
@@ -689,7 +695,6 @@ export function JobSeekerListPage() {
         )}
       </div>
 
-      {/* CSV Import Modal */}
       <CSVImportModal
         isOpen={showCSVImport}
         onClose={() => setShowCSVImport(false)}
