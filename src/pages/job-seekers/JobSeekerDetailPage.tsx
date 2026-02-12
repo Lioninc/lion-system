@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Briefcase,
   ClipboardList,
+  FileText,
 } from 'lucide-react'
 import { Card, Button, Badge, Select } from '../../components/ui'
 import { Header } from '../../components/layout'
@@ -60,6 +61,15 @@ interface ApplicationDetail extends Omit<Application, 'source' | 'coordinator'> 
   } | null
 }
 
+// 同じ電話番号の全応募履歴用
+interface ApplicationHistory {
+  id: string
+  applied_at: string
+  application_status: ApplicationStatus
+  source: { name: string } | null
+  coordinator: { name: string } | null
+}
+
 export function JobSeekerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -73,6 +83,7 @@ export function JobSeekerDetailPage() {
   const [showContactDetailModal, setShowContactDetailModal] = useState(false)
   const [selectedContactLog, setSelectedContactLog] = useState<ContactLog | null>(null)
   const [coordinators, setCoordinators] = useState<{ value: string; label: string }[]>([])
+  const [allApplications, setAllApplications] = useState<ApplicationHistory[]>([])
 
   useEffect(() => {
     if (id) {
@@ -80,6 +91,13 @@ export function JobSeekerDetailPage() {
       fetchCoordinators()
     }
   }, [id])
+
+  // application取得後に同じ電話番号の全応募を取得
+  useEffect(() => {
+    if (application?.job_seeker?.phone) {
+      fetchAllApplications(application.job_seeker.phone)
+    }
+  }, [application?.job_seeker?.phone])
 
   async function fetchApplication() {
     setLoading(true)
@@ -133,6 +151,36 @@ export function JobSeekerDetailPage() {
 
     if (data) {
       setCoordinators(data.map((u) => ({ value: u.id, label: u.name })))
+    }
+  }
+
+  // 同じ電話番号の求職者の全応募を取得
+  async function fetchAllApplications(phone: string) {
+    // 同じ電話番号の求職者IDを全て取得
+    const { data: jobSeekers } = await supabase
+      .from('job_seekers')
+      .select('id')
+      .eq('phone', phone)
+
+    if (!jobSeekers || jobSeekers.length === 0) return
+
+    const jobSeekerIds = jobSeekers.map((js) => js.id)
+
+    // 全応募を取得
+    const { data: applications } = await supabase
+      .from('applications')
+      .select(`
+        id,
+        applied_at,
+        application_status,
+        source:sources (name),
+        coordinator:users!applications_coordinator_id_fkey (name)
+      `)
+      .in('job_seeker_id', jobSeekerIds)
+      .order('applied_at', { ascending: false })
+
+    if (applications) {
+      setAllApplications(applications as unknown as ApplicationHistory[])
     }
   }
 
@@ -421,14 +469,72 @@ export function JobSeekerDetailPage() {
         )}
 
         {activeTab === 'contacts' && (
-          <Card padding="none">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-              <h3 className="font-semibold text-slate-800">対応履歴</h3>
-              <Button size="sm" onClick={() => setShowContactModal(true)}>
-                <Plus className="w-4 h-4 mr-1" />
-                追加
-              </Button>
-            </div>
+          <div className="space-y-6">
+            {/* 応募履歴セクション */}
+            {allApplications.length > 0 && (
+              <Card>
+                <div className="flex items-center gap-2 mb-4">
+                  <FileText className="w-5 h-5 text-blue-600" />
+                  <h3 className="font-semibold text-slate-800">応募履歴（{allApplications.length}回）</h3>
+                </div>
+                <div className="space-y-2">
+                  {allApplications.map((app, index) => (
+                    <div
+                      key={app.id}
+                      className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${
+                        app.id === id
+                          ? 'bg-blue-50 border border-blue-200'
+                          : 'bg-slate-50 hover:bg-slate-100'
+                      }`}
+                      onClick={() => {
+                        if (app.id !== id) {
+                          window.location.href = `/job-seekers/${app.id}`
+                        }
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium text-slate-500 w-8">
+                          #{allApplications.length - index}
+                        </span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-slate-700">
+                              {formatDate(app.applied_at)}
+                            </span>
+                            {app.source?.name && (
+                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                                {app.source.name}
+                              </span>
+                            )}
+                            {app.id === id && (
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
+                                現在表示中
+                              </span>
+                            )}
+                          </div>
+                          {app.coordinator?.name && (
+                            <p className="text-xs text-slate-500 mt-0.5">担当: {app.coordinator.name}</p>
+                          )}
+                        </div>
+                      </div>
+                      <Badge variant={getStatusBadgeVariant(app.application_status)}>
+                        {APPLICATION_STATUS_LABELS[app.application_status]}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {/* 対応履歴セクション */}
+            <Card padding="none">
+              <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+                <h3 className="font-semibold text-slate-800">対応履歴</h3>
+                <Button size="sm" onClick={() => setShowContactModal(true)}>
+                  <Plus className="w-4 h-4 mr-1" />
+                  追加
+                </Button>
+              </div>
             {application.contact_logs && application.contact_logs.length > 0 ? (
               <div className="divide-y divide-slate-100">
                 {application.contact_logs
@@ -488,6 +594,7 @@ export function JobSeekerDetailPage() {
               </div>
             )}
           </Card>
+          </div>
         )}
 
         {activeTab === 'interviews' && (

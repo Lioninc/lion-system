@@ -29,11 +29,11 @@ interface JobSeekerSummary {
   application_count: number // 応募回数（その人が応募した回数）
   contact_count: number // 対応回数（電話/LINE/メール等の対応記録）
   interview_count: number // 面談回数（面談予定・実施）
+  all_source_names: string[] // 全応募の媒体名（新しい順）
   latest_application_id: string
   latest_application_status: ApplicationStatus
   latest_progress_status: ProgressStatus | null
   latest_coordinator_name: string | null
-  latest_source_name: string | null
   latest_applied_at: string
 }
 
@@ -231,7 +231,7 @@ export function JobSeekerListPage() {
       .map((js) => {
         const applications = js.applications || []
 
-        // 最新の応募を取得
+        // 最新の応募を取得（応募日の新しい順）
         const sortedApps = [...applications].sort(
           (a: any, b: any) => new Date(b.applied_at).getTime() - new Date(a.applied_at).getTime()
         )
@@ -241,6 +241,11 @@ export function JobSeekerListPage() {
 
         // 「直電」の場合はname_kanaを表示名として使用
         const displayName = js.name === '直電' && js.name_kana ? js.name_kana : js.name
+
+        // 全応募の媒体名を取得（新しい順、重複なし）
+        const allSourceNames = sortedApps
+          .map((app: any) => app.sources?.name)
+          .filter((name: string | null): name is string => !!name)
 
         return {
           id: js.id,
@@ -253,15 +258,15 @@ export function JobSeekerListPage() {
           application_count: applications.length,
           contact_count: js.total_contact_count,
           interview_count: js.total_interview_count,
+          all_source_names: allSourceNames,
           latest_application_id: latestApp.id,
           latest_application_status: latestApp.application_status,
           latest_progress_status: latestApp.progress_status,
           latest_coordinator_name: latestApp.coordinator?.name || null,
-          latest_source_name: latestApp.sources?.name || null,
           latest_applied_at: latestApp.applied_at,
         }
       })
-      .filter((js: any): js is JobSeekerSummary => js !== null)
+      .filter((js): js is JobSeekerSummary => js !== null)
 
     // ステータスフィルター
     if (filters.status) {
@@ -285,11 +290,11 @@ export function JobSeekerListPage() {
       }
     }
 
-    // 流入元フィルター
+    // 流入元フィルター（いずれかの応募で使用されている媒体で絞り込み）
     if (filters.source) {
       const selectedSource = sources.find((s) => s.value === filters.source)
       if (selectedSource) {
-        results = results.filter((js) => js.latest_source_name === selectedSource.label)
+        results = results.filter((js) => js.all_source_names.includes(selectedSource.label))
       }
     }
 
@@ -609,8 +614,10 @@ export function JobSeekerListPage() {
                       </Badge>
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                      {js.latest_source_name && (
-                        <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">{js.latest_source_name}</span>
+                      {js.all_source_names.length > 0 && (
+                        <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
+                          {js.all_source_names.join(', ')}
+                        </span>
                       )}
                       {js.latest_progress_status && (
                         <Badge variant="default" className="text-xs">
@@ -639,7 +646,7 @@ export function JobSeekerListPage() {
                         応募/対応/面談
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                        最新媒体
+                        応募媒体
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         最新ステータス
@@ -691,9 +698,15 @@ export function JobSeekerListPage() {
                           </div>
                         </td>
                         <td className="px-4 py-4">
-                          <span className="text-sm text-slate-600">
-                            {js.latest_source_name || '-'}
-                          </span>
+                          <div className="text-sm text-slate-600">
+                            {js.all_source_names.length > 0 ? (
+                              <span className="whitespace-pre-wrap">
+                                {js.all_source_names.join(', ')}
+                              </span>
+                            ) : (
+                              '-'
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex flex-col gap-1">
