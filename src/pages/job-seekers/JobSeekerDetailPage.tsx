@@ -208,6 +208,9 @@ export function JobSeekerDetailPage() {
 
   const { job_seeker } = application
 
+  // 「直電」の場合はname_kanaを表示名として使用
+  const displayName = job_seeker.name === '直電' && job_seeker.name_kana ? job_seeker.name_kana : job_seeker.name
+
   const tabs = [
     { id: 'info' as const, label: '基本情報', icon: User },
     { id: 'contacts' as const, label: '対応履歴', icon: MessageSquare },
@@ -218,7 +221,7 @@ export function JobSeekerDetailPage() {
   return (
     <div>
       <Header
-        title={job_seeker.name}
+        title={displayName}
         action={
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setShowContactModal(true)}>
@@ -352,8 +355,11 @@ export function JobSeekerDetailPage() {
             <Card>
               <h3 className="font-semibold text-slate-800 mb-4">個人情報</h3>
               <div className="space-y-3">
-                <InfoRow label="氏名" value={job_seeker.name} />
+                <InfoRow label="氏名" value={displayName} />
                 <InfoRow label="氏名（カナ）" value={job_seeker.name_kana} />
+                {job_seeker.name === '直電' && (
+                  <InfoRow label="元データ名" value="直電" />
+                )}
                 <InfoRow label="生年月日" value={job_seeker.birth_date ? formatDate(job_seeker.birth_date) : null} />
                 <InfoRow label="性別" value={
                   job_seeker.gender === 'male' ? '男性' :
