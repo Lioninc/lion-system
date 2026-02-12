@@ -97,6 +97,8 @@ export function UserManagementPage() {
         return 'warning'
       case 'coordinator':
         return 'info'
+      case 'clerk':
+        return 'info'
       case 'viewer':
         return 'success'
       default:
@@ -164,6 +166,7 @@ export function UserManagementPage() {
                 { value: '', label: 'すべての権限' },
                 { value: 'admin', label: '管理者' },
                 { value: 'coordinator', label: 'コーディネーター' },
+                { value: 'clerk', label: '事務員' },
                 { value: 'viewer', label: '閲覧者' },
               ]}
               value={roleFilter}
@@ -543,6 +546,7 @@ function UserModal({
             options={[
               { value: 'admin', label: '管理者 - すべての操作が可能' },
               { value: 'coordinator', label: 'コーディネーター - 通常業務が可能' },
+              { value: 'clerk', label: '事務員 - 通常業務が可能' },
               { value: 'viewer', label: '閲覧者 - 閲覧のみ可能' },
             ]}
             value={role}

@@ -32,6 +32,7 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 
 // CSVカラムインデックス（0始まり）
 const COL = {
+  DATE: 5,           // 応募日 [6]
   PHONE: 19,         // 電話番号 [20]
   COORDINATOR: 53,   // 担当CD [54]
 }
@@ -41,6 +42,22 @@ function normalizePhone(phone: string): string {
   if (!phone) return ''
   const normalized = phone.replace(/[-\s　]/g, '').trim()
   return normalized.slice(0, 20)
+}
+
+// 日付を正規化（YYYY-MM-DD形式に統一）
+function normalizeDate(dateStr: string): string {
+  if (!dateStr) return ''
+  // 様々な形式を処理: "2024/01/15", "2024-01-15", "2024.01.15" など
+  const cleaned = dateStr.trim().replace(/[\/\.]/g, '-')
+  // YYYY-MM-DD 形式の最初の10文字を取得
+  const match = cleaned.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+  if (match) {
+    const year = match[1]
+    const month = match[2].padStart(2, '0')
+    const day = match[3].padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+  return ''
 }
 
 async function main() {
@@ -73,18 +90,21 @@ async function main() {
     const dataRows = records.slice(2)
     console.log(`📝 CSV総行数: ${dataRows.length}`)
 
-    // CSVから電話番号→担当CD（名字）のマップを作成
-    const phoneToCoordinator = new Map<string, string>()
+    // CSVから電話番号+応募日→担当CD（名字）のマップを作成
+    // キー形式: "電話番号|応募日" (例: "09012345678|2024-01-15")
+    const phoneAndDateToCoordinator = new Map<string, string>()
     for (const row of dataRows) {
       const phone = normalizePhone(row[COL.PHONE] || '')
+      const date = normalizeDate(row[COL.DATE] || '')
       const coordinator = row[COL.COORDINATOR]?.trim() || ''
 
-      if (phone && coordinator) {
-        phoneToCoordinator.set(phone, coordinator)
+      if (phone && date && coordinator) {
+        const key = `${phone}|${date}`
+        phoneAndDateToCoordinator.set(key, coordinator)
       }
     }
 
-    console.log(`📞 CSV内の担当者付き電話番号: ${phoneToCoordinator.size}件`)
+    console.log(`📞 CSV内の担当者付きレコード: ${phoneAndDateToCoordinator.size}件`)
 
     // テナントIDを取得
     const { data: tenants } = await supabase.from('tenants').select('id').limit(1)
@@ -122,33 +142,58 @@ async function main() {
       return null
     }
 
-    // 求職者を取得（電話番号→job_seeker_id）
-    const { data: jobSeekers } = await supabase
-      .from('job_seekers')
-      .select('id, phone')
-      .eq('tenant_id', tenantId)
+    // 求職者を全件取得（ページング対応）
+    console.log('\n📋 求職者データを取得中...')
+    const allJobSeekers: { id: string; phone: string }[] = []
+    let jobSeekerOffset = 0
+    const pageSize = 1000
+
+    while (true) {
+      const { data: batch } = await supabase
+        .from('job_seekers')
+        .select('id, phone')
+        .eq('tenant_id', tenantId)
+        .range(jobSeekerOffset, jobSeekerOffset + pageSize - 1)
+
+      if (!batch || batch.length === 0) break
+      allJobSeekers.push(...batch)
+      jobSeekerOffset += batch.length
+      if (batch.length < pageSize) break
+    }
 
     const phoneToJobSeekerId = new Map<string, string>()
-    jobSeekers?.forEach(js => {
+    allJobSeekers.forEach(js => {
       const normalizedPhone = normalizePhone(js.phone)
       if (normalizedPhone) {
         phoneToJobSeekerId.set(normalizedPhone, js.id)
       }
     })
 
-    console.log(`📋 求職者数: ${phoneToJobSeekerId.size}`)
+    console.log(`📋 求職者数: ${allJobSeekers.length}`)
 
-    // 応募データを取得
-    const { data: applications } = await supabase
-      .from('applications')
-      .select('id, job_seeker_id, coordinator_id')
-      .eq('tenant_id', tenantId)
+    // 応募データを全件取得（ページング対応）
+    console.log('📝 応募データを取得中...')
+    const allApplications: { id: string; job_seeker_id: string; coordinator_id: string | null; applied_at: string }[] = []
+    let appOffset = 0
 
-    console.log(`📝 応募数: ${applications?.length || 0}`)
+    while (true) {
+      const { data: batch } = await supabase
+        .from('applications')
+        .select('id, job_seeker_id, coordinator_id, applied_at')
+        .eq('tenant_id', tenantId)
+        .range(appOffset, appOffset + pageSize - 1)
+
+      if (!batch || batch.length === 0) break
+      allApplications.push(...batch)
+      appOffset += batch.length
+      if (batch.length < pageSize) break
+    }
+
+    console.log(`📝 応募数: ${allApplications.length}`)
 
     // job_seeker_id → phoneの逆引きマップ
     const jobSeekerIdToPhone = new Map<string, string>()
-    jobSeekers?.forEach(js => {
+    allJobSeekers.forEach(js => {
       const normalizedPhone = normalizePhone(js.phone)
       if (normalizedPhone) {
         jobSeekerIdToPhone.set(js.id, normalizedPhone)
@@ -164,7 +209,7 @@ async function main() {
 
     console.log('\n⏳ 更新処理中...')
 
-    for (const app of applications || []) {
+    for (const app of allApplications) {
       // 求職者の電話番号を取得
       const phone = jobSeekerIdToPhone.get(app.job_seeker_id)
       if (!phone) {
@@ -172,8 +217,12 @@ async function main() {
         continue
       }
 
-      // CSVから担当CD（名字）を取得
-      const coordinatorLastName = phoneToCoordinator.get(phone)
+      // 応募日を正規化してキーを作成
+      const appDate = normalizeDate(app.applied_at)
+      const key = `${phone}|${appDate}`
+
+      // CSVから担当CD（名字）を取得（電話番号+応募日でマッチング）
+      const coordinatorLastName = phoneAndDateToCoordinator.get(key)
       if (!coordinatorLastName) {
         noCoordinatorCount++
         continue
@@ -208,7 +257,7 @@ async function main() {
     console.log('\n' + '='.repeat(50))
     console.log('📊 更新結果')
     console.log('='.repeat(50))
-    console.log(`応募総数:           ${applications?.length || 0}件`)
+    console.log(`応募総数:           ${allApplications.length}件`)
     console.log(`担当者更新:         ${updatedCount}件`)
     console.log(`既に設定済み:       ${alreadySetCount}件`)
     console.log(`CSV担当者なし:      ${noCoordinatorCount}件`)

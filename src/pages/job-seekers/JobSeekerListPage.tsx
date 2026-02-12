@@ -85,16 +85,24 @@ export function JobSeekerListPage() {
   }, [currentPage, filters])
 
   async function fetchFilterOptions() {
-    // Fetch coordinators (users with coordinator role, excluding 管理部, only active)
+    // Fetch coordinators (users excluding 管理部)
+    // Include all users (active and retired) as they may have application data
     const { data: usersData } = await supabase
       .from('users')
       .select('id, name, department, employment_status')
-      .neq('department', '管理部')
-      .or('employment_status.eq.active,employment_status.is.null')
+      .or('department.is.null,department.neq.管理部')
       .order('name')
 
     if (usersData) {
-      setCoordinators(usersData.map((u) => ({ value: u.id, label: u.name })))
+      // Add "未設定" option at the beginning
+      const coordinatorOptions = [
+        { value: 'unset', label: '未設定' },
+        ...usersData.map((u) => ({
+          value: u.id,
+          label: u.employment_status === 'retired' ? `${u.name}（退職）` : u.name,
+        })),
+      ]
+      setCoordinators(coordinatorOptions)
     }
 
     // Fetch sources
@@ -146,7 +154,11 @@ export function JobSeekerListPage() {
     }
 
     if (filters.coordinator) {
-      query = query.eq('coordinator_id', filters.coordinator)
+      if (filters.coordinator === 'unset') {
+        query = query.is('coordinator_id', null)
+      } else {
+        query = query.eq('coordinator_id', filters.coordinator)
+      }
     }
 
     if (filters.source) {
