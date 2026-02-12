@@ -422,12 +422,25 @@ async function main() {
             jobSeekerId = existingJobSeekers.get(phone)!
             stats.existingJobSeekers++
           } else {
+            // カナを組み立て（優先順位）：
+            // 1. カナ[18] → 2. カナ姓+カナ名 → 3. カナ姓のみ → 4. カナ名のみ
+            let nameKana: string | null = null
+            if (fullKana) {
+              nameKana = fullKana
+            } else if (lastKana && firstKana) {
+              nameKana = `${lastKana} ${firstKana}`
+            } else if (lastKana) {
+              nameKana = lastKana
+            } else if (firstKana) {
+              nameKana = firstKana
+            }
+
             // 新規求職者を作成
             const jobSeekerData = {
               tenant_id: tenantId,
               phone: phone || `unknown-${Date.now()}-${Math.random().toString(36).slice(2)}`,
               name: name || '名前不明',
-              name_kana: row[COL.NAME_KANA]?.trim() || null,
+              name_kana: nameKana,
               birth_date: parseDate(row[COL.BIRTH_DATE]),
               gender: parseGender(row[COL.GENDER]),
               postal_code: row[COL.POSTAL_CODE]?.trim() || null,
