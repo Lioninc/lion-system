@@ -10,7 +10,6 @@ import {
   Filter,
   X,
   Upload,
-  FileText,
 } from 'lucide-react'
 import { Card, Button, Select, Badge, CSVImportModal, type DuplicateAction } from '../../components/ui'
 import { Header } from '../../components/layout'
@@ -27,7 +26,9 @@ interface JobSeekerSummary {
   phone: string
   email: string | null
   prefecture: string | null
-  application_count: number
+  application_count: number // 応募回数（その人が応募した回数）
+  contact_count: number // 対応回数（電話/LINE/メール等の対応記録）
+  interview_count: number // 面談回数（面談予定・実施）
   latest_application_id: string
   latest_application_status: ApplicationStatus
   latest_progress_status: ProgressStatus | null
@@ -122,7 +123,7 @@ export function JobSeekerListPage() {
   async function fetchJobSeekers() {
     setLoading(true)
 
-    // 求職者ベースでデータを取得
+    // 求職者ベースでデータを取得（対応回数・面談回数も含む）
     let query = supabase
       .from('job_seekers')
       .select(`
@@ -144,6 +145,12 @@ export function JobSeekerListPage() {
           ),
           sources (
             name
+          ),
+          contact_logs (
+            id
+          ),
+          interviews (
+            id
           )
         )
       `, { count: 'exact' })
@@ -163,7 +170,7 @@ export function JobSeekerListPage() {
     }
 
     // 電話番号で重複除去しながら求職者データを集計
-    // 同じ電話番号の求職者は1つにまとめ、全応募を合算
+    // 同じ電話番号の求職者は1つにまとめ、全応募・対応・面談を合算
     const phoneToJobSeekerMap = new Map<string, {
       id: string
       name: string
@@ -172,16 +179,25 @@ export function JobSeekerListPage() {
       email: string | null
       prefecture: string | null
       applications: any[]
+      total_contact_count: number
+      total_interview_count: number
     }>()
 
     for (const js of (data || [])) {
       const phone = js.phone?.trim() || ''
       if (!phone) continue
 
+      // この求職者の対応回数・面談回数を計算
+      const apps = js.applications || []
+      const contactCount = apps.reduce((sum: number, app: any) => sum + (app.contact_logs?.length || 0), 0)
+      const interviewCount = apps.reduce((sum: number, app: any) => sum + (app.interviews?.length || 0), 0)
+
       const existing = phoneToJobSeekerMap.get(phone)
       if (existing) {
-        // 同じ電話番号の求職者が既に存在する場合、応募を合算
-        existing.applications = [...existing.applications, ...(js.applications || [])]
+        // 同じ電話番号の求職者が既に存在する場合、応募・対応・面談を合算
+        existing.applications = [...existing.applications, ...apps]
+        existing.total_contact_count += contactCount
+        existing.total_interview_count += interviewCount
         // より新しい情報で更新（name, email等）
         if (js.name && js.name !== '直電' && existing.name === '直電') {
           existing.name = js.name
@@ -197,13 +213,15 @@ export function JobSeekerListPage() {
         }
       } else {
         phoneToJobSeekerMap.set(phone, {
-          id: js.id,
-          name: js.name,
-          name_kana: js.name_kana,
-          phone: js.phone,
-          email: js.email,
-          prefecture: js.prefecture,
-          applications: js.applications || [],
+          id: js.id as string,
+          name: js.name as string,
+          name_kana: js.name_kana as string | null,
+          phone: js.phone as string,
+          email: js.email as string | null,
+          prefecture: js.prefecture as string | null,
+          applications: apps,
+          total_contact_count: contactCount,
+          total_interview_count: interviewCount,
         })
       }
     }
@@ -233,6 +251,8 @@ export function JobSeekerListPage() {
           email: js.email,
           prefecture: js.prefecture,
           application_count: applications.length,
+          contact_count: js.total_contact_count,
+          interview_count: js.total_interview_count,
           latest_application_id: latestApp.id,
           latest_application_status: latestApp.application_status,
           latest_progress_status: latestApp.progress_status,
@@ -571,12 +591,13 @@ export function JobSeekerListPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="font-medium text-slate-900 truncate">{js.display_name}</p>
-                          {js.application_count > 1 && (
-                            <span className="flex items-center gap-0.5 text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
-                              <FileText className="w-3 h-3" />
-                              {js.application_count}
-                            </span>
-                          )}
+                          <span className="flex items-center gap-0.5 text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                            <span className="text-blue-600">{js.application_count}</span>
+                            <span>/</span>
+                            <span className="text-green-600">{js.contact_count}</span>
+                            <span>/</span>
+                            <span className="text-purple-600">{js.interview_count}</span>
+                          </span>
                         </div>
                         <div className="flex items-center gap-1 text-sm text-slate-600 mt-1">
                           <Phone className="w-3 h-3 flex-shrink-0" />
@@ -588,6 +609,9 @@ export function JobSeekerListPage() {
                       </Badge>
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      {js.latest_source_name && (
+                        <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">{js.latest_source_name}</span>
+                      )}
                       {js.latest_progress_status && (
                         <Badge variant="default" className="text-xs">
                           {PROGRESS_STATUS_LABELS[js.latest_progress_status]}
@@ -612,13 +636,13 @@ export function JobSeekerListPage() {
                         連絡先
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                        応募回数
+                        応募/対応/面談
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        最新媒体
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         最新ステータス
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                        最新進捗
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         最新担当者
@@ -658,26 +682,30 @@ export function JobSeekerListPage() {
                           </div>
                         </td>
                         <td className="px-4 py-4">
-                          <div className="flex items-center gap-1">
-                            <span className="text-sm font-medium text-slate-700">{js.application_count}回</span>
-                            {js.application_count > 1 && (
-                              <span className="text-xs text-slate-400">(再応募あり)</span>
-                            )}
+                          <div className="flex items-center gap-1 text-sm">
+                            <span className="font-medium text-blue-600">{js.application_count}</span>
+                            <span className="text-slate-400">/</span>
+                            <span className="font-medium text-green-600">{js.contact_count}</span>
+                            <span className="text-slate-400">/</span>
+                            <span className="font-medium text-purple-600">{js.interview_count}</span>
                           </div>
                         </td>
                         <td className="px-4 py-4">
-                          <Badge variant={getStatusBadgeVariant(js.latest_application_status)}>
-                            {APPLICATION_STATUS_LABELS[js.latest_application_status]}
-                          </Badge>
+                          <span className="text-sm text-slate-600">
+                            {js.latest_source_name || '-'}
+                          </span>
                         </td>
                         <td className="px-4 py-4">
-                          {js.latest_progress_status ? (
-                            <Badge variant="default">
-                              {PROGRESS_STATUS_LABELS[js.latest_progress_status]}
+                          <div className="flex flex-col gap-1">
+                            <Badge variant={getStatusBadgeVariant(js.latest_application_status)}>
+                              {APPLICATION_STATUS_LABELS[js.latest_application_status]}
                             </Badge>
-                          ) : (
-                            <span className="text-sm text-slate-400">-</span>
-                          )}
+                            {js.latest_progress_status && (
+                              <Badge variant="default">
+                                {PROGRESS_STATUS_LABELS[js.latest_progress_status]}
+                              </Badge>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-4">
                           <span className="text-sm text-slate-600">
