@@ -18,6 +18,11 @@ import type { ApplicationStatus, ProgressStatus } from '../../types/database'
 import { APPLICATION_STATUS_LABELS, PROGRESS_STATUS_LABELS } from '../../types/database'
 import { formatDate } from '../../lib/utils'
 
+interface SourceCount {
+  name: string
+  count: number
+}
+
 interface JobSeekerSummary {
   id: string
   name: string
@@ -29,7 +34,7 @@ interface JobSeekerSummary {
   application_count: number // 応募回数（その人が応募した回数）
   contact_count: number // 対応回数（電話/LINE/メール等の対応記録）
   interview_count: number // 面談回数（面談予定・実施）
-  all_source_names: string[] // 全応募の媒体名（新しい順）
+  source_counts: SourceCount[] // 媒体ごとの応募回数
   latest_application_id: string
   latest_application_status: ApplicationStatus
   latest_progress_status: ProgressStatus | null
@@ -242,10 +247,18 @@ export function JobSeekerListPage() {
         // 「直電」の場合はname_kanaを表示名として使用
         const displayName = js.name === '直電' && js.name_kana ? js.name_kana : js.name
 
-        // 全応募の媒体名を取得（新しい順、重複なし）
-        const allSourceNames = sortedApps
-          .map((app: any) => app.sources?.name)
-          .filter((name: string | null): name is string => !!name)
+        // 媒体ごとの応募回数を集計
+        const sourceCountMap = new Map<string, number>()
+        for (const app of sortedApps) {
+          const sourceName = app.sources?.name
+          if (sourceName) {
+            sourceCountMap.set(sourceName, (sourceCountMap.get(sourceName) || 0) + 1)
+          }
+        }
+        // 回数の多い順にソート
+        const sourceCounts: SourceCount[] = Array.from(sourceCountMap.entries())
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count)
 
         return {
           id: js.id,
@@ -258,7 +271,7 @@ export function JobSeekerListPage() {
           application_count: applications.length,
           contact_count: js.total_contact_count,
           interview_count: js.total_interview_count,
-          all_source_names: allSourceNames,
+          source_counts: sourceCounts,
           latest_application_id: latestApp.id,
           latest_application_status: latestApp.application_status,
           latest_progress_status: latestApp.progress_status,
@@ -294,7 +307,9 @@ export function JobSeekerListPage() {
     if (filters.source) {
       const selectedSource = sources.find((s) => s.value === filters.source)
       if (selectedSource) {
-        results = results.filter((js) => js.all_source_names.includes(selectedSource.label))
+        results = results.filter((js) =>
+          js.source_counts.some((sc) => sc.name === selectedSource.label)
+        )
       }
     }
 
@@ -614,9 +629,11 @@ export function JobSeekerListPage() {
                       </Badge>
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                      {js.all_source_names.length > 0 && (
+                      {js.source_counts.length > 0 && (
                         <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
-                          {js.all_source_names.join(', ')}
+                          {js.source_counts.map((sc) =>
+                            sc.count > 1 ? `${sc.name}(${sc.count})` : sc.name
+                          ).join(', ')}
                         </span>
                       )}
                       {js.latest_progress_status && (
@@ -699,10 +716,22 @@ export function JobSeekerListPage() {
                         </td>
                         <td className="px-4 py-4">
                           <div className="text-sm text-slate-600">
-                            {js.all_source_names.length > 0 ? (
-                              <span className="whitespace-pre-wrap">
-                                {js.all_source_names.join(', ')}
-                              </span>
+                            {js.source_counts.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {js.source_counts.map((sc, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="inline-flex items-center bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-xs"
+                                  >
+                                    {sc.name}
+                                    {sc.count > 1 && (
+                                      <span className="ml-0.5 bg-blue-200 text-blue-800 px-1 rounded-full text-[10px]">
+                                        {sc.count}
+                                      </span>
+                                    )}
+                                  </span>
+                                ))}
+                              </div>
                             ) : (
                               '-'
                             )}
