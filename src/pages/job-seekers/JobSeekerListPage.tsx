@@ -162,9 +162,55 @@ export function JobSeekerListPage() {
       return
     }
 
-    // 求職者ごとにデータを集計し、フィルターを適用
-    let results: JobSeekerSummary[] = (data || [])
-      .map((js: any) => {
+    // 電話番号で重複除去しながら求職者データを集計
+    // 同じ電話番号の求職者は1つにまとめ、全応募を合算
+    const phoneToJobSeekerMap = new Map<string, {
+      id: string
+      name: string
+      name_kana: string | null
+      phone: string
+      email: string | null
+      prefecture: string | null
+      applications: any[]
+    }>()
+
+    for (const js of (data || [])) {
+      const phone = js.phone?.trim() || ''
+      if (!phone) continue
+
+      const existing = phoneToJobSeekerMap.get(phone)
+      if (existing) {
+        // 同じ電話番号の求職者が既に存在する場合、応募を合算
+        existing.applications = [...existing.applications, ...(js.applications || [])]
+        // より新しい情報で更新（name, email等）
+        if (js.name && js.name !== '直電' && existing.name === '直電') {
+          existing.name = js.name
+        }
+        if (js.name_kana && !existing.name_kana) {
+          existing.name_kana = js.name_kana
+        }
+        if (js.email && !existing.email) {
+          existing.email = js.email
+        }
+        if (js.prefecture && !existing.prefecture) {
+          existing.prefecture = js.prefecture
+        }
+      } else {
+        phoneToJobSeekerMap.set(phone, {
+          id: js.id,
+          name: js.name,
+          name_kana: js.name_kana,
+          phone: js.phone,
+          email: js.email,
+          prefecture: js.prefecture,
+          applications: js.applications || [],
+        })
+      }
+    }
+
+    // 集計された求職者データをJobSeekerSummaryに変換
+    let results: JobSeekerSummary[] = Array.from(phoneToJobSeekerMap.values())
+      .map((js) => {
         const applications = js.applications || []
 
         // 最新の応募を取得
