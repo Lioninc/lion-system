@@ -521,6 +521,7 @@ async function main() {
 
           // 応募を作成
           const appliedAt = parseDate(row[COL.DATE]) || new Date().toISOString().split('T')[0]
+          const jobType = row[COL.JOB_TYPE]?.trim() || null
 
           const applicationData = {
             tenant_id: tenantId,
@@ -529,6 +530,7 @@ async function main() {
             coordinator_id: coordinatorId,
             application_status: applicationStatus,
             progress_status: progressStatus,
+            job_type: jobType,
             applied_at: appliedAt,
             notes: row[COL.NOTES]?.trim() || null,
           }

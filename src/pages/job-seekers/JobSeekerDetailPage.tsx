@@ -66,6 +66,7 @@ interface ApplicationHistory {
   id: string
   applied_at: string
   application_status: ApplicationStatus
+  job_type: string | null
   source: { name: string } | null
   coordinator: { name: string } | null
 }
@@ -173,6 +174,7 @@ export function JobSeekerDetailPage() {
         id,
         applied_at,
         application_status,
+        job_type,
         source:sources (name),
         coordinator:users!applications_coordinator_id_fkey (name)
       `)
@@ -497,13 +499,18 @@ export function JobSeekerDetailPage() {
                           #{allApplications.length - index}
                         </span>
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-medium text-slate-700">
                               {formatDate(app.applied_at)}
                             </span>
                             {app.source?.name && (
                               <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
                                 {app.source.name}
+                              </span>
+                            )}
+                            {app.job_type && (
+                              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">
+                                {app.job_type}
                               </span>
                             )}
                             {app.id === id && (

@@ -39,6 +39,7 @@ interface JobSeekerSummary {
   latest_application_status: ApplicationStatus
   latest_progress_status: ProgressStatus | null
   latest_coordinator_name: string | null
+  latest_job_type: string | null // 最新応募の職種
   latest_applied_at: string
 }
 
@@ -142,6 +143,7 @@ export function JobSeekerListPage() {
           id,
           application_status,
           progress_status,
+          job_type,
           applied_at,
           coordinator_id,
           source_id,
@@ -276,6 +278,7 @@ export function JobSeekerListPage() {
           latest_application_status: latestApp.application_status,
           latest_progress_status: latestApp.progress_status,
           latest_coordinator_name: latestApp.coordinator?.name || null,
+          latest_job_type: latestApp.job_type || null,
           latest_applied_at: latestApp.applied_at,
         }
       })
@@ -636,6 +639,11 @@ export function JobSeekerListPage() {
                           ).join(', ')}
                         </span>
                       )}
+                      {js.latest_job_type && (
+                        <span className="bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">
+                          {js.latest_job_type}
+                        </span>
+                      )}
                       {js.latest_progress_status && (
                         <Badge variant="default" className="text-xs">
                           {PROGRESS_STATUS_LABELS[js.latest_progress_status]}
@@ -664,6 +672,9 @@ export function JobSeekerListPage() {
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         応募媒体
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        職種
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         最新ステータス
@@ -736,6 +747,15 @@ export function JobSeekerListPage() {
                               '-'
                             )}
                           </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          {js.latest_job_type ? (
+                            <span className="inline-flex items-center bg-amber-50 text-amber-700 px-2 py-0.5 rounded text-sm">
+                              {js.latest_job_type}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-slate-400">-</span>
+                          )}
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex flex-col gap-1">

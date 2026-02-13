@@ -92,6 +92,7 @@ export interface Application {
   coordinator_id: string | null
   application_status: ApplicationStatus
   progress_status: ProgressStatus | null
+  job_type: string | null
   applied_at: string
   notes: string | null
   created_at: string
