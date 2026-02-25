@@ -71,20 +71,25 @@ const COL = {
 
   // 応募ステータス
   STATUS: 35,        // 問い合わせ状態 [36]
+  PHONE_INTERVIEW_DATE: 50,   // 面談日程 [51]
+  PHONE_INTERVIEW_STATUS: 51, // 面談の状態 [52]（済み/流れ/辞退）
   COORDINATOR: 53,   // 担当CD [54]
 
   // 紹介情報
-  REFERRAL_STATUS: 57,  // 繋ぎ状況 [58]
-  INTERVIEW_DATE: 61,   // 面接日 [62]
-  COMPANY: 63,          // 紹介先 [64]
-  PROGRESS: 64,         // 進捗 [65]
-  RESULT: 65,           // 合否 [66]
-  JOB: 66,              // 案件 [67]
+  REFERRAL_STATUS: 57,  // 繋ぎ状況 [58] - 繋ぎ/繋げず
+  INTERVIEW_DATE: 61,   // BJ: 面接日 [62] → 派遣面接予定
+  COMPANY: 63,          // BL: 紹介先 [64]
+  PROGRESS: 64,         // BM: 進捗 [65] → 派遣面接数（済み/辞退/流れ）
+  RESULT: 65,           // BN: 合否 [66] → 採用/不採用
+  JOB: 66,              // BO: 案件 [67]
+  ASSIGNMENT_DATE: 70,  // BS: 赴任予定日 [71]
+  WORK_START_DATE: 83,  // CF: 稼働日 [84]
 
   // 売上情報
-  SALES_AMOUNT: 84,     // 確定売上 [85]
-  PAID_AMOUNT: 85,      // 入金金額 [86]
-  PAYMENT_STATUS: 87,   // 入金進捗 [88]
+  EXPECTED_SALES: 75,   // BX: 見込み売上 [76]
+  SALES_AMOUNT: 84,     // CG: 確定売上 [85]
+  PAID_AMOUNT: 85,      // CH: 入金金額 [86]
+  PAYMENT_STATUS: 87,   // CJ: 入金進捗 [88]
 }
 
 // ステータスマッピング
@@ -133,6 +138,8 @@ const REFERRAL_STATUS_MAP: Record<string, string> = {
   '稼働中': 'working',
   'キャンセル': 'cancelled',
   '不採用': 'declined',
+  '辞退': 'declined',
+  '流れ': 'cancelled',
 }
 
 interface ImportStats {
@@ -140,6 +147,7 @@ interface ImportStats {
   newJobSeekers: number
   existingJobSeekers: number
   newApplications: number
+  newInterviews: number
   newReferrals: number
   newSales: number
   errors: string[]
@@ -246,6 +254,7 @@ async function main() {
     newJobSeekers: 0,
     existingJobSeekers: 0,
     newApplications: 0,
+    newInterviews: 0,
     newReferrals: 0,
     newSales: 0,
     errors: [],
@@ -549,6 +558,34 @@ async function main() {
 
           stats.newApplications++
 
+          // 電話面談情報がある場合 → interviewsレコード作成
+          const phoneInterviewStatus = row[COL.PHONE_INTERVIEW_STATUS]?.trim()
+          if (phoneInterviewStatus && (phoneInterviewStatus === '済み' || phoneInterviewStatus === '流れ' || phoneInterviewStatus === '辞退')) {
+            const phoneInterviewDate = parseDate(row[COL.PHONE_INTERVIEW_DATE])
+            const scheduledAt = phoneInterviewDate || appliedAt
+
+            const interviewData: Record<string, any> = {
+              tenant_id: tenantId,
+              application_id: newApplication.id,
+              interview_type: 'phone',
+              scheduled_at: scheduledAt,
+              conducted_at: phoneInterviewStatus === '済み' ? scheduledAt : null,
+              result: phoneInterviewStatus === '済み' ? 'completed' : phoneInterviewStatus === '流れ' ? 'cancelled' : 'declined',
+            }
+
+            if (coordinatorId) {
+              interviewData.interviewer_id = coordinatorId
+            }
+
+            const { error: ivError } = await supabase
+              .from('interviews')
+              .insert(interviewData)
+
+            if (!ivError) {
+              stats.newInterviews++
+            }
+          }
+
           // 紹介情報がある場合
           if (referralStatusRaw && referralStatusRaw.trim() !== '') {
             const companyName = row[COL.COMPANY]?.trim()
@@ -602,16 +639,32 @@ async function main() {
               }
 
               // 紹介を作成
-              const referralStatus = REFERRAL_STATUS_MAP[referralStatusRaw] || REFERRAL_STATUS_MAP[progressRaw] || 'referred'
-              const interviewDate = parseDate(row[COL.INTERVIEW_DATE])
+              // referral_statusはBM(進捗)を優先、なければ繋ぎ状況から
+              let referralStatus = 'referred'
+              if (progressRaw) {
+                referralStatus = REFERRAL_STATUS_MAP[progressRaw] || PROGRESS_MAP[progressRaw] || 'referred'
+              } else if (referralStatusRaw) {
+                referralStatus = REFERRAL_STATUS_MAP[referralStatusRaw] || 'referred'
+              }
 
-              const referralData = {
+              const interviewDate = parseDate(row[COL.INTERVIEW_DATE])
+              const resultRaw = row[COL.RESULT]?.trim()
+              const assignmentDate = parseDate(row[COL.ASSIGNMENT_DATE])
+              const workStartDate = parseDate(row[COL.WORK_START_DATE])
+
+              // hired_at: BN(合否)が「採用」の場合に設定
+              const hiredAt = (resultRaw === '採用') ? (interviewDate || appliedAt) : null
+
+              const referralData: Record<string, any> = {
                 tenant_id: tenantId,
                 application_id: newApplication.id,
                 job_id: jobId,
                 referral_status: referralStatus,
                 referred_at: appliedAt,
                 dispatch_interview_at: interviewDate,
+                hired_at: hiredAt,
+                assignment_date: assignmentDate,
+                start_work_date: workStartDate,
               }
 
               const { data: newReferral, error: refError } = await supabase
@@ -623,32 +676,45 @@ async function main() {
               if (!refError && newReferral) {
                 stats.newReferrals++
 
-                // 売上情報がある場合
-                const salesAmount = parseAmount(row[COL.SALES_AMOUNT])
-                if (salesAmount && salesAmount > 0) {
-                  const paidAmount = parseAmount(row[COL.PAID_AMOUNT])
+                // 売上情報: BX(見込み), CG(確定), CH(入金) を別々のsalesレコードで管理
+                const expectedAmount = parseAmount(row[COL.EXPECTED_SALES])
+                const confirmedAmount = parseAmount(row[COL.SALES_AMOUNT])
+                const paidAmount = parseAmount(row[COL.PAID_AMOUNT])
 
-                  let saleStatus = 'expected'
-                  if (paymentStatusRaw?.includes('入金済') || (paidAmount && paidAmount >= salesAmount)) {
-                    saleStatus = 'paid'
-                  } else if (paymentStatusRaw?.includes('請求')) {
-                    saleStatus = 'invoiced'
-                  } else if (paymentStatusRaw?.includes('確定')) {
-                    saleStatus = 'confirmed'
-                  }
+                // BX: 見込み売上 → status='expected', expected_date = hired_at || referred_at
+                if (expectedAmount && expectedAmount > 0) {
+                  await supabase.from('sales').insert({
+                    tenant_id: tenantId,
+                    referral_id: newReferral.id,
+                    amount: expectedAmount,
+                    status: 'expected',
+                    expected_date: hiredAt || appliedAt,
+                  })
+                  stats.newSales++
+                }
 
-                  const { error: saleError } = await supabase
-                    .from('sales')
-                    .insert({
-                      tenant_id: tenantId,
-                      referral_id: newReferral.id,
-                      amount: salesAmount,
-                      status: saleStatus,
-                    })
+                // CG: 確定売上 → status='confirmed', confirmed_date = start_work_date || hired_at
+                if (confirmedAmount && confirmedAmount > 0) {
+                  await supabase.from('sales').insert({
+                    tenant_id: tenantId,
+                    referral_id: newReferral.id,
+                    amount: confirmedAmount,
+                    status: 'confirmed',
+                    confirmed_date: workStartDate || hiredAt,
+                  })
+                  stats.newSales++
+                }
 
-                  if (!saleError) {
-                    stats.newSales++
-                  }
+                // CH: 入金金額 → status='paid', paid_date = start_work_date || hired_at
+                if (paidAmount && paidAmount > 0) {
+                  await supabase.from('sales').insert({
+                    tenant_id: tenantId,
+                    referral_id: newReferral.id,
+                    amount: paidAmount,
+                    status: 'paid',
+                    paid_date: workStartDate || hiredAt,
+                  })
+                  stats.newSales++
                 }
               }
             }
@@ -674,6 +740,7 @@ async function main() {
     console.log(`新規求職者:       ${stats.newJobSeekers}`)
     console.log(`既存求職者:       ${stats.existingJobSeekers}`)
     console.log(`新規応募:         ${stats.newApplications}`)
+    console.log(`新規面談:         ${stats.newInterviews}`)
     console.log(`新規紹介:         ${stats.newReferrals}`)
     console.log(`新規売上:         ${stats.newSales}`)
     console.log(`エラー数:         ${stats.errors.length}`)

@@ -1,12 +1,18 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Building2, Check } from 'lucide-react'
+import { Building2, Check, AlertCircle } from 'lucide-react'
 import { Card, Button, Input, Select } from '../../components/ui'
 import { Header } from '../../components/layout'
 import { supabase } from '../../lib/supabase'
+
+interface CompanySuggestion {
+  id: string
+  name: string
+  job_count: number
+}
 
 const PREFECTURES = [
   '北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県',
@@ -58,6 +64,10 @@ const companySchema = z.object({
 export function CompanyNewPage() {
   const navigate = useNavigate()
   const [submitting, setSubmitting] = useState(false)
+  const [suggestions, setSuggestions] = useState<CompanySuggestion[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const suggestionsRef = useRef<HTMLDivElement>(null)
 
   const {
     register,
@@ -66,6 +76,54 @@ export function CompanyNewPage() {
   } = useForm<CompanyFormData>({
     resolver: zodResolver(companySchema),
   })
+
+  const searchCompanies = useCallback(async (query: string) => {
+    if (query.length < 1) {
+      setSuggestions([])
+      setShowSuggestions(false)
+      return
+    }
+
+    const { data } = await supabase
+      .from('companies')
+      .select('id, name, jobs(id)')
+      .ilike('name', `%${query}%`)
+      .eq('is_active', true)
+      .limit(8)
+
+    if (data && data.length > 0) {
+      setSuggestions(
+        data.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          job_count: c.jobs?.length || 0,
+        }))
+      )
+      setShowSuggestions(true)
+    } else {
+      setSuggestions([])
+      setShowSuggestions(false)
+    }
+  }, [])
+
+  // クリック外でサジェストを閉じる
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const nameField = register('name')
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    nameField.onChange(e)
+    const value = e.target.value
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => searchCompanies(value), 300)
+  }
 
   async function onSubmit(data: CompanyFormData) {
     setSubmitting(true)
@@ -111,11 +169,40 @@ export function CompanyNewPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              label="会社名 *"
-              {...register('name')}
-              error={errors.name?.message}
-            />
+            <div className="relative" ref={suggestionsRef}>
+              <Input
+                label="会社名 *"
+                {...nameField}
+                onChange={handleNameChange}
+                onFocus={(e) => { if (e.target.value.length >= 1) setShowSuggestions(suggestions.length > 0) }}
+                error={errors.name?.message}
+                autoComplete="off"
+              />
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  <div className="px-3 py-2 border-b border-slate-100 flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+                    <span className="text-xs text-amber-600 font-medium">類似する会社が登録済みです</span>
+                  </div>
+                  {suggestions.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      className="w-full px-3 py-2.5 text-left hover:bg-slate-50 flex items-center justify-between border-b border-slate-50 last:border-b-0"
+                      onClick={() => {
+                        if (confirm(`「${s.name}」は既に登録されています。\n詳細ページを開きますか？`)) {
+                          navigate(`/companies/${s.id}`)
+                        }
+                        setShowSuggestions(false)
+                      }}
+                    >
+                      <span className="text-sm font-medium text-slate-700">{s.name}</span>
+                      <span className="text-xs text-slate-400">求人 {s.job_count}件</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <Select
               label="業種"
               options={BUSINESS_TYPES.map((t) => ({ value: t, label: t }))}
