@@ -141,10 +141,11 @@ export function ReportsPage() {
     return { start: start.toISOString(), end: end.toISOString() }
   }, [period])
 
-  // Main data fetch
+  // Main data fetch (filterOptions.coordinatorsがロード済みの場合のみ実行)
   useEffect(() => {
+    if (filterOptions.coordinators.length === 0) return
     fetchReport()
-  }, [period, coordinatorFilter, sourceFilter, jobTypeFilter])
+  }, [period, coordinatorFilter, sourceFilter, jobTypeFilter, filterOptions])
 
   // Helper: paginated fetch for any table
   async function fetchAllRows(
