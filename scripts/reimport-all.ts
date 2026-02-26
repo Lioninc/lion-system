@@ -266,7 +266,7 @@ async function batchInsert(table: string, rows: any[], batchSize = 200): Promise
 // ============================================================
 async function main() {
   const doApply = process.argv.includes('--apply')
-  const csvPath = '/Users/yamaguchitatsuya/Downloads/2025年応募シート - 2025.csv'
+  const csvPath = '/Users/yamaguchitatsuya/Downloads/2025年応募シート - 2025 (1).csv'
 
   if (!fs.existsSync(csvPath)) {
     console.error(`CSVファイルが見つかりません: ${csvPath}`)
