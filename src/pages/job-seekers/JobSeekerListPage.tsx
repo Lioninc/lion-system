@@ -40,6 +40,7 @@ interface JobSeekerSummary {
   latest_application_status: ApplicationStatus
   latest_progress_status: ProgressStatus | null
   latest_coordinator_name: string | null
+  latest_interviewer_name: string | null
   latest_job_type: string | null // 最新応募の職種
   latest_applied_at: string
 }
@@ -159,7 +160,11 @@ export function JobSeekerListPage() {
             id
           ),
           interviews (
-            id
+            id,
+            scheduled_at,
+            interviewer:users!interviews_interviewer_id_fkey (
+              name
+            )
           )
         )
       `, { count: 'exact' })
@@ -269,6 +274,17 @@ export function JobSeekerListPage() {
           .map(([name, count]) => ({ name, count }))
           .sort((a, b) => b.count - a.count)
 
+        // 全応募の面談から最新の面談担当者を取得
+        const allInterviews = applications.flatMap((app: any) =>
+          (app.interviews || []).map((iv: any) => ({ ...iv, _app: app }))
+        )
+        const sortedInterviews = allInterviews
+          .filter((iv: any) => iv.interviewer?.name)
+          .sort((a: any, b: any) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())
+        const latestInterviewerName = sortedInterviews.length > 0
+          ? sortedInterviews[0].interviewer.name
+          : null
+
         return {
           id: js.id,
           name: js.name,
@@ -286,6 +302,7 @@ export function JobSeekerListPage() {
           latest_application_status: latestApp.application_status,
           latest_progress_status: latestApp.progress_status,
           latest_coordinator_name: latestApp.coordinator?.name || null,
+          latest_interviewer_name: latestInterviewerName,
           latest_job_type: latestApp.job_type || null,
           latest_applied_at: latestApp.applied_at,
         }
@@ -660,7 +677,8 @@ export function JobSeekerListPage() {
                           {PROGRESS_STATUS_LABELS[js.latest_progress_status]}
                         </Badge>
                       )}
-                      {js.latest_coordinator_name && <span>担当: {js.latest_coordinator_name}</span>}
+                      {js.latest_coordinator_name && <span>応募: {js.latest_coordinator_name}</span>}
+                      {js.latest_interviewer_name && <span>面談: {js.latest_interviewer_name}</span>}
                       <span>{formatDate(js.latest_applied_at)}</span>
                     </div>
                   </div>
@@ -691,7 +709,10 @@ export function JobSeekerListPage() {
                         最新ステータス
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                        最新担当者
+                        応募担当者
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        面談担当者
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         最新応募日
@@ -788,6 +809,11 @@ export function JobSeekerListPage() {
                         <td className="px-4 py-4">
                           <span className="text-sm text-slate-600">
                             {js.latest_coordinator_name || '-'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="text-sm text-slate-600">
+                            {js.latest_interviewer_name || '-'}
                           </span>
                         </td>
                         <td className="px-4 py-4">

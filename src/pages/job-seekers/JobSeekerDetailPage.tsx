@@ -229,6 +229,40 @@ export function JobSeekerDetailPage() {
     }
   }
 
+  async function updateInterviewer(interviewerId: string) {
+    if (!application) return
+
+    // 最新の面談レコードを取得
+    const latestInterview = application.interviews
+      ?.slice()
+      .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())[0]
+
+    if (!latestInterview) return
+
+    const { error } = await supabase
+      .from('interviews')
+      .update({ interviewer_id: interviewerId || null })
+      .eq('id', latestInterview.id)
+
+    if (!error) {
+      const updatedInterviews = application.interviews.map((iv) =>
+        iv.id === latestInterview.id
+          ? { ...iv, interviewer_id: interviewerId || null }
+          : iv
+      )
+      setApplication({ ...application, interviews: updatedInterviews })
+    }
+  }
+
+  // 最新面談の担当者IDを取得
+  function getLatestInterviewerId(): string {
+    if (!application?.interviews?.length) return ''
+    const sorted = [...application.interviews].sort(
+      (a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime()
+    )
+    return sorted[0]?.interviewer_id || ''
+  }
+
   function getStatusBadgeVariant(status: ApplicationStatus): 'default' | 'success' | 'warning' | 'danger' | 'info' | 'purple' {
     switch (status) {
       case 'new': return 'info'
@@ -316,7 +350,7 @@ export function JobSeekerDetailPage() {
                 />
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">担当者</span>
+                <span className="text-sm text-slate-500">応募担当者</span>
                 <Select
                   options={coordinators}
                   placeholder="未設定"
@@ -324,6 +358,20 @@ export function JobSeekerDetailPage() {
                   onChange={(e) => updateCoordinator(e.target.value)}
                   className="w-40 text-sm"
                 />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-500">面談担当者</span>
+                {application.interviews?.length > 0 ? (
+                  <Select
+                    options={coordinators}
+                    placeholder="未設定"
+                    value={getLatestInterviewerId()}
+                    onChange={(e) => updateInterviewer(e.target.value)}
+                    className="w-40 text-sm"
+                  />
+                ) : (
+                  <span className="text-sm text-slate-400">-</span>
+                )}
               </div>
             </div>
           </Card>
