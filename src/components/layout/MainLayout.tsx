@@ -18,9 +18,9 @@ export function MainLayout() {
         </button>
         <div className="ml-3 flex items-center gap-2">
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-lg font-bold">R</span>
+            <span className="text-lg font-bold">L</span>
           </div>
-          <span className="font-bold">RION System</span>
+          <span className="font-bold">LION System</span>
         </div>
       </div>
 

@@ -71,10 +71,10 @@ export function Sidebar({ onClose }: SidebarProps) {
       <div className="p-4 border-b border-slate-700 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-3" onClick={handleLinkClick}>
           <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-xl font-bold">R</span>
+            <span className="text-xl font-bold">L</span>
           </div>
           <div>
-            <h1 className="text-lg font-bold">RION System</h1>
+            <h1 className="text-lg font-bold">LION System</h1>
             <p className="text-xs text-slate-400">人材紹介管理</p>
           </div>
         </Link>

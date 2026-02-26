@@ -54,9 +54,9 @@ export function LoginPage() {
       <Card className="w-full max-w-md" padding="lg">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-primary rounded-xl mx-auto mb-4 flex items-center justify-center">
-            <span className="text-3xl font-bold text-white">R</span>
+            <span className="text-3xl font-bold text-white">L</span>
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">RION System</h1>
+          <h1 className="text-2xl font-bold text-slate-800">LION System</h1>
           <p className="text-slate-500 mt-2">人材紹介管理システム</p>
         </div>
 
@@ -94,7 +94,7 @@ export function LoginPage() {
         </form>
 
         <p className="text-center text-xs text-slate-400 mt-6">
-          © 2024 RION System. All rights reserved.
+          © 2024 LION System. All rights reserved.
         </p>
       </Card>
     </div>
