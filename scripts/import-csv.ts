@@ -45,6 +45,7 @@ const COL = {
   // 基本情報
   DATE: 5,           // 日付 [6]
   NOTES: 7,          // 備考 [8]
+  APP_COORDINATOR: 8, // 応募対応者 [9] I列 → applications.coordinator_id
   SOURCE: 9,         // 媒体 [10]
   JOB_TYPE: 10,      // 職種 [11]
 
@@ -73,7 +74,7 @@ const COL = {
   STATUS: 35,        // 問い合わせ状態 [36]
   PHONE_INTERVIEW_DATE: 50,   // 面談日程 [51]
   PHONE_INTERVIEW_STATUS: 51, // 面談の状態 [52]（済み/流れ/辞退）
-  COORDINATOR: 53,   // 担当CD [54]
+  INTERVIEW_COORDINATOR: 53,   // 担当CD [54] BB列 → interviews.interviewer_id
 
   // 紹介情報
   REFERRAL_STATUS: 57,  // 繋ぎ状況 [58] - 繋ぎ/繋げず
@@ -503,11 +504,18 @@ async function main() {
             }
           }
 
-          // 担当者IDを取得（名字からフルネームでマッチング）
+          // 応募対応者IDを取得（I列 → applications.coordinator_id）
           let coordinatorId: string | null = null
-          const coordinatorName = row[COL.COORDINATOR]?.trim()
-          if (coordinatorName) {
-            coordinatorId = findCoordinatorByLastName(coordinatorName)
+          const appCoordinatorName = row[COL.APP_COORDINATOR]?.trim()
+          if (appCoordinatorName && appCoordinatorName !== '応募対応者') {
+            coordinatorId = findCoordinatorByLastName(appCoordinatorName)
+          }
+
+          // 面談担当者IDを取得（BB列 → interviews.interviewer_id）
+          let interviewerId: string | null = null
+          const interviewCoordinatorName = row[COL.INTERVIEW_COORDINATOR]?.trim()
+          if (interviewCoordinatorName) {
+            interviewerId = findCoordinatorByLastName(interviewCoordinatorName)
           }
 
           // ステータスを変換
@@ -573,8 +581,8 @@ async function main() {
               result: phoneInterviewStatus === '済み' ? 'completed' : phoneInterviewStatus === '流れ' ? 'cancelled' : 'declined',
             }
 
-            if (coordinatorId) {
-              interviewData.interviewer_id = coordinatorId
+            if (interviewerId) {
+              interviewData.interviewer_id = interviewerId
             }
 
             const { error: ivError } = await supabase
