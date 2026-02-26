@@ -1009,7 +1009,23 @@ function InterviewRecordModal({
 }) {
   const { user } = useAuthStore()
   const [transcript, setTranscript] = useState('')
-  const [notes, setNotes] = useState('')
+  const [notes, setNotes] = useState(`生年月日：
+住所：
+健康面：
+メアド：
+現状：
+応募経緯：
+職歴1：
+職歴2：
+職歴3：
+学歴：
+経験：
+目標：
+趣味：
+条件：
+【進捗状況】：
+【最終連絡日】：
+【派遣先履歴】：`)
   const [evalHearing, setEvalHearing] = useState<number | null>(null)
   const [evalProposal, setEvalProposal] = useState<number | null>(null)
   const [evalClosing, setEvalClosing] = useState<number | null>(null)
@@ -1113,7 +1129,7 @@ function InterviewRecordModal({
             <textarea
               rows={5}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-              placeholder={"・希望条件：〇〇\n・経験：〇〇\n・懸念点：〇〇"}
+              placeholder="面談内容を入力..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
