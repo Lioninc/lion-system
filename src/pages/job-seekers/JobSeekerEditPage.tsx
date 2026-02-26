@@ -290,12 +290,12 @@ export function JobSeekerEditPage() {
             <Input
               label="身長 (cm)"
               type="number"
-              {...register('height', { valueAsNumber: true })}
+              {...register('height', { setValueAs: (v: string) => v === '' ? undefined : Number(v) })}
             />
             <Input
               label="体重 (kg)"
               type="number"
-              {...register('weight', { valueAsNumber: true })}
+              {...register('weight', { setValueAs: (v: string) => v === '' ? undefined : Number(v) })}
             />
           </div>
 
