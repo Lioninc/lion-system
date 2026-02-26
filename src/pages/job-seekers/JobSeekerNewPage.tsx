@@ -8,6 +8,7 @@ import { Card, Button, Input, Select } from '../../components/ui'
 import { Header } from '../../components/layout'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
+import { usePostalCodeLookup } from '../../hooks/usePostalCodeLookup'
 
 // Form data type
 interface JobSeekerFormData {
@@ -111,6 +112,7 @@ export function JobSeekerNewPage() {
   })
 
   const hasMedicalCondition = watch('has_medical_condition')
+  const { handlePostalCodeChange, searching: postalSearching } = usePostalCodeLookup(setValue)
 
   // Search for existing job seeker by phone
   async function handlePhoneSearch() {
@@ -403,11 +405,18 @@ export function JobSeekerNewPage() {
           <h2 className="text-lg font-semibold text-slate-800 mb-4">住所</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              label="郵便番号"
-              placeholder="1234567"
-              {...register('postal_code')}
-            />
+            <div>
+              <Input
+                label="郵便番号"
+                placeholder="1234567"
+                {...register('postal_code', {
+                  onChange: handlePostalCodeChange,
+                })}
+              />
+              {postalSearching && (
+                <p className="text-xs text-slate-500 mt-1">住所を検索中...</p>
+              )}
+            </div>
             <Select
               label="都道府県"
               options={PREFECTURES.map((p) => ({ value: p, label: p }))}
