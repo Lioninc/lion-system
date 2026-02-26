@@ -17,7 +17,7 @@ import { Card, Button, Badge, Select } from '../../components/ui'
 import { Header } from '../../components/layout'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
-import { formatDate, formatDateTime } from '../../lib/utils'
+import { formatDate, formatDateTime, calculateAge } from '../../lib/utils'
 import type {
   Application,
   JobSeeker,
@@ -410,7 +410,7 @@ export function JobSeekerDetailPage() {
                 {job_seeker.name === '直電' && (
                   <InfoRow label="元データ名" value="直電" />
                 )}
-                <InfoRow label="生年月日" value={job_seeker.birth_date ? formatDate(job_seeker.birth_date) : null} />
+                <InfoRow label="生年月日" value={job_seeker.birth_date ? `${formatDate(job_seeker.birth_date)}（${calculateAge(job_seeker.birth_date)}歳）` : null} />
                 <InfoRow label="性別" value={
                   job_seeker.gender === 'male' ? '男性' :
                   job_seeker.gender === 'female' ? '女性' :

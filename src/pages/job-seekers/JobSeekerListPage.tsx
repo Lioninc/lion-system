@@ -16,7 +16,7 @@ import { Header } from '../../components/layout'
 import { supabase } from '../../lib/supabase'
 import type { ApplicationStatus, ProgressStatus } from '../../types/database'
 import { APPLICATION_STATUS_LABELS, PROGRESS_STATUS_LABELS } from '../../types/database'
-import { formatDate } from '../../lib/utils'
+import { formatDate, calculateAge } from '../../lib/utils'
 
 interface SourceCount {
   name: string
@@ -30,6 +30,7 @@ interface JobSeekerSummary {
   display_name: string // 「直電」の場合はname_kanaを使用
   phone: string
   email: string | null
+  birth_date: string | null
   prefecture: string | null
   application_count: number // 応募回数（その人が応募した回数）
   contact_count: number // 対応回数（電話/LINE/メール等の対応記録）
@@ -138,6 +139,7 @@ export function JobSeekerListPage() {
         name_kana,
         phone,
         email,
+        birth_date,
         prefecture,
         applications (
           id,
@@ -184,6 +186,7 @@ export function JobSeekerListPage() {
       name_kana: string | null
       phone: string
       email: string | null
+      birth_date: string | null
       prefecture: string | null
       applications: any[]
       total_contact_count: number
@@ -218,6 +221,9 @@ export function JobSeekerListPage() {
         if (js.prefecture && !existing.prefecture) {
           existing.prefecture = js.prefecture
         }
+        if (js.birth_date && !existing.birth_date) {
+          existing.birth_date = js.birth_date
+        }
       } else {
         phoneToJobSeekerMap.set(phone, {
           id: js.id as string,
@@ -225,6 +231,7 @@ export function JobSeekerListPage() {
           name_kana: js.name_kana as string | null,
           phone: js.phone as string,
           email: js.email as string | null,
+          birth_date: js.birth_date as string | null,
           prefecture: js.prefecture as string | null,
           applications: apps,
           total_contact_count: contactCount,
@@ -269,6 +276,7 @@ export function JobSeekerListPage() {
           display_name: displayName,
           phone: js.phone,
           email: js.email,
+          birth_date: js.birth_date,
           prefecture: js.prefecture,
           application_count: applications.length,
           contact_count: js.total_contact_count,
@@ -614,6 +622,9 @@ export function JobSeekerListPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="font-medium text-slate-900 truncate">{js.display_name}</p>
+                          {js.birth_date && (
+                            <span className="text-xs text-slate-500 flex-shrink-0">{calculateAge(js.birth_date)}歳</span>
+                          )}
                           <span className="flex items-center gap-0.5 text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
                             <span className="text-blue-600">{js.application_count}</span>
                             <span>/</span>
@@ -696,7 +707,12 @@ export function JobSeekerListPage() {
                       >
                         <td className="px-4 py-4">
                           <div>
-                            <p className="font-medium text-slate-900">{js.display_name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-slate-900">{js.display_name}</p>
+                              {js.birth_date && (
+                                <span className="text-xs text-slate-500">{calculateAge(js.birth_date)}歳</span>
+                              )}
+                            </div>
                             {js.prefecture && (
                               <p className="text-sm text-slate-500">{js.prefecture}</p>
                             )}
