@@ -5,7 +5,7 @@ import { useAuthStore } from './stores/authStore'
 import { MainLayout } from './components/layout'
 import { LoginPage } from './pages/auth/LoginPage'
 import { DashboardPage } from './pages/dashboard/DashboardPage'
-import { JobSeekerListPage, JobSeekerNewPage, JobSeekerDetailPage } from './pages/job-seekers'
+import { JobSeekerListPage, JobSeekerNewPage, JobSeekerDetailPage, JobSeekerEditPage } from './pages/job-seekers'
 import { CompanyListPage, CompanyNewPage, CompanyDetailPage } from './pages/companies'
 import { JobListPage, JobNewPage, JobDetailPage } from './pages/jobs'
 import { ReferralListPage, ReferralNewPage, ReferralDetailPage } from './pages/referrals'
@@ -94,6 +94,7 @@ function App() {
             <Route path="/job-seekers" element={<JobSeekerListPage />} />
             <Route path="/job-seekers/new" element={<JobSeekerNewPage />} />
             <Route path="/job-seekers/:id" element={<JobSeekerDetailPage />} />
+            <Route path="/job-seekers/:id/edit" element={<JobSeekerEditPage />} />
             <Route path="/companies" element={<CompanyListPage />} />
             <Route path="/companies/new" element={<CompanyNewPage />} />
             <Route path="/companies/:id" element={<CompanyDetailPage />} />
