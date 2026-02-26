@@ -584,9 +584,9 @@ async function main() {
     if (az === '済み' || az === '流れ' || az === '辞退') {
       const scheduledDate = ayDate || buildFiscalDate(au, av) || appliedAt
       const axTime = row[COL.AX]?.trim() || ''
-      // AX列の時間(HH:MM:SS)を組み合わせてタイムスタンプに
+      // AX列の時間(HH:MM:SS)を組み合わせてJSTタイムスタンプに
       const scheduledAt = axTime
-        ? `${scheduledDate}T${axTime.padStart(8, '0')}`
+        ? `${scheduledDate}T${axTime.padStart(8, '0')}+09:00`
         : scheduledDate
       const conductedAt = az === '済み' ? scheduledAt : null
       const ivData: any = {
