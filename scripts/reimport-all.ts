@@ -65,6 +65,7 @@ const COL = {
   INQUIRY_STATUS: 35, // AJ: 問い合わせ状態
   AU: 46,            // AU: 日程_年
   AV: 47,            // AV: 日程_月
+  AX: 49,            // AX: 面談時間
   AY: 50,            // AY: 面談日程
   AZ: 51,            // AZ: 面談ステータス(済み/流れ/辞退)
   BB: 53,            // BB: 担当CD
@@ -581,14 +582,20 @@ async function main() {
     // Interview (AZ has value: 済み/流れ/辞退)
     const az = row[COL.AZ]?.trim() || ''
     if (az === '済み' || az === '流れ' || az === '辞退') {
-      const scheduledAt = ayDate || buildFiscalDate(au, av) || appliedAt
+      const scheduledDate = ayDate || buildFiscalDate(au, av) || appliedAt
+      const axTime = row[COL.AX]?.trim() || ''
+      // AX列の時間(HH:MM:SS)を組み合わせてタイムスタンプに
+      const scheduledAt = axTime
+        ? `${scheduledDate}T${axTime.padStart(8, '0')}`
+        : scheduledDate
+      const conductedAt = az === '済み' ? scheduledAt : null
       const ivData: any = {
         id: crypto.randomUUID(),
         tenant_id: tenantId,
         application_id: appId,
         interview_type: 'phone',
         scheduled_at: scheduledAt,
-        conducted_at: az === '済み' ? scheduledAt : null,
+        conducted_at: conductedAt,
         result: az === '済み' ? 'completed' : az === '流れ' ? 'cancelled' : 'declined',
       }
       if (coordId) ivData.interviewer_id = coordId
