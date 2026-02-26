@@ -1,12 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import type { UseFormSetValue } from 'react-hook-form'
 
-interface AddressFields {
-  prefecture?: string
-  city?: string
-  address?: string
-}
-
 export function usePostalCodeLookup(setValue: UseFormSetValue<any>) {
   const [searching, setSearching] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
