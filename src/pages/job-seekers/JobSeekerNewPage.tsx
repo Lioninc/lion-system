@@ -9,6 +9,7 @@ import { Header } from '../../components/layout'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 import { usePostalCodeLookup } from '../../hooks/usePostalCodeLookup'
+import { calculateAge } from '../../lib/utils'
 
 // Form data type
 interface JobSeekerFormData {
@@ -112,6 +113,7 @@ export function JobSeekerNewPage() {
   })
 
   const hasMedicalCondition = watch('has_medical_condition')
+  const birthDate = watch('birth_date')
   const { handlePostalCodeChange, searching: postalSearching } = usePostalCodeLookup(setValue)
 
   // Search for existing job seeker by phone
@@ -376,11 +378,16 @@ export function JobSeekerNewPage() {
               label="LINE ID"
               {...register('line_id')}
             />
-            <Input
-              label="生年月日"
-              type="date"
-              {...register('birth_date')}
-            />
+            <div>
+              <Input
+                label="生年月日"
+                type="date"
+                {...register('birth_date')}
+              />
+              {birthDate && (
+                <p className="text-sm text-slate-600 mt-1">{calculateAge(birthDate)}歳</p>
+              )}
+            </div>
             <Select
               label="性別"
               options={[
@@ -389,13 +396,13 @@ export function JobSeekerNewPage() {
                 { value: 'other', label: 'その他' },
               ]}
               placeholder="選択してください"
-              {...register('gender')}
+              {...register('gender', { setValueAs: (v: string) => v === '' ? undefined : v })}
             />
             <Select
               label="流入元"
               options={sources}
               placeholder="選択してください"
-              {...register('source_id')}
+              {...register('source_id', { setValueAs: (v: string) => v === '' ? undefined : v })}
             />
           </div>
         </Card>
@@ -508,7 +515,7 @@ export function JobSeekerNewPage() {
                 { value: 'employed', label: '就業中' },
               ]}
               placeholder="選択してください"
-              {...register('employment_status')}
+              {...register('employment_status', { setValueAs: (v: string) => v === '' ? undefined : v })}
             />
             <Input
               label="希望開始日"

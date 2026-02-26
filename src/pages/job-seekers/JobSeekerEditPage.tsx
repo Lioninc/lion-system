@@ -8,6 +8,7 @@ import { Card, Button, Input, Select } from '../../components/ui'
 import { Header } from '../../components/layout'
 import { supabase } from '../../lib/supabase'
 import { usePostalCodeLookup } from '../../hooks/usePostalCodeLookup'
+import { calculateAge } from '../../lib/utils'
 
 interface JobSeekerFormData {
   name: string
@@ -94,6 +95,7 @@ export function JobSeekerEditPage() {
   })
 
   const hasMedicalCondition = watch('has_medical_condition')
+  const birthDate = watch('birth_date')
   const { handlePostalCodeChange, searching: postalSearching } = usePostalCodeLookup(setValue)
 
   useEffect(() => {
@@ -232,11 +234,16 @@ export function JobSeekerEditPage() {
               label="LINE ID"
               {...register('line_id')}
             />
-            <Input
-              label="生年月日"
-              type="date"
-              {...register('birth_date')}
-            />
+            <div>
+              <Input
+                label="生年月日"
+                type="date"
+                {...register('birth_date')}
+              />
+              {birthDate && (
+                <p className="text-sm text-slate-600 mt-1">{calculateAge(birthDate)}歳</p>
+              )}
+            </div>
             <Select
               label="性別"
               options={[
@@ -245,7 +252,7 @@ export function JobSeekerEditPage() {
                 { value: 'other', label: 'その他' },
               ]}
               placeholder="選択してください"
-              {...register('gender')}
+              {...register('gender', { setValueAs: (v: string) => v === '' ? undefined : v })}
             />
           </div>
         </Card>
@@ -355,7 +362,7 @@ export function JobSeekerEditPage() {
                 { value: 'employed', label: '就業中' },
               ]}
               placeholder="選択してください"
-              {...register('employment_status')}
+              {...register('employment_status', { setValueAs: (v: string) => v === '' ? undefined : v })}
             />
             <Input
               label="希望開始日"
