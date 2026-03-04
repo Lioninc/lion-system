@@ -41,8 +41,10 @@ interface JobSeekerSummary {
   latest_progress_status: ProgressStatus | null
   latest_coordinator_id: string | null
   latest_coordinator_name: string | null
+  all_coordinator_ids: string[] // 全応募の担当者ID（フィルター用）
   latest_interviewer_id: string | null
   latest_interviewer_name: string | null
+  all_interviewer_ids: string[] // 全面談の担当者ID（フィルター用）
   latest_job_type: string | null // 最新応募の職種
   latest_applied_at: string
 }
@@ -281,6 +283,13 @@ export function JobSeekerListPage() {
           .map(([name, count]) => ({ name, count }))
           .sort((a, b) => b.count - a.count)
 
+        // 全応募の担当者IDを収集（フィルター用）
+        const allCoordinatorIds = [...new Set(
+          applications
+            .map((app: any) => app.coordinator_id)
+            .filter(Boolean) as string[]
+        )]
+
         // 全応募の面談から最新の面談担当者を取得
         const allInterviews = applications.flatMap((app: any) =>
           (app.interviews || []).map((iv: any) => ({ ...iv, _app: app }))
@@ -294,6 +303,13 @@ export function JobSeekerListPage() {
         const latestInterviewerName = sortedInterviews.length > 0
           ? sortedInterviews[0].interviewer.name
           : null
+
+        // 全面談の担当者IDを収集（フィルター用）
+        const allInterviewerIds = [...new Set(
+          allInterviews
+            .map((iv: any) => iv.interviewer_id)
+            .filter(Boolean) as string[]
+        )]
 
         return {
           id: js.id,
@@ -313,8 +329,10 @@ export function JobSeekerListPage() {
           latest_progress_status: latestApp.progress_status,
           latest_coordinator_id: latestApp.coordinator_id || null,
           latest_coordinator_name: latestApp.coordinator?.name || null,
+          all_coordinator_ids: allCoordinatorIds,
           latest_interviewer_id: latestInterviewerId,
           latest_interviewer_name: latestInterviewerName,
+          all_interviewer_ids: allInterviewerIds,
           latest_job_type: latestApp.job_type || null,
           latest_applied_at: latestApp.applied_at,
         }
@@ -330,21 +348,21 @@ export function JobSeekerListPage() {
       results = results.filter((js) => js.latest_progress_status === filters.progressStatus)
     }
 
-    // 応募担当者フィルター
+    // 応募担当者フィルター（全応募の担当者で絞り込み）
     if (filters.coordinator) {
       if (filters.coordinator === 'unset') {
-        results = results.filter((js) => !js.latest_coordinator_id)
+        results = results.filter((js) => js.all_coordinator_ids.length === 0)
       } else {
-        results = results.filter((js) => js.latest_coordinator_id === filters.coordinator)
+        results = results.filter((js) => js.all_coordinator_ids.includes(filters.coordinator))
       }
     }
 
-    // 面談担当者フィルター
+    // 面談担当者フィルター（全面談の担当者で絞り込み）
     if (filters.interviewer) {
       if (filters.interviewer === 'unset') {
-        results = results.filter((js) => !js.latest_interviewer_id)
+        results = results.filter((js) => js.all_interviewer_ids.length === 0)
       } else {
-        results = results.filter((js) => js.latest_interviewer_id === filters.interviewer)
+        results = results.filter((js) => js.all_interviewer_ids.includes(filters.interviewer))
       }
     }
 
