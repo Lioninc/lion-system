@@ -39,7 +39,9 @@ interface JobSeekerSummary {
   latest_application_id: string
   latest_application_status: ApplicationStatus
   latest_progress_status: ProgressStatus | null
+  latest_coordinator_id: string | null
   latest_coordinator_name: string | null
+  latest_interviewer_id: string | null
   latest_interviewer_name: string | null
   latest_job_type: string | null // 最新応募の職種
   latest_applied_at: string
@@ -50,6 +52,7 @@ interface FilterState {
   status: string
   progressStatus: string
   coordinator: string
+  interviewer: string
   source: string
 }
 
@@ -85,9 +88,12 @@ export function JobSeekerListPage() {
     status: searchParams.get('status') || '',
     progressStatus: searchParams.get('progressStatus') || '',
     coordinator: searchParams.get('coordinator') || '',
+    interviewer: searchParams.get('interviewer') || '',
     source: searchParams.get('source') || '',
   })
   const [showCSVImport, setShowCSVImport] = useState(false)
+  const [editingStatusId, setEditingStatusId] = useState<string | null>(null)
+  const [editingCoordinatorId, setEditingCoordinatorId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchFilterOptions()
@@ -162,6 +168,7 @@ export function JobSeekerListPage() {
           interviews (
             id,
             scheduled_at,
+            interviewer_id,
             interviewer:users!interviews_interviewer_id_fkey (
               name
             )
@@ -281,6 +288,9 @@ export function JobSeekerListPage() {
         const sortedInterviews = allInterviews
           .filter((iv: any) => iv.interviewer?.name)
           .sort((a: any, b: any) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())
+        const latestInterviewerId = sortedInterviews.length > 0
+          ? sortedInterviews[0].interviewer_id
+          : null
         const latestInterviewerName = sortedInterviews.length > 0
           ? sortedInterviews[0].interviewer.name
           : null
@@ -301,7 +311,9 @@ export function JobSeekerListPage() {
           latest_application_id: latestApp.id,
           latest_application_status: latestApp.application_status,
           latest_progress_status: latestApp.progress_status,
+          latest_coordinator_id: latestApp.coordinator_id || null,
           latest_coordinator_name: latestApp.coordinator?.name || null,
+          latest_interviewer_id: latestInterviewerId,
           latest_interviewer_name: latestInterviewerName,
           latest_job_type: latestApp.job_type || null,
           latest_applied_at: latestApp.applied_at,
@@ -318,16 +330,21 @@ export function JobSeekerListPage() {
       results = results.filter((js) => js.latest_progress_status === filters.progressStatus)
     }
 
-    // 担当者フィルター
+    // 応募担当者フィルター
     if (filters.coordinator) {
       if (filters.coordinator === 'unset') {
-        results = results.filter((js) => !js.latest_coordinator_name)
+        results = results.filter((js) => !js.latest_coordinator_id)
       } else {
-        const selectedCoordinator = coordinators.find((c) => c.value === filters.coordinator)
-        if (selectedCoordinator) {
-          const coordinatorName = selectedCoordinator.label.replace('（退職）', '')
-          results = results.filter((js) => js.latest_coordinator_name === coordinatorName)
-        }
+        results = results.filter((js) => js.latest_coordinator_id === filters.coordinator)
+      }
+    }
+
+    // 面談担当者フィルター
+    if (filters.interviewer) {
+      if (filters.interviewer === 'unset') {
+        results = results.filter((js) => !js.latest_interviewer_id)
+      } else {
+        results = results.filter((js) => js.latest_interviewer_id === filters.interviewer)
       }
     }
 
@@ -353,6 +370,46 @@ export function JobSeekerListPage() {
     setLoading(false)
   }
 
+  async function handleInlineStatusChange(applicationId: string, newStatus: string) {
+    const { error } = await supabase
+      .from('applications')
+      .update({ application_status: newStatus })
+      .eq('id', applicationId)
+
+    if (!error) {
+      setJobSeekers((prev) =>
+        prev.map((js) =>
+          js.latest_application_id === applicationId
+            ? { ...js, latest_application_status: newStatus as ApplicationStatus }
+            : js
+        )
+      )
+    }
+    setEditingStatusId(null)
+  }
+
+  async function handleInlineCoordinatorChange(applicationId: string, newCoordinatorId: string) {
+    const coordinatorId = newCoordinatorId || null
+    const { error } = await supabase
+      .from('applications')
+      .update({ coordinator_id: coordinatorId })
+      .eq('id', applicationId)
+
+    if (!error) {
+      const coordinatorName = coordinatorId
+        ? coordinators.find((c) => c.value === coordinatorId)?.label.replace('（退職）', '') || null
+        : null
+      setJobSeekers((prev) =>
+        prev.map((js) =>
+          js.latest_application_id === applicationId
+            ? { ...js, latest_coordinator_id: coordinatorId, latest_coordinator_name: coordinatorName }
+            : js
+        )
+      )
+    }
+    setEditingCoordinatorId(null)
+  }
+
   function handleFilterChange(key: keyof FilterState, value: string) {
     const newFilters = { ...filters, [key]: value }
     setFilters(newFilters)
@@ -371,6 +428,7 @@ export function JobSeekerListPage() {
       status: '',
       progressStatus: '',
       coordinator: '',
+      interviewer: '',
       source: '',
     }
     setFilters(emptyFilters)
@@ -571,7 +629,7 @@ export function JobSeekerListPage() {
 
           {showFilters && (
             <div className="mt-4 pt-4 border-t border-slate-200">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <Select
                   label="最新応募ステータス"
                   options={statusOptions}
@@ -587,11 +645,18 @@ export function JobSeekerListPage() {
                   onChange={(e) => handleFilterChange('progressStatus', e.target.value)}
                 />
                 <Select
-                  label="最新担当者"
+                  label="応募担当者"
                   options={coordinators}
                   placeholder="すべて"
                   value={filters.coordinator}
                   onChange={(e) => handleFilterChange('coordinator', e.target.value)}
+                />
+                <Select
+                  label="面談担当者"
+                  options={coordinators}
+                  placeholder="すべて"
+                  value={filters.interviewer}
+                  onChange={(e) => handleFilterChange('interviewer', e.target.value)}
                 />
                 <Select
                   label="最新流入元"
@@ -794,22 +859,57 @@ export function JobSeekerListPage() {
                             <span className="text-sm text-slate-400">-</span>
                           )}
                         </td>
-                        <td className="px-4 py-4">
-                          <div className="flex flex-col gap-1">
-                            <Badge variant={getStatusBadgeVariant(js.latest_application_status)}>
-                              {APPLICATION_STATUS_LABELS[js.latest_application_status]}
-                            </Badge>
-                            {js.latest_progress_status && (
-                              <Badge variant="default">
-                                {PROGRESS_STATUS_LABELS[js.latest_progress_status]}
+                        <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                          {editingStatusId === js.latest_application_id ? (
+                            <select
+                              autoFocus
+                              className="text-sm border border-primary rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary"
+                              value={js.latest_application_status}
+                              onChange={(e) => handleInlineStatusChange(js.latest_application_id, e.target.value)}
+                              onBlur={() => setEditingStatusId(null)}
+                            >
+                              {statusOptions.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <div
+                              className="flex flex-col gap-1 cursor-pointer"
+                              onClick={() => setEditingStatusId(js.latest_application_id)}
+                            >
+                              <Badge variant={getStatusBadgeVariant(js.latest_application_status)}>
+                                {APPLICATION_STATUS_LABELS[js.latest_application_status]}
                               </Badge>
-                            )}
-                          </div>
+                              {js.latest_progress_status && (
+                                <Badge variant="default">
+                                  {PROGRESS_STATUS_LABELS[js.latest_progress_status]}
+                                </Badge>
+                              )}
+                            </div>
+                          )}
                         </td>
-                        <td className="px-4 py-4">
-                          <span className="text-sm text-slate-600">
-                            {js.latest_coordinator_name || '-'}
-                          </span>
+                        <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                          {editingCoordinatorId === js.latest_application_id ? (
+                            <select
+                              autoFocus
+                              className="text-sm border border-primary rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary"
+                              value={js.latest_coordinator_id || ''}
+                              onChange={(e) => handleInlineCoordinatorChange(js.latest_application_id, e.target.value)}
+                              onBlur={() => setEditingCoordinatorId(null)}
+                            >
+                              <option value="">未設定</option>
+                              {coordinators.filter((c) => c.value !== 'unset').map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span
+                              className="text-sm text-slate-600 cursor-pointer hover:text-primary"
+                              onClick={() => setEditingCoordinatorId(js.latest_application_id)}
+                            >
+                              {js.latest_coordinator_name || '-'}
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-4">
                           <span className="text-sm text-slate-600">
