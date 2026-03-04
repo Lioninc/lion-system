@@ -1066,7 +1066,7 @@ function InterviewRecordModal({
 【派遣先履歴】：`
 
   const [transcript, setTranscript] = useState(interview.transcript || '')
-  const [notes, setNotes] = useState(interview.notes || (isEdit ? '' : defaultNotes))
+  const [notes, setNotes] = useState(interview.notes || defaultNotes)
   const [evalHearing, setEvalHearing] = useState<number | null>(interview.eval_hearing || null)
   const [evalProposal, setEvalProposal] = useState<number | null>(interview.eval_proposal || null)
   const [evalClosing, setEvalClosing] = useState<number | null>(interview.eval_closing || null)
