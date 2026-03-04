@@ -652,20 +652,8 @@ export function JobSeekerDetailPage() {
 
         {activeTab === 'interviews' && (
           <Card padding="none">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+            <div className="p-4 border-b border-slate-200">
               <h3 className="font-semibold text-slate-800">面談記録</h3>
-              {application.interviews && application.interviews.some((i) => !i.conducted_at) && (
-                <Button size="sm" onClick={() => {
-                  const pending = application.interviews?.find((i) => !i.conducted_at)
-                  if (pending) {
-                    setSelectedInterview(pending)
-                    setShowInterviewModal(true)
-                  }
-                }}>
-                  <Plus className="w-4 h-4 mr-1" />
-                  面談記録を追加
-                </Button>
-              )}
             </div>
             {application.interviews && application.interviews.length > 0 ? (
               <div className="divide-y divide-slate-100">

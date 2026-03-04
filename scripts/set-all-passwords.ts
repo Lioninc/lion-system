@@ -7,7 +7,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 )
 
-const PASSWORD = 'Lion0401'
+const PASSWORD = 'Lion0401@'
 
 async function main() {
   // 全ユーザー取得
