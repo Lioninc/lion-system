@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   Search,
@@ -96,6 +96,8 @@ export function JobSeekerListPage() {
   const [showCSVImport, setShowCSVImport] = useState(false)
   const [editingStatusId, setEditingStatusId] = useState<string | null>(null)
   const [editingCoordinatorId, setEditingCoordinatorId] = useState<string | null>(null)
+  const [searchInput, setSearchInput] = useState(filters.search)
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   useEffect(() => {
     fetchFilterOptions()
@@ -138,74 +140,81 @@ export function JobSeekerListPage() {
 
   async function fetchJobSeekers() {
     setLoading(true)
+    const offset = (currentPage - 1) * PAGE_SIZE
 
-    const selectQuery = `
-        id,
-        name,
-        name_kana,
-        phone,
-        email,
-        birth_date,
-        prefecture,
-        applications (
-          id,
-          application_status,
-          progress_status,
-          job_type,
-          applied_at,
-          coordinator_id,
-          source_id,
-          coordinator:users!applications_coordinator_id_fkey (
-            name
-          ),
-          sources (
-            name
-          ),
-          contact_logs (
-            id
-          ),
-          interviews (
-            id,
-            scheduled_at,
-            interviewer_id,
-            interviewer:users!interviews_interviewer_id_fkey (
-              name
-            )
-          )
-        )
-      `
+    // サーバーサイドで適用可能なフィルター条件
+    const serverCoordinator = filters.coordinator && filters.coordinator !== 'unset' ? filters.coordinator : ''
+    const serverInterviewer = filters.interviewer && filters.interviewer !== 'unset' ? filters.interviewer : ''
+    const hasServerAppFilter = !!(filters.status || filters.progressStatus || serverCoordinator || filters.source)
+    const hasServerInterviewFilter = !!serverInterviewer
 
-    // ページネーションで全件取得（Supabaseのデフォルトlimit=1000対策）
-    const FETCH_SIZE = 1000
-    let allData: any[] = []
-    let page = 0
-
-    while (true) {
-      let query = supabase
-        .from('job_seekers')
-        .select(selectQuery)
-        .order('created_at', { ascending: false })
-        .range(page * FETCH_SIZE, (page + 1) * FETCH_SIZE - 1)
-
-      if (filters.search) {
-        query = query.or(`name.ilike.%${filters.search}%,name_kana.ilike.%${filters.search}%,phone.ilike.%${filters.search}%`)
-      }
-
-      const { data, error } = await query
-
-      if (error) {
-        console.error('Error fetching job seekers:', error)
-        setLoading(false)
-        return
-      }
-
-      if (!data || data.length === 0) break
-      allData = [...allData, ...data]
-      if (data.length < FETCH_SIZE) break
-      page++
+    // Step 1: 軽量クエリでIDと総件数を取得（サーバーサイドフィルタ付き）
+    let idSelect: string
+    if (hasServerInterviewFilter) {
+      idSelect = 'id, applications!inner(id, interviews!inner(id))'
+    } else if (hasServerAppFilter) {
+      idSelect = 'id, applications!inner(id)'
+    } else {
+      idSelect = 'id'
     }
 
-    const data = allData
+    let idQuery = supabase
+      .from('job_seekers')
+      .select(idSelect, { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1)
+
+    if (filters.search) {
+      idQuery = idQuery.or(`name.ilike.%${filters.search}%,name_kana.ilike.%${filters.search}%,phone.ilike.%${filters.search}%`)
+    }
+    if (filters.status) idQuery = idQuery.eq('applications.application_status', filters.status)
+    if (filters.progressStatus) idQuery = idQuery.eq('applications.progress_status', filters.progressStatus)
+    if (serverCoordinator) idQuery = idQuery.eq('applications.coordinator_id', serverCoordinator)
+    if (filters.source) idQuery = idQuery.eq('applications.source_id', filters.source)
+    if (serverInterviewer) idQuery = idQuery.eq('applications.interviews.interviewer_id', serverInterviewer)
+
+    const { data: idRows, count: serverCount, error: idError } = await idQuery
+
+    if (idError) {
+      console.error('Error fetching job seekers:', idError)
+      setLoading(false)
+      return
+    }
+
+    if (!idRows || idRows.length === 0) {
+      setJobSeekers([])
+      setTotalCount(serverCount ?? 0)
+      setLoading(false)
+      return
+    }
+
+    // Step 2: このページのjob_seekerの全データを取得
+    const ids = idRows.map((r: any) => r.id)
+
+    const { data, error: detailError } = await supabase
+      .from('job_seekers')
+      .select(`
+        id, name, name_kana, phone, email, birth_date, prefecture,
+        applications (
+          id, application_status, progress_status, job_type, applied_at,
+          coordinator_id, source_id,
+          coordinator:users!applications_coordinator_id_fkey (name),
+          sources (name),
+          contact_logs (id),
+          interviews (
+            id, scheduled_at, interviewer_id,
+            interviewer:users!interviews_interviewer_id_fkey (name)
+          )
+        )
+      `)
+      .in('id', ids)
+      .order('created_at', { ascending: false })
+
+    if (detailError) {
+      console.error('Error fetching job seeker details:', detailError)
+      setLoading(false)
+      return
+    }
 
     // 電話番号で重複除去しながら求職者データを集計
     // 同じ電話番号の求職者は1つにまとめ、全応募・対応・面談を合算
@@ -354,52 +363,19 @@ export function JobSeekerListPage() {
       })
       .filter((js): js is JobSeekerSummary => js !== null)
 
-    // ステータスフィルター
-    if (filters.status) {
-      results = results.filter((js) => js.latest_application_status === filters.status)
+    // クライアントサイド「未設定」フィルター（サーバーサイドでは否定条件が困難なため）
+    if (filters.coordinator === 'unset') {
+      results = results.filter((js) => js.all_coordinator_ids.length === 0)
     }
-
-    if (filters.progressStatus) {
-      results = results.filter((js) => js.latest_progress_status === filters.progressStatus)
-    }
-
-    // 応募担当者フィルター（全応募の担当者で絞り込み）
-    if (filters.coordinator) {
-      if (filters.coordinator === 'unset') {
-        results = results.filter((js) => js.all_coordinator_ids.length === 0)
-      } else {
-        results = results.filter((js) => js.all_coordinator_ids.includes(filters.coordinator))
-      }
-    }
-
-    // 面談担当者フィルター（全面談の担当者で絞り込み）
-    if (filters.interviewer) {
-      if (filters.interviewer === 'unset') {
-        results = results.filter((js) => js.all_interviewer_ids.length === 0)
-      } else {
-        results = results.filter((js) => js.all_interviewer_ids.includes(filters.interviewer))
-      }
-    }
-
-    // 流入元フィルター（いずれかの応募で使用されている媒体で絞り込み）
-    if (filters.source) {
-      const selectedSource = sources.find((s) => s.value === filters.source)
-      if (selectedSource) {
-        results = results.filter((js) =>
-          js.source_counts.some((sc) => sc.name === selectedSource.label)
-        )
-      }
+    if (filters.interviewer === 'unset') {
+      results = results.filter((js) => js.all_interviewer_ids.length === 0)
     }
 
     // 最新応募日でソート
     results.sort((a, b) => new Date(b.latest_applied_at).getTime() - new Date(a.latest_applied_at).getTime())
 
-    // ページネーション
-    const startIndex = (currentPage - 1) * PAGE_SIZE
-    const paginatedResults = results.slice(startIndex, startIndex + PAGE_SIZE)
-
-    setJobSeekers(paginatedResults)
-    setTotalCount(results.length)
+    setJobSeekers(results)
+    setTotalCount(serverCount ?? 0)
     setLoading(false)
   }
 
@@ -456,6 +432,7 @@ export function JobSeekerListPage() {
   }
 
   function clearFilters() {
+    setSearchInput('')
     const emptyFilters: FilterState = {
       search: '',
       status: '',
@@ -641,8 +618,15 @@ export function JobSeekerListPage() {
               <input
                 type="text"
                 placeholder="名前または電話番号で検索..."
-                value={filters.search}
-                onChange={(e) => handleFilterChange('search', e.target.value)}
+                value={searchInput}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setSearchInput(value)
+                  if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+                  searchTimerRef.current = setTimeout(() => {
+                    handleFilterChange('search', value)
+                  }, 400)
+                }}
                 className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
