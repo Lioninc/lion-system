@@ -139,10 +139,7 @@ export function JobSeekerListPage() {
   async function fetchJobSeekers() {
     setLoading(true)
 
-    // 求職者ベースでデータを取得（対応回数・面談回数も含む）
-    let query = supabase
-      .from('job_seekers')
-      .select(`
+    const selectQuery = `
         id,
         name,
         name_kana,
@@ -176,21 +173,39 @@ export function JobSeekerListPage() {
             )
           )
         )
-      `, { count: 'exact' })
-      .order('created_at', { ascending: false })
+      `
 
-    // 検索フィルター（name, name_kana, phoneで検索）
-    if (filters.search) {
-      query = query.or(`name.ilike.%${filters.search}%,name_kana.ilike.%${filters.search}%,phone.ilike.%${filters.search}%`)
+    // ページネーションで全件取得（Supabaseのデフォルトlimit=1000対策）
+    const FETCH_SIZE = 1000
+    let allData: any[] = []
+    let page = 0
+
+    while (true) {
+      let query = supabase
+        .from('job_seekers')
+        .select(selectQuery)
+        .order('created_at', { ascending: false })
+        .range(page * FETCH_SIZE, (page + 1) * FETCH_SIZE - 1)
+
+      if (filters.search) {
+        query = query.or(`name.ilike.%${filters.search}%,name_kana.ilike.%${filters.search}%,phone.ilike.%${filters.search}%`)
+      }
+
+      const { data, error } = await query
+
+      if (error) {
+        console.error('Error fetching job seekers:', error)
+        setLoading(false)
+        return
+      }
+
+      if (!data || data.length === 0) break
+      allData = [...allData, ...data]
+      if (data.length < FETCH_SIZE) break
+      page++
     }
 
-    const { data, error } = await query
-
-    if (error) {
-      console.error('Error fetching job seekers:', error)
-      setLoading(false)
-      return
-    }
+    const data = allData
 
     // 電話番号で重複除去しながら求職者データを集計
     // 同じ電話番号の求職者は1つにまとめ、全応募・対応・面談を合算
