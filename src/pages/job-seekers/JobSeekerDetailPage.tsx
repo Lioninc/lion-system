@@ -660,7 +660,14 @@ export function JobSeekerDetailPage() {
                 {application.interviews
                   .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())
                   .map((interview) => (
-                    <div key={interview.id} className="p-4">
+                    <div
+                      key={interview.id}
+                      className="p-4 hover:bg-slate-50 cursor-pointer transition-colors"
+                      onClick={() => {
+                        setSelectedInterview(interview)
+                        setShowInterviewModal(true)
+                      }}
+                    >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -698,15 +705,9 @@ export function JobSeekerDetailPage() {
                             </div>
                           )}
                           {!interview.conducted_at && (
-                            <button
-                              className="mt-2 text-xs text-primary hover:underline"
-                              onClick={() => {
-                                setSelectedInterview(interview)
-                                setShowInterviewModal(true)
-                              }}
-                            >
+                            <p className="mt-2 text-xs text-primary">
                               面談記録を入力する →
-                            </button>
+                            </p>
                           )}
                         </div>
                         <div className="text-right ml-4">
@@ -1044,8 +1045,9 @@ function InterviewRecordModal({
   onSave: () => void
 }) {
   const { user } = useAuthStore()
-  const [transcript, setTranscript] = useState('')
-  const [notes, setNotes] = useState(`生年月日：
+  const isEdit = !!interview.conducted_at
+
+  const defaultNotes = `生年月日：
 住所：
 健康面：
 メアド：
@@ -1061,13 +1063,16 @@ function InterviewRecordModal({
 条件：
 【進捗状況】：
 【最終連絡日】：
-【派遣先履歴】：`)
-  const [evalHearing, setEvalHearing] = useState<number | null>(null)
-  const [evalProposal, setEvalProposal] = useState<number | null>(null)
-  const [evalClosing, setEvalClosing] = useState<number | null>(null)
-  const [evalImpression, setEvalImpression] = useState<number | null>(null)
-  const [evalComment, setEvalComment] = useState('')
-  const [interviewResult, setInterviewResult] = useState('')
+【派遣先履歴】：`
+
+  const [transcript, setTranscript] = useState(interview.transcript || '')
+  const [notes, setNotes] = useState(interview.notes || (isEdit ? '' : defaultNotes))
+  const [evalHearing, setEvalHearing] = useState<number | null>(interview.eval_hearing || null)
+  const [evalProposal, setEvalProposal] = useState<number | null>(interview.eval_proposal || null)
+  const [evalClosing, setEvalClosing] = useState<number | null>(interview.eval_closing || null)
+  const [evalImpression, setEvalImpression] = useState<number | null>(interview.eval_impression || null)
+  const [evalComment, setEvalComment] = useState(interview.eval_comment || '')
+  const [interviewResult, setInterviewResult] = useState(interview.result || '')
   const [saving, setSaving] = useState(false)
 
   const totalScore = (evalHearing || 0) + (evalProposal || 0) + (evalClosing || 0) + (evalImpression || 0)
@@ -1080,7 +1085,7 @@ function InterviewRecordModal({
     const { error } = await supabase
       .from('interviews')
       .update({
-        conducted_at: new Date().toISOString(),
+        conducted_at: interview.conducted_at || new Date().toISOString(),
         transcript: transcript || null,
         notes: notes || null,
         eval_hearing: evalHearing,
@@ -1142,9 +1147,9 @@ function InterviewRecordModal({
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className="relative bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden">
         <div className="p-4 border-b border-slate-200">
-          <h3 className="text-lg font-semibold text-slate-800">面談記録を入力</h3>
+          <h3 className="text-lg font-semibold text-slate-800">{isEdit ? '面談記録を編集' : '面談記録を入力'}</h3>
           <p className="text-sm text-slate-500 mt-1">
-            面談予定: {formatDateTime(interview.scheduled_at)}
+            {isEdit ? '実施日: ' + formatDateTime(interview.conducted_at!) : '面談予定: ' + formatDateTime(interview.scheduled_at)}
           </p>
         </div>
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)] space-y-4">
