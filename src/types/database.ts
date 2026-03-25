@@ -291,6 +291,14 @@ export interface Payment {
   created_at: string
 }
 
+export interface DispatchHistory {
+  id: string
+  tenant_id: string
+  job_seeker_id: string
+  company_name: string
+  created_at: string
+}
+
 // Status display labels
 export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
   new: '新規応募',

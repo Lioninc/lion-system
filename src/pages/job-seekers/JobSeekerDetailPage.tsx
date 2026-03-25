@@ -13,6 +13,7 @@ import {
   ClipboardList,
   FileText,
   Upload,
+  Trash2,
 } from 'lucide-react'
 import { Card, Button, Badge, Select, ResumeUploadModal } from '../../components/ui'
 import { Header } from '../../components/layout'
@@ -27,6 +28,7 @@ import type {
   Interview,
   ApplicationStatus,
   ProgressStatus,
+  DispatchHistory,
 } from '../../types/database'
 import {
   APPLICATION_STATUS_LABELS,
@@ -88,6 +90,9 @@ export function JobSeekerDetailPage() {
   const [allApplications, setAllApplications] = useState<ApplicationHistory[]>([])
   const [showResumeModal, setShowResumeModal] = useState(false)
   const [showBookInterviewModal, setShowBookInterviewModal] = useState(false)
+  const [dispatchHistories, setDispatchHistories] = useState<DispatchHistory[]>([])
+  const [newDispatchCompany, setNewDispatchCompany] = useState('')
+  const [showDispatchInput, setShowDispatchInput] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -96,12 +101,15 @@ export function JobSeekerDetailPage() {
     }
   }, [id])
 
-  // application取得後に同じ電話番号の全応募を取得
+  // application取得後に同じ電話番号の全応募を取得 + 派遣先履歴取得
   useEffect(() => {
     if (application?.job_seeker?.phone) {
       fetchAllApplications(application.job_seeker.phone)
     }
-  }, [application?.job_seeker?.phone])
+    if (application?.job_seeker_id) {
+      fetchDispatchHistories(application.job_seeker_id)
+    }
+  }, [application?.job_seeker?.phone, application?.job_seeker_id])
 
   async function fetchApplication() {
     setLoading(true)
@@ -154,6 +162,41 @@ export function JobSeekerDetailPage() {
     if (data) {
       setCoordinators(data.map((u) => ({ value: u.id, label: u.name })))
     }
+  }
+
+  async function fetchDispatchHistories(jobSeekerId: string) {
+    const { data } = await supabase
+      .from('dispatch_histories')
+      .select('*')
+      .eq('job_seeker_id', jobSeekerId)
+      .order('created_at', { ascending: false })
+    if (data) setDispatchHistories(data as DispatchHistory[])
+  }
+
+  async function addDispatchHistory() {
+    if (!newDispatchCompany.trim() || !application) return
+    const { error } = await supabase.from('dispatch_histories').insert({
+      tenant_id: application.tenant_id,
+      job_seeker_id: application.job_seeker_id,
+      company_name: newDispatchCompany.trim(),
+    })
+    if (error) {
+      console.error('Error adding dispatch history:', error)
+      alert('保存に失敗しました')
+      return
+    }
+    setNewDispatchCompany('')
+    setShowDispatchInput(false)
+    fetchDispatchHistories(application.job_seeker_id)
+  }
+
+  async function deleteDispatchHistory(id: string) {
+    const { error } = await supabase.from('dispatch_histories').delete().eq('id', id)
+    if (error) {
+      console.error('Error deleting dispatch history:', error)
+      return
+    }
+    if (application) fetchDispatchHistories(application.job_seeker_id)
   }
 
   // 同じ電話番号の求職者の全応募を取得
@@ -597,6 +640,53 @@ export function JobSeekerDetailPage() {
                 <InfoRow label="通勤手段" value={job_seeker.commute_method} />
                 <InfoRow label="通勤時間" value={job_seeker.commute_time ? `${job_seeker.commute_time}分` : null} />
               </div>
+            </Card>
+
+            {/* Dispatch History */}
+            <Card className="lg:col-span-2">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-slate-800">派遣先利用履歴</h3>
+                <Button size="sm" variant="outline" onClick={() => setShowDispatchInput(true)}>
+                  <Plus className="w-4 h-4 mr-1" />
+                  追加
+                </Button>
+              </div>
+              {showDispatchInput && (
+                <div className="flex items-center gap-2 mb-3">
+                  <input
+                    type="text"
+                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                    placeholder="会社名を入力..."
+                    value={newDispatchCompany}
+                    onChange={(e) => setNewDispatchCompany(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') addDispatchHistory() }}
+                    autoFocus
+                  />
+                  <Button size="sm" onClick={addDispatchHistory} disabled={!newDispatchCompany.trim()}>
+                    保存
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => { setShowDispatchInput(false); setNewDispatchCompany('') }}>
+                    取消
+                  </Button>
+                </div>
+              )}
+              {dispatchHistories.length > 0 ? (
+                <div className="space-y-2">
+                  {dispatchHistories.map((dh) => (
+                    <div key={dh.id} className="flex items-center justify-between py-2 px-3 bg-slate-50 rounded-lg">
+                      <span className="text-sm text-slate-700">{dh.company_name}</span>
+                      <button
+                        onClick={() => deleteDispatchHistory(dh.id)}
+                        className="text-slate-400 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-400">登録なし</p>
+              )}
             </Card>
 
             {/* Resume */}
