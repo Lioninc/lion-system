@@ -1007,6 +1007,7 @@ export function JobSeekerDetailPage() {
         <InterviewRecordModal
           interview={selectedInterview}
           applicationId={application.id}
+          jobSeeker={application.job_seeker}
           onClose={() => {
             setShowInterviewModal(false)
             setSelectedInterview(null)
@@ -1266,58 +1267,60 @@ function ContactLogModal({
 function InterviewRecordModal({
   interview,
   applicationId,
+  jobSeeker,
   onClose,
   onSave,
 }: {
   interview: Interview
   applicationId: string
+  jobSeeker: JobSeeker
   onClose: () => void
   onSave: () => void
 }) {
   const { user } = useAuthStore()
   const isEdit = !!interview.conducted_at
 
-  const defaultNotes = `生年月日：
-住所：
-健康面：
-メアド：
-現状：
-応募経緯：
-職歴1：
-職歴2：
-職歴3：
-学歴：
-経験：
-目標：
-趣味：
-条件：
-【進捗状況】：
-【最終連絡日】：
-【派遣先履歴】：`
-
+  // Interview fields
   const [transcript, setTranscript] = useState(interview.transcript || '')
-  const [notes, setNotes] = useState(interview.notes || defaultNotes)
+  const [notes, setNotes] = useState(interview.notes || '')
+  const [healthNotes, setHealthNotes] = useState(interview.health_notes || '')
   const [evalHearing, setEvalHearing] = useState<number | null>(interview.eval_hearing || null)
   const [evalProposal, setEvalProposal] = useState<number | null>(interview.eval_proposal || null)
   const [evalClosing, setEvalClosing] = useState<number | null>(interview.eval_closing || null)
   const [evalImpression, setEvalImpression] = useState<number | null>(interview.eval_impression || null)
   const [evalComment, setEvalComment] = useState(interview.eval_comment || '')
   const [interviewResult, setInterviewResult] = useState(interview.result || '')
+
+  // Job seeker fields (synced)
+  const [birthDate, setBirthDate] = useState(jobSeeker.birth_date || '')
+  const [prefecture, setPrefecture] = useState(jobSeeker.prefecture || '')
+  const [city, setCity] = useState(jobSeeker.city || '')
+  const [address, setAddress] = useState(jobSeeker.address || '')
+  const [email, setEmail] = useState(jobSeeker.email || '')
+  const [employmentStatus, setEmploymentStatus] = useState(jobSeeker.employment_status || '')
+  const [educationLevel, setEducationLevel] = useState(jobSeeker.education_level || '')
+  const [educationSchool, setEducationSchool] = useState(jobSeeker.education_school || '')
+  const [workHistory, setWorkHistory] = useState(jobSeeker.work_history || '')
+
   const [saving, setSaving] = useState(false)
 
   const totalScore = (evalHearing || 0) + (evalProposal || 0) + (evalClosing || 0) + (evalImpression || 0)
+
+  const inputClass = 'w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm'
 
   async function handleSave() {
     if (!user) return
 
     setSaving(true)
 
+    // 1. Update interviews table
     const { error } = await supabase
       .from('interviews')
       .update({
         conducted_at: interview.conducted_at || new Date().toISOString(),
         transcript: transcript || null,
         notes: notes || null,
+        health_notes: healthNotes || null,
         eval_hearing: evalHearing,
         eval_proposal: evalProposal,
         eval_closing: evalClosing,
@@ -1334,7 +1337,23 @@ function InterviewRecordModal({
       return
     }
 
-    // 面談結果に応じて進捗ステータスを更新
+    // 2. Update job_seekers table
+    await supabase
+      .from('job_seekers')
+      .update({
+        birth_date: birthDate || null,
+        prefecture: prefecture || null,
+        city: city || null,
+        address: address || null,
+        email: email || null,
+        employment_status: employmentStatus || null,
+        education_level: educationLevel || null,
+        education_school: educationSchool || null,
+        work_history: workHistory || null,
+      })
+      .eq('id', jobSeeker.id)
+
+    // 3. 面談結果に応じて進捗ステータスを更新
     if (interviewResult) {
       let progressStatus: string | null = null
       switch (interviewResult) {
@@ -1383,11 +1402,93 @@ function InterviewRecordModal({
           </p>
         </div>
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)] space-y-4">
+
+          {/* 基本情報（job_seekers連動） */}
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-3">
+            <p className="text-sm font-medium text-blue-800">基本情報（求職者に反映）</p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">生年月日</label>
+                <input type="date" className={inputClass} value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">メールアドレス</label>
+                <input type="email" className={inputClass} placeholder="example@mail.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">都道府県</label>
+                <input type="text" className={inputClass} placeholder="東京都" value={prefecture} onChange={(e) => setPrefecture(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">市区町村</label>
+                <input type="text" className={inputClass} placeholder="渋谷区" value={city} onChange={(e) => setCity(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">番地以降</label>
+                <input type="text" className={inputClass} placeholder="1-2-3" value={address} onChange={(e) => setAddress(e.target.value)} />
+              </div>
+            </div>
+
+            {/* 就業状況 */}
+            <div>
+              <label className="block text-xs font-medium text-blue-700 mb-2">現在の就業状況</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(['unemployed', 'employed'] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setEmploymentStatus(v)}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                      employmentStatus === v
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    {v === 'unemployed' ? '離職中' : '就業中'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">最終学歴</label>
+                <input type="text" className={inputClass} placeholder="大卒・高卒等" value={educationLevel} onChange={(e) => setEducationLevel(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">学校名</label>
+                <input type="text" className={inputClass} placeholder="〇〇大学" value={educationSchool} onChange={(e) => setEducationSchool(e.target.value)} />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-blue-700 mb-1">職務経歴</label>
+              <textarea rows={3} className={inputClass} placeholder="職務経歴を入力..." value={workHistory} onChange={(e) => setWorkHistory(e.target.value)} />
+            </div>
+          </div>
+
+          {/* 健康面（interviews連動） */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">健康面</label>
+            <textarea
+              rows={2}
+              className={inputClass}
+              placeholder="健康に関する備考..."
+              value={healthNotes}
+              onChange={(e) => setHealthNotes(e.target.value)}
+            />
+          </div>
+
+          {/* 文字起こし */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">文字起こし</label>
             <textarea
               rows={5}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+              className={inputClass}
               placeholder="録音の文字起こしを貼り付け..."
               value={transcript}
               onChange={(e) => setTranscript(e.target.value)}
@@ -1399,8 +1500,8 @@ function InterviewRecordModal({
             <label className="block text-sm font-medium text-slate-700 mb-1">メモ</label>
             <textarea
               rows={5}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-              placeholder="面談内容を入力..."
+              className={inputClass}
+              placeholder="応募経緯・経験・目標・趣味・進捗状況・最終連絡日など"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
@@ -1412,50 +1513,26 @@ function InterviewRecordModal({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">ヒアリング</label>
-                <select
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-                  value={evalHearing || ''}
-                  onChange={(e) => setEvalHearing(e.target.value ? parseInt(e.target.value) : null)}
-                >
-                  {SCORE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
+                <select className={inputClass} value={evalHearing || ''} onChange={(e) => setEvalHearing(e.target.value ? parseInt(e.target.value) : null)}>
+                  {SCORE_OPTIONS.map((opt) => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">提案</label>
-                <select
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-                  value={evalProposal || ''}
-                  onChange={(e) => setEvalProposal(e.target.value ? parseInt(e.target.value) : null)}
-                >
-                  {SCORE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
+                <select className={inputClass} value={evalProposal || ''} onChange={(e) => setEvalProposal(e.target.value ? parseInt(e.target.value) : null)}>
+                  {SCORE_OPTIONS.map((opt) => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">クロージング</label>
-                <select
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-                  value={evalClosing || ''}
-                  onChange={(e) => setEvalClosing(e.target.value ? parseInt(e.target.value) : null)}
-                >
-                  {SCORE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
+                <select className={inputClass} value={evalClosing || ''} onChange={(e) => setEvalClosing(e.target.value ? parseInt(e.target.value) : null)}>
+                  {SCORE_OPTIONS.map((opt) => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">印象</label>
-                <select
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-                  value={evalImpression || ''}
-                  onChange={(e) => setEvalImpression(e.target.value ? parseInt(e.target.value) : null)}
-                >
-                  {SCORE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
+                <select className={inputClass} value={evalImpression || ''} onChange={(e) => setEvalImpression(e.target.value ? parseInt(e.target.value) : null)}>
+                  {SCORE_OPTIONS.map((opt) => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
                 </select>
               </div>
             </div>
@@ -1470,13 +1547,7 @@ function InterviewRecordModal({
 
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">振り返りコメント</label>
-              <input
-                type="text"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-                placeholder="一言メモ..."
-                value={evalComment}
-                onChange={(e) => setEvalComment(e.target.value)}
-              />
+              <input type="text" className={inputClass} placeholder="一言メモ..." value={evalComment} onChange={(e) => setEvalComment(e.target.value)} />
             </div>
           </div>
 
