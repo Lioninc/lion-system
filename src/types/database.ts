@@ -140,11 +140,12 @@ export interface Source {
   created_at: string
 }
 
-export type CompanyType = 'dispatch' | 'direct'
+export type CompanyType = 'dispatch' | 'direct' | 'client'
 
 export const COMPANY_TYPE_LABELS: Record<CompanyType, string> = {
-  dispatch: '派遣（ブルーカラー）',
-  direct: '紹介（ホワイトカラー）',
+  dispatch: '派遣会社',
+  direct: '紹介企業（ホワイトカラー）',
+  client: '派遣先企業',
 }
 
 export interface Company {
@@ -153,6 +154,7 @@ export interface Company {
   name: string
   business_type: string | null
   company_type: CompanyType
+  company_type_v2: CompanyType | null
   postal_code: string | null
   prefecture: string | null
   city: string | null
@@ -191,10 +193,12 @@ export interface Job {
   fee_amount: number | null
   fee_percentage: number | null
   notes: string | null
+  client_company_id: string | null
   status: 'open' | 'closed' | 'paused'
   created_at: string
   updated_at: string
   company?: Company
+  client_company?: Company
 }
 
 export interface Referral {
