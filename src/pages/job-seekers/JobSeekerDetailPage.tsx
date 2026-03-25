@@ -529,7 +529,6 @@ export function JobSeekerDetailPage() {
                 <InfoRow label="学校名" value={job_seeker.education_school} />
                 <InfoRow label="学部・学科" value={job_seeker.education_faculty} />
                 <InfoRow label="卒業年" value={job_seeker.graduation_year ? `${job_seeker.graduation_year}年` : null} />
-                <InfoRow label="学歴（旧）" value={job_seeker.education} />
               </div>
             </Card>
 
@@ -562,10 +561,6 @@ export function JobSeekerDetailPage() {
                   <p className="text-sm text-slate-500">転職理由</p>
                   <p className="text-sm text-slate-800 whitespace-pre-wrap">{job_seeker.reason_for_change || '-'}</p>
                 </div>
-                <InfoRow label="職歴1（旧）" value={job_seeker.work_history_1} />
-                <InfoRow label="職歴2（旧）" value={job_seeker.work_history_2} />
-                <InfoRow label="職歴3（旧）" value={job_seeker.work_history_3} />
-                <InfoRow label="趣味・特技" value={job_seeker.hobbies} />
               </div>
             </Card>
 
