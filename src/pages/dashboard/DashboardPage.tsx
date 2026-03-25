@@ -128,7 +128,7 @@ export function DashboardPage() {
       ] = await Promise.all([
         applicationsQuery,
         interviewsQuery,
-        referralsResult ? referralsQuery : referralsQuery,
+        referralsQuery,
         revenueQuery,
       ])
 
