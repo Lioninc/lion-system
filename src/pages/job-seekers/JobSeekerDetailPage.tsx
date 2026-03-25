@@ -879,7 +879,7 @@ export function JobSeekerDetailPage() {
       {showStatusModal && (
         <Modal onClose={() => setShowStatusModal(false)} title="ステータス変更">
           <div className="space-y-2">
-            {Object.entries(APPLICATION_STATUS_LABELS).map(([status, label]) => (
+            {Object.entries(APPLICATION_STATUS_LABELS).filter(([status]) => ['new', 'valid', 'invalid', 'no_answer'].includes(status)).map(([status, label]) => (
               <button
                 key={status}
                 onClick={() => updateApplicationStatus(status as ApplicationStatus)}
