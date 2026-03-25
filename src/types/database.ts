@@ -140,11 +140,19 @@ export interface Source {
   created_at: string
 }
 
+export type CompanyType = 'dispatch' | 'direct'
+
+export const COMPANY_TYPE_LABELS: Record<CompanyType, string> = {
+  dispatch: '派遣（ブルーカラー）',
+  direct: '紹介（ホワイトカラー）',
+}
+
 export interface Company {
   id: string
   tenant_id: string
   name: string
   business_type: string | null
+  company_type: CompanyType
   postal_code: string | null
   prefecture: string | null
   city: string | null
