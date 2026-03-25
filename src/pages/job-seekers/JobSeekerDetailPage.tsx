@@ -1000,28 +1000,30 @@ function ContactLogModal({
   onSave: () => void
 }) {
   const { user } = useAuthStore()
-  const [contactType, setContactType] = useState('phone')
-  const [direction, setDirection] = useState('outbound')
-  const [result, setResult] = useState('')
+  const [result, setResult] = useState<'connected' | 'absent' | 'voicemail' | ''>('')
   const [notes, setNotes] = useState('')
+  const [contactedAt, setContactedAt] = useState(() => {
+    const now = new Date()
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset())
+    return now.toISOString().slice(0, 16)
+  })
   const [interviewDate, setInterviewDate] = useState('')
   const [interviewTime, setInterviewTime] = useState('')
   const [saving, setSaving] = useState(false)
 
   async function handleSave() {
-    if (!user) return
+    if (!user || !result) return
 
     setSaving(true)
 
-    // 対応記録を保存
     const { data: contactLog, error } = await supabase.from('contact_logs').insert({
       application_id: applicationId,
-      contact_type: contactType,
-      direction: direction,
-      result: result || null,
+      contact_type: 'phone',
+      direction: 'outbound',
+      result,
       notes: notes || null,
       contacted_by: user.id,
-      contacted_at: new Date().toISOString(),
+      contacted_at: new Date(contactedAt).toISOString(),
     }).select().single()
 
     if (error) {
@@ -1047,7 +1049,6 @@ function ContactLogModal({
         console.error('Error creating interview:', interviewError)
       }
 
-      // 進捗ステータスを「電話面談予約済み」に更新
       await supabase
         .from('applications')
         .update({ progress_status: 'phone_interview_scheduled' })
@@ -1058,13 +1059,10 @@ function ContactLogModal({
     setSaving(false)
   }
 
-  const RESULT_OPTIONS = [
-    { value: '', label: '選択してください' },
+  const RESULT_BUTTONS: { value: 'connected' | 'absent' | 'voicemail'; label: string }[] = [
     { value: 'connected', label: '繋がった' },
     { value: 'absent', label: '不在' },
-    { value: 'callback', label: '折り返し依頼' },
     { value: 'voicemail', label: '留守電' },
-    { value: 'other', label: 'その他' },
   ]
 
   return (
@@ -1075,36 +1073,39 @@ function ContactLogModal({
           <h3 className="text-lg font-semibold text-slate-800">対応記録を追加</h3>
         </div>
         <div className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="連絡方法"
-              options={[
-                { value: 'phone', label: '電話' },
-                { value: 'line', label: 'LINE' },
-                { value: 'email', label: 'メール' },
-                { value: 'other', label: 'その他' },
-              ]}
-              value={contactType}
-              onChange={(e) => setContactType(e.target.value)}
-            />
-            <Select
-              label="方向"
-              options={[
-                { value: 'outbound', label: '発信（こちらから）' },
-                { value: 'inbound', label: '着信（先方から）' },
-              ]}
-              value={direction}
-              onChange={(e) => setDirection(e.target.value)}
+          {/* 日時 */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">日時</label>
+            <input
+              type="datetime-local"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+              value={contactedAt}
+              onChange={(e) => setContactedAt(e.target.value)}
             />
           </div>
 
-          <Select
-            label="結果"
-            options={RESULT_OPTIONS}
-            value={result}
-            onChange={(e) => setResult(e.target.value)}
-          />
+          {/* 結果（ボタン3択） */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">結果</label>
+            <div className="grid grid-cols-3 gap-2">
+              {RESULT_BUTTONS.map((btn) => (
+                <button
+                  key={btn.value}
+                  type="button"
+                  onClick={() => setResult(btn.value)}
+                  className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors border ${
+                    result === btn.value
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
+          {/* 繋がった → 面談予定 */}
           {result === 'connected' && (
             <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 space-y-3">
               <p className="text-sm font-medium text-blue-800">面談予定を設定</p>
@@ -1131,6 +1132,7 @@ function ContactLogModal({
             </div>
           )}
 
+          {/* メモ */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">対応内容メモ</label>
             <textarea
@@ -1146,7 +1148,7 @@ function ContactLogModal({
           <Button variant="outline" onClick={onClose}>
             キャンセル
           </Button>
-          <Button onClick={handleSave} isLoading={saving}>
+          <Button onClick={handleSave} isLoading={saving} disabled={!result}>
             保存
           </Button>
         </div>
