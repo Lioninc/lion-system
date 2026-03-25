@@ -87,6 +87,7 @@ export function JobSeekerDetailPage() {
   const [coordinators, setCoordinators] = useState<{ value: string; label: string }[]>([])
   const [allApplications, setAllApplications] = useState<ApplicationHistory[]>([])
   const [showResumeModal, setShowResumeModal] = useState(false)
+  const [showBookInterviewModal, setShowBookInterviewModal] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -755,8 +756,12 @@ export function JobSeekerDetailPage() {
 
         {activeTab === 'interviews' && (
           <Card padding="none">
-            <div className="p-4 border-b border-slate-200">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
               <h3 className="font-semibold text-slate-800">面談記録</h3>
+              <Button size="sm" onClick={() => setShowBookInterviewModal(true)}>
+                <Plus className="w-4 h-4 mr-1" />
+                面談予約
+              </Button>
             </div>
             {application.interviews && application.interviews.length > 0 ? (
               <div className="divide-y divide-slate-100">
@@ -827,8 +832,7 @@ export function JobSeekerDetailPage() {
               </div>
             ) : (
               <div className="p-8 text-center text-slate-500">
-                面談予定はありません。<br />
-                <span className="text-xs">対応記録で「繋がった」を選択すると面談予定を設定できます。</span>
+                面談予定はありません。
               </div>
             )}
           </Card>
@@ -920,6 +924,18 @@ export function JobSeekerDetailPage() {
           onSave={() => {
             setShowInterviewModal(false)
             setSelectedInterview(null)
+            fetchApplication()
+          }}
+        />
+      )}
+
+      {/* Book Interview Modal */}
+      {showBookInterviewModal && (
+        <BookInterviewModal
+          applicationId={application.id}
+          onClose={() => setShowBookInterviewModal(false)}
+          onSave={() => {
+            setShowBookInterviewModal(false)
             fetchApplication()
           }}
         />
@@ -1475,6 +1491,220 @@ function ContactDetailModal({
         <div className="flex justify-end mt-6">
           <Button variant="outline" onClick={onClose}>
             閉じる
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function BookInterviewModal({
+  applicationId,
+  onClose,
+  onSave,
+}: {
+  applicationId: string
+  onClose: () => void
+  onSave: () => void
+}) {
+  const { user } = useAuthStore()
+
+  const [scheduledDate, setScheduledDate] = useState(() => {
+    const now = new Date()
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset())
+    return now.toISOString().slice(0, 16)
+  })
+  const [employmentStatus, setEmploymentStatus] = useState<'離職中' | '就業中' | ''>('')
+  const [availableFrom, setAvailableFrom] = useState('')
+  const [workPeriod, setWorkPeriod] = useState<'長期' | '短期' | ''>('')
+  const [hasSideJob, setHasSideJob] = useState<boolean>(false)
+  const [familyStatus, setFamilyStatus] = useState<'未婚' | '既婚' | ''>('')
+  const [healthNotes, setHealthNotes] = useState('')
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    if (!user) return
+
+    setSaving(true)
+
+    const { error } = await supabase.from('interviews').insert({
+      application_id: applicationId,
+      scheduled_at: new Date(scheduledDate).toISOString(),
+      interviewer_id: user.id,
+      employment_status: employmentStatus || null,
+      available_from: availableFrom || null,
+      work_period: workPeriod || null,
+      has_side_job: hasSideJob,
+      family_status: familyStatus || null,
+      health_notes: healthNotes || null,
+      notes: notes || null,
+    })
+
+    if (error) {
+      console.error('Error creating interview:', error)
+      alert('保存に失敗しました')
+      setSaving(false)
+      return
+    }
+
+    // 進捗ステータスを「電話面談予約済み」に更新
+    await supabase
+      .from('applications')
+      .update({ progress_status: 'phone_interview_scheduled' })
+      .eq('id', applicationId)
+
+    onSave()
+    setSaving(false)
+  }
+
+  function ToggleButtons<T extends string>({
+    label,
+    options,
+    value,
+    onChange,
+  }: {
+    label: string
+    options: { value: T; label: string }[]
+    value: T | ''
+    onChange: (v: T) => void
+  }) {
+    return (
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-2">{label}</label>
+        <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => onChange(opt.value)}
+              className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors border ${
+                value === opt.value
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-hidden">
+        <div className="p-4 border-b border-slate-200">
+          <h3 className="text-lg font-semibold text-slate-800">面談予約</h3>
+        </div>
+        <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)] space-y-4">
+          {/* 面談日時 */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">面談日時</label>
+            <input
+              type="datetime-local"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+              value={scheduledDate}
+              onChange={(e) => setScheduledDate(e.target.value)}
+            />
+          </div>
+
+          {/* 担当者 */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">担当者</label>
+            <div className="px-3 py-2 bg-slate-100 rounded-lg text-sm text-slate-700">
+              {user?.name || '-'}
+            </div>
+          </div>
+
+          {/* 就業状況 */}
+          <ToggleButtons
+            label="就業状況"
+            options={[
+              { value: '離職中' as const, label: '離職中' },
+              { value: '就業中' as const, label: '就業中' },
+            ]}
+            value={employmentStatus}
+            onChange={setEmploymentStatus}
+          />
+
+          {/* 就業時期 */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">就業時期</label>
+            <input
+              type="text"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+              placeholder="即日可、〇月から等"
+              value={availableFrom}
+              onChange={(e) => setAvailableFrom(e.target.value)}
+            />
+          </div>
+
+          {/* 就業期間 */}
+          <ToggleButtons
+            label="就業期間"
+            options={[
+              { value: '長期' as const, label: '長期' },
+              { value: '短期' as const, label: '短期' },
+            ]}
+            value={workPeriod}
+            onChange={setWorkPeriod}
+          />
+
+          {/* 掛け持ち */}
+          <ToggleButtons
+            label="掛け持ち"
+            options={[
+              { value: 'なし', label: 'なし' },
+              { value: 'あり', label: 'あり' },
+            ]}
+            value={hasSideJob ? 'あり' : 'なし'}
+            onChange={(v) => setHasSideJob(v === 'あり')}
+          />
+
+          {/* 扶養 */}
+          <ToggleButtons
+            label="扶養"
+            options={[
+              { value: '未婚' as const, label: '未婚' },
+              { value: '既婚' as const, label: '既婚' },
+            ]}
+            value={familyStatus}
+            onChange={setFamilyStatus}
+          />
+
+          {/* 健康面 */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">健康面</label>
+            <textarea
+              rows={2}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+              placeholder="健康に関する備考..."
+              value={healthNotes}
+              onChange={(e) => setHealthNotes(e.target.value)}
+            />
+          </div>
+
+          {/* 備考 */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">備考</label>
+            <textarea
+              rows={3}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+              placeholder="メモ..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 p-4 border-t border-slate-200 bg-slate-50">
+          <Button variant="outline" onClick={onClose}>
+            キャンセル
+          </Button>
+          <Button onClick={handleSave} isLoading={saving}>
+            予約する
           </Button>
         </div>
       </div>

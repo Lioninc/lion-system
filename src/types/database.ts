@@ -255,6 +255,12 @@ export interface Interview {
   eval_comment: string | null
   notes: string | null
   interviewer_id: string | null
+  employment_status: string | null
+  available_from: string | null
+  work_period: string | null
+  has_side_job: boolean
+  family_status: string | null
+  health_notes: string | null
   created_at: string
   updated_at: string
 }
