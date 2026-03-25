@@ -7,7 +7,8 @@ import {
   TrendingUp,
   Calendar,
   AlertCircle,
-  ArrowRight
+  ArrowRight,
+  Clock,
 } from 'lucide-react'
 import { Card, Badge } from '../../components/ui'
 import { Header } from '../../components/layout'
@@ -29,6 +30,14 @@ interface TodayInterview {
   job_seeker_name: string
 }
 
+interface ConsideringItem {
+  id: string
+  applicationId: string
+  jobSeekerName: string
+  interviewDate: string
+  daysSince: number
+}
+
 interface DigUpItem {
   id: string
   name: string
@@ -48,6 +57,7 @@ export function DashboardPage() {
   })
   const [todayInterviews, setTodayInterviews] = useState<TodayInterview[]>([])
   const [digUpList, setDigUpList] = useState<DigUpItem[]>([])
+  const [consideringList, setConsideringList] = useState<ConsideringItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -174,6 +184,42 @@ export function DashboardPage() {
           })
         )
       }
+      // Fetch considering interviews for current user
+      if (user?.id) {
+        const { data: consideringData } = await supabase
+          .from('interviews')
+          .select(`
+            id,
+            scheduled_at,
+            conducted_at,
+            application:applications (
+              id,
+              job_seeker:job_seekers (
+                name
+              )
+            )
+          `)
+          .eq('result', 'considering')
+          .eq('interviewer_id', user.id)
+
+        if (consideringData) {
+          const now = Date.now()
+          setConsideringList(
+            (consideringData as any[]).map((iv) => {
+              const dateStr = iv.conducted_at || iv.scheduled_at
+              const daysSince = Math.floor((now - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24))
+              return {
+                id: iv.id,
+                applicationId: iv.application?.id || '',
+                jobSeekerName: iv.application?.job_seeker?.name || '不明',
+                interviewDate: dateStr,
+                daysSince,
+              }
+            }).sort((a: ConsideringItem, b: ConsideringItem) => b.daysSince - a.daysSince)
+          )
+        }
+      }
+
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
     }
@@ -230,6 +276,43 @@ export function DashboardPage() {
             })}
           </p>
         </div>
+
+        {/* Considering List */}
+        {!loading && consideringList.length > 0 && (
+          <Card padding="none" className="border-amber-200 bg-amber-50">
+            <div className="p-3 lg:p-4 border-b border-amber-200 flex items-center gap-2">
+              <Clock className="w-4 h-4 lg:w-5 lg:h-5 text-amber-600" />
+              <h3 className="text-sm lg:text-base font-semibold text-amber-800">検討中の求職者（{consideringList.length}件）</h3>
+            </div>
+            <div className="divide-y divide-amber-100">
+              {consideringList.map((item) => (
+                <Link
+                  key={item.id}
+                  to={`/job-seekers/${item.applicationId}`}
+                  className="block p-3 lg:p-4 hover:bg-amber-100/50 transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm lg:text-base font-medium text-slate-800 truncate">{item.jobSeekerName}</p>
+                      <p className="text-xs lg:text-sm text-slate-500">
+                        面談日: {new Date(item.interviewDate).toLocaleDateString('ja-JP')}
+                      </p>
+                    </div>
+                    <span className={`text-sm font-bold px-2 py-1 rounded flex-shrink-0 ${
+                      item.daysSince >= 5
+                        ? 'bg-red-100 text-red-600'
+                        : item.daysSince >= 3
+                        ? 'bg-yellow-100 text-yellow-700'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {item.daysSince}日経過
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </Card>
+        )}
 
         {/* Stat Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
