@@ -875,7 +875,7 @@ export function JobSeekerDetailPage() {
                               <Badge variant="info">予定</Badge>
                             )}
                             {interview.result && (
-                              <Badge variant={interview.result === 'connected' ? 'success' : interview.result === 'not_connected' ? 'danger' : 'warning'}>
+                              <Badge variant={interview.result === 'referred' ? 'success' : interview.result === 'not_connected' ? 'danger' : 'warning'}>
                                 {INTERVIEW_RESULT_LABELS[interview.result as InterviewResult] || interview.result}
                               </Badge>
                             )}
@@ -1357,16 +1357,13 @@ function InterviewRecordModal({
     if (interviewResult) {
       let progressStatus: string | null = null
       switch (interviewResult) {
-        case 'connected':
+        case 'referred':
           progressStatus = 'referred'
-          break
-        case 'not_connected':
-          progressStatus = 'phone_interview_done'
           break
         case 'considering':
           progressStatus = 'phone_interview_done'
           break
-        case 'waiting_referral':
+        case 'not_connected':
           progressStatus = 'phone_interview_done'
           break
       }
@@ -1556,10 +1553,9 @@ function InterviewRecordModal({
             label="面談結果"
             options={[
               { value: '', label: '選択してください' },
-              { value: 'connected', label: 'つなぎ' },
-              { value: 'not_connected', label: 'つなげず' },
+              { value: 'referred', label: '派遣面接組み' },
               { value: 'considering', label: '検討中' },
-              { value: 'waiting_referral', label: '紹介先連絡待ち' },
+              { value: 'not_connected', label: '繋げず' },
             ]}
             value={interviewResult}
             onChange={(e) => setInterviewResult(e.target.value)}
@@ -1567,8 +1563,8 @@ function InterviewRecordModal({
           {interviewResult && (
             <p className="text-xs text-slate-500">
               ※ 保存すると進捗ステータスが自動更新されます
-              {interviewResult === 'connected' && '（→ 派遣会社紹介済み）'}
-              {interviewResult !== 'connected' && '（→ 電話面談済み）'}
+              {interviewResult === 'referred' && '（→ 派遣会社紹介済み）'}
+              {interviewResult !== 'referred' && '（→ 電話面談済み）'}
             </p>
           )}
         </div>

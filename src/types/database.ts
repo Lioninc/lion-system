@@ -230,13 +230,12 @@ export interface ContactLog {
   created_at: string
 }
 
-export type InterviewResult = 'connected' | 'not_connected' | 'considering' | 'waiting_referral'
+export type InterviewResult = 'referred' | 'considering' | 'not_connected'
 
 export const INTERVIEW_RESULT_LABELS: Record<InterviewResult, string> = {
-  connected: 'つなぎ',
-  not_connected: 'つなげず',
+  referred: '派遣面接組み',
   considering: '検討中',
-  waiting_referral: '紹介先連絡待ち',
+  not_connected: '繋げず',
 }
 
 export interface Interview {
