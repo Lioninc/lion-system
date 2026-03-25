@@ -498,6 +498,12 @@ export function JobSeekerDetailPage() {
               <div className="space-y-3">
                 <InfoRow label="身長" value={job_seeker.height ? `${job_seeker.height}cm` : null} />
                 <InfoRow label="体重" value={job_seeker.weight ? `${job_seeker.weight}kg` : null} />
+                <InfoRow label="BMI" value={(() => {
+                  if (!job_seeker.height || !job_seeker.weight) return null
+                  const bmi = job_seeker.weight / ((job_seeker.height / 100) ** 2)
+                  const label = bmi < 18.5 ? '低体重' : bmi < 25 ? '普通体重' : bmi < 30 ? '肥満(1度)' : '肥満(2度以上)'
+                  return `${bmi.toFixed(1)}（${label}）`
+                })()} />
                 <InfoRow label="タトゥー" value={job_seeker.has_tattoo ? 'あり' : 'なし'} />
                 <InfoRow label="持病" value={job_seeker.has_medical_condition ? 'あり' : 'なし'} />
                 {job_seeker.has_medical_condition && job_seeker.medical_condition_detail && (
