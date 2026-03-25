@@ -15,3 +15,6 @@ export type { SelectProps, SelectOption } from './Select'
 
 export { CSVImportModal } from './CSVImportModal'
 export type { DuplicateAction } from './CSVImportModal'
+
+export { ResumeUploadModal } from './ResumeUploadModal'
+export type { ResumeParseResult } from './ResumeUploadModal'

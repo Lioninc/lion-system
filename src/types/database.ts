@@ -79,6 +79,35 @@ export interface JobSeeker {
   desired_start_date: string | null
   desired_period: string | null
   notes: string | null
+  photo_url: string | null
+  resume_url: string | null
+  education: string | null
+  work_history_1: string | null
+  work_history_2: string | null
+  work_history_3: string | null
+  qualifications: string | null
+  hobbies: string | null
+  education_level: string | null
+  education_school: string | null
+  education_faculty: string | null
+  graduation_year: number | null
+  work_history: string | null
+  current_job_type: string | null
+  reason_for_change: string | null
+  current_annual_income: number | null
+  desired_annual_income: number | null
+  desired_job_type: string | null
+  desired_employment_type: string | null
+  desired_work_location: string | null
+  remote_work_preference: string | null
+  pc_skill_level: string | null
+  language_skill: string | null
+  toeic_score: number | null
+  has_car_license: boolean
+  has_forklift: boolean
+  commute_method: string | null
+  commute_time: number | null
+  other_job_hunting: string | null
   created_by: string | null
   created_at: string
   updated_at: string

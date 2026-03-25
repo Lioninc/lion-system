@@ -12,8 +12,9 @@ import {
   Briefcase,
   ClipboardList,
   FileText,
+  Upload,
 } from 'lucide-react'
-import { Card, Button, Badge, Select } from '../../components/ui'
+import { Card, Button, Badge, Select, ResumeUploadModal } from '../../components/ui'
 import { Header } from '../../components/layout'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
@@ -85,6 +86,7 @@ export function JobSeekerDetailPage() {
   const [selectedContactLog, setSelectedContactLog] = useState<ContactLog | null>(null)
   const [coordinators, setCoordinators] = useState<{ value: string; label: string }[]>([])
   const [allApplications, setAllApplications] = useState<ApplicationHistory[]>([])
+  const [showResumeModal, setShowResumeModal] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -306,6 +308,10 @@ export function JobSeekerDetailPage() {
         title={displayName}
         action={
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowResumeModal(true)}>
+              <Upload className="w-4 h-4 mr-2" />
+              履歴書
+            </Button>
             <Button variant="outline" onClick={() => setShowContactModal(true)}>
               <Plus className="w-4 h-4 mr-2" />
               対応記録
@@ -449,7 +455,16 @@ export function JobSeekerDetailPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Personal Info */}
             <Card>
-              <h3 className="font-semibold text-slate-800 mb-4">個人情報</h3>
+              <div className="flex items-start gap-4 mb-4">
+                {job_seeker.photo_url && (
+                  <img
+                    src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/photos/${job_seeker.photo_url}`}
+                    alt="プロフィール写真"
+                    className="w-20 h-24 object-cover rounded border border-slate-200"
+                  />
+                )}
+                <h3 className="font-semibold text-slate-800">個人情報</h3>
+              </div>
               <div className="space-y-3">
                 <InfoRow label="氏名" value={displayName} />
                 <InfoRow label="氏名（カナ）" value={job_seeker.name_kana} />
@@ -505,6 +520,105 @@ export function JobSeekerDetailPage() {
                 <InfoRow label="希望期間" value={job_seeker.desired_period} />
               </div>
             </Card>
+
+            {/* Education */}
+            {(job_seeker.education_level || job_seeker.education_school || job_seeker.education) && (
+              <Card>
+                <h3 className="font-semibold text-slate-800 mb-4">学歴</h3>
+                <div className="space-y-3">
+                  <InfoRow label="最終学歴" value={job_seeker.education_level} />
+                  <InfoRow label="学校名" value={job_seeker.education_school} />
+                  <InfoRow label="学部・学科" value={job_seeker.education_faculty} />
+                  <InfoRow label="卒業年" value={job_seeker.graduation_year ? `${job_seeker.graduation_year}年` : null} />
+                  <InfoRow label="学歴（旧）" value={job_seeker.education} />
+                </div>
+              </Card>
+            )}
+
+            {/* Work History & Skills */}
+            {(job_seeker.current_job_type || job_seeker.work_history || job_seeker.qualifications || job_seeker.work_history_1) && (
+              <Card>
+                <h3 className="font-semibold text-slate-800 mb-4">職歴・スキル</h3>
+                <div className="space-y-3">
+                  <InfoRow label="現職の職種" value={job_seeker.current_job_type} />
+                  <InfoRow label="現在の年収" value={job_seeker.current_annual_income ? `${job_seeker.current_annual_income}万円` : null} />
+                  <InfoRow label="PCスキル" value={
+                    job_seeker.pc_skill_level === 'none' ? 'なし' :
+                    job_seeker.pc_skill_level === 'basic' ? '基本操作' :
+                    job_seeker.pc_skill_level === 'intermediate' ? 'Excel/Word活用' :
+                    job_seeker.pc_skill_level === 'advanced' ? '上級（マクロ/VBA等）' : null
+                  } />
+                  <InfoRow label="語学力" value={
+                    job_seeker.language_skill === 'none' ? 'なし' :
+                    job_seeker.language_skill === 'daily' ? '日常会話' :
+                    job_seeker.language_skill === 'business' ? 'ビジネスレベル' :
+                    job_seeker.language_skill === 'native' ? 'ネイティブ' : null
+                  } />
+                  <InfoRow label="TOEICスコア" value={job_seeker.toeic_score ? `${job_seeker.toeic_score}点` : null} />
+                  <InfoRow label="保有資格" value={job_seeker.qualifications} />
+                  <InfoRow label="他社選考状況" value={job_seeker.other_job_hunting} />
+                  {job_seeker.work_history && (
+                    <div>
+                      <p className="text-sm text-slate-500">職務経歴</p>
+                      <p className="text-sm text-slate-800 whitespace-pre-wrap">{job_seeker.work_history}</p>
+                    </div>
+                  )}
+                  {job_seeker.reason_for_change && (
+                    <div>
+                      <p className="text-sm text-slate-500">転職理由</p>
+                      <p className="text-sm text-slate-800 whitespace-pre-wrap">{job_seeker.reason_for_change}</p>
+                    </div>
+                  )}
+                  {job_seeker.work_history_1 && <InfoRow label="職歴1（旧）" value={job_seeker.work_history_1} />}
+                  {job_seeker.work_history_2 && <InfoRow label="職歴2（旧）" value={job_seeker.work_history_2} />}
+                  {job_seeker.work_history_3 && <InfoRow label="職歴3（旧）" value={job_seeker.work_history_3} />}
+                  <InfoRow label="趣味・特技" value={job_seeker.hobbies} />
+                </div>
+              </Card>
+            )}
+
+            {/* Desired Conditions */}
+            {(job_seeker.desired_job_type || job_seeker.desired_annual_income || job_seeker.desired_employment_type || job_seeker.desired_work_location) && (
+              <Card>
+                <h3 className="font-semibold text-slate-800 mb-4">希望条件</h3>
+                <div className="space-y-3">
+                  <InfoRow label="希望職種" value={job_seeker.desired_job_type} />
+                  <InfoRow label="希望雇用形態" value={job_seeker.desired_employment_type} />
+                  <InfoRow label="希望年収" value={job_seeker.desired_annual_income ? `${job_seeker.desired_annual_income}万円` : null} />
+                  <InfoRow label="希望勤務地" value={job_seeker.desired_work_location} />
+                  <InfoRow label="リモートワーク" value={
+                    job_seeker.remote_work_preference === 'office' ? '出社のみ' :
+                    job_seeker.remote_work_preference === 'hybrid' ? 'ハイブリッド' :
+                    job_seeker.remote_work_preference === 'full_remote' ? 'フルリモート' :
+                    job_seeker.remote_work_preference === 'any' ? 'こだわりなし' : null
+                  } />
+                </div>
+              </Card>
+            )}
+
+            {/* License & Commute */}
+            {(job_seeker.has_car_license || job_seeker.has_forklift || job_seeker.commute_method) && (
+              <Card>
+                <h3 className="font-semibold text-slate-800 mb-4">免許・通勤</h3>
+                <div className="space-y-3">
+                  <InfoRow label="普通自動車免許" value={job_seeker.has_car_license ? 'あり' : 'なし'} />
+                  <InfoRow label="フォークリフト免許" value={job_seeker.has_forklift ? 'あり' : 'なし'} />
+                  <InfoRow label="通勤手段" value={job_seeker.commute_method} />
+                  <InfoRow label="通勤時間" value={job_seeker.commute_time ? `${job_seeker.commute_time}分` : null} />
+                </div>
+              </Card>
+            )}
+
+            {/* Resume */}
+            {job_seeker.resume_url && (
+              <Card>
+                <h3 className="font-semibold text-slate-800 mb-4">履歴書</h3>
+                <div className="flex items-center gap-2 text-sm text-blue-600">
+                  <FileText className="w-4 h-4" />
+                  <span>アップロード済み</span>
+                </div>
+              </Card>
+            )}
 
             {/* Notes */}
             {job_seeker.notes && (
@@ -835,6 +949,25 @@ export function JobSeekerDetailPage() {
           }}
         />
       )}
+
+      {/* Resume Upload Modal */}
+      <ResumeUploadModal
+        isOpen={showResumeModal}
+        onClose={() => setShowResumeModal(false)}
+        jobSeeker={job_seeker}
+        onSave={async (data) => {
+          const { error } = await supabase
+            .from('job_seekers')
+            .update(data)
+            .eq('id', job_seeker.id)
+
+          if (error) {
+            throw new Error(`保存に失敗しました: ${error.message}`)
+          }
+
+          fetchApplication()
+        }}
+      />
     </div>
   )
 }
