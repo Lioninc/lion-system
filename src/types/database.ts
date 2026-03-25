@@ -298,6 +298,25 @@ export interface DispatchHistory {
   created_at: string
 }
 
+export type WorkStartContactType = 'week_before' | 'three_days_before' | 'on_day' | 'week_after'
+
+export const WORK_START_CONTACT_TYPE_LABELS: Record<WorkStartContactType, string> = {
+  week_before: '1週間前',
+  three_days_before: '3日前',
+  on_day: '当日',
+  week_after: '1週間後',
+}
+
+export interface WorkStartContact {
+  id: string
+  tenant_id: string
+  referral_id: string
+  contact_type: WorkStartContactType
+  status: 'pending' | 'contacted'
+  created_at: string
+  updated_at: string
+}
+
 // Status display labels
 export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
   new: '新規応募',
