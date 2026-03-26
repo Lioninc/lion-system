@@ -106,6 +106,23 @@ const JOB_SEEKER_CSV_COLUMNS = [
   { key: 'other_job_hunting', label: '他社選考状況' },
   { key: 'source_name', label: '流入元' },
   { key: 'notes', label: '備考' },
+  // 応募・面談・紹介・稼働・売上
+  { key: 'coordinator_name', label: '応募担当者' },
+  { key: 'applied_at', label: '応募日' },
+  { key: 'interview_date', label: '面談日' },
+  { key: 'interviewer_name', label: '面談担当者' },
+  { key: 'interview_result', label: '面談結果' },
+  { key: 'dispatch_company_name', label: '派遣会社名' },
+  { key: 'client_company_name', label: '派遣先企業名' },
+  { key: 'referred_at', label: '紹介日' },
+  { key: 'dispatch_interview_at', label: '派遣会社面接日' },
+  { key: 'hired_at', label: '採用日' },
+  { key: 'assignment_date', label: '赴任日' },
+  { key: 'start_work_date', label: '稼働開始日' },
+  { key: 'referral_status', label: '稼働状況' },
+  { key: 'sale_amount', label: '売上金額' },
+  { key: 'payment_month', label: '入金月' },
+  { key: 'payment_amount', label: '入金額' },
 ]
 
 function csvParseBoolean(value: string): boolean {
@@ -128,6 +145,20 @@ function csvParseEmploymentStatus(value: string): 'employed' | 'unemployed' | nu
   if (value === '就業中') return 'employed'
   if (value === '離職中' || value === '無職') return 'unemployed'
   return null
+}
+
+function csvParseInterviewResult(value: string): string | null {
+  if (value === '派遣面接組み') return 'referred'
+  if (value === '検討中') return 'considering'
+  if (value === '繋げず') return 'not_connected'
+  return value || null
+}
+
+function csvParseReferralStatus(value: string): string {
+  if (value === '赴任前') return 'pre_assignment'
+  if (value === '稼働前') return 'assigned'
+  if (value === '稼働済み') return 'working'
+  return value || 'referred'
 }
 
 function buildJobSeekerFields(row: Record<string, string>) {
@@ -570,8 +601,15 @@ export function JobSeekerListPage() {
     let skipped = 0
     let updated = 0
 
+    // Pre-fetch lookup tables
     const { data: sourcesData } = await supabase.from('sources').select('id, name')
     const sourceMap = new Map(sourcesData?.map((s) => [s.name, s.id]) || [])
+
+    const { data: usersData } = await supabase.from('users').select('id, name')
+    const userMap = new Map(usersData?.map((u) => [u.name, u.id]) || [])
+
+    const { data: companiesData } = await supabase.from('companies').select('id, name, company_type_v2')
+    const companyMap = new Map(companiesData?.map((c) => [c.name, c]) || [])
 
     const phones = data.map((row) => row.phone).filter(Boolean)
     const { data: existingJobSeekers } = await supabase
@@ -580,6 +618,53 @@ export function JobSeekerListPage() {
       .in('phone', phones)
 
     const existingPhoneMap = new Map(existingJobSeekers?.map((js) => [js.phone, js.id]) || [])
+
+    // Helper: find or create company
+    async function findOrCreateCompany(name: string, companyType: string): Promise<string | null> {
+      const existing = companyMap.get(name)
+      if (existing) return existing.id
+
+      const { data: newCompany, error } = await supabase
+        .from('companies')
+        .insert({ name, company_type: companyType, company_type_v2: companyType })
+        .select('id')
+        .single()
+
+      if (error || !newCompany) return null
+      companyMap.set(name, { id: newCompany.id, name, company_type_v2: companyType })
+      return newCompany.id
+    }
+
+    // Helper: find or create job
+    async function findOrCreateJob(companyId: string, clientCompanyId: string | null, title: string): Promise<string | null> {
+      let query = supabase
+        .from('jobs')
+        .select('id')
+        .eq('company_id', companyId)
+
+      if (clientCompanyId) {
+        query = query.eq('client_company_id', clientCompanyId)
+      } else {
+        query = query.is('client_company_id', null)
+      }
+
+      const { data: existingJobs } = await query.limit(1)
+      if (existingJobs && existingJobs.length > 0) return existingJobs[0].id
+
+      const { data: newJob, error } = await supabase
+        .from('jobs')
+        .insert({
+          company_id: companyId,
+          client_company_id: clientCompanyId,
+          title,
+          status: 'open',
+        })
+        .select('id')
+        .single()
+
+      if (error || !newJob) return null
+      return newJob.id
+    }
 
     for (let i = 0; i < data.length; i++) {
       const row = data[i]
@@ -590,6 +675,8 @@ export function JobSeekerListPage() {
         continue
       }
 
+      // === Step 1: Job Seeker ===
+      let jobSeekerId: string
       const existingId = existingPhoneMap.get(row.phone)
 
       if (existingId) {
@@ -597,60 +684,204 @@ export function JobSeekerListPage() {
           skipped++
           continue
         } else if (duplicateAction === 'update') {
-          const fields = buildJobSeekerFields(row)
           const { error: updateError } = await supabase
             .from('job_seekers')
-            .update(fields)
+            .update(buildJobSeekerFields(row))
             .eq('id', existingId)
 
           if (updateError) {
             errors.push(`行${rowNum}: 更新エラー - ${updateError.message}`)
             continue
           }
+          jobSeekerId = existingId
+          updated++
+        } else {
+          // duplicateAction === 'create'
+          const { data: newJs, error: jsErr } = await supabase
+            .from('job_seekers')
+            .insert(buildJobSeekerFields(row))
+            .select('id')
+            .single()
 
-          const sourceId = row.source_name ? sourceMap.get(row.source_name) : null
-          const { error: appError } = await supabase.from('applications').insert({
-            job_seeker_id: existingId,
-            source_id: sourceId,
-            application_status: 'new',
-            applied_at: new Date().toISOString(),
-          })
-
-          if (appError) {
-            errors.push(`行${rowNum}: 応募作成エラー - ${appError.message}`)
+          if (jsErr || !newJs) {
+            errors.push(`行${rowNum}: ${jsErr?.message || '作成失敗'}`)
             continue
           }
+          jobSeekerId = newJs.id
+          success++
+        }
+      } else {
+        const { data: newJs, error: jsErr } = await supabase
+          .from('job_seekers')
+          .insert(buildJobSeekerFields(row))
+          .select('id')
+          .single()
 
-          updated++
+        if (jsErr || !newJs) {
+          errors.push(`行${rowNum}: ${jsErr?.message || '作成失敗'}`)
           continue
+        }
+        jobSeekerId = newJs.id
+        success++
+      }
+
+      // === Step 2: Application ===
+      const sourceId = row.source_name ? sourceMap.get(row.source_name) || null : null
+      const coordinatorId = row.coordinator_name ? userMap.get(row.coordinator_name) || null : null
+      const appliedAt = row.applied_at || new Date().toISOString()
+
+      // Check existing application for this job_seeker
+      const { data: existingApps } = await supabase
+        .from('applications')
+        .select('id')
+        .eq('job_seeker_id', jobSeekerId)
+        .limit(1)
+
+      let applicationId: string
+      if (existingApps && existingApps.length > 0 && existingId && duplicateAction !== 'create') {
+        applicationId = existingApps[0].id
+        // Update coordinator if provided
+        if (coordinatorId) {
+          await supabase.from('applications').update({ coordinator_id: coordinatorId }).eq('id', applicationId)
+        }
+      } else {
+        const { data: newApp, error: appErr } = await supabase
+          .from('applications')
+          .insert({
+            job_seeker_id: jobSeekerId,
+            source_id: sourceId,
+            coordinator_id: coordinatorId,
+            application_status: 'new',
+            applied_at: appliedAt,
+          })
+          .select('id')
+          .single()
+
+        if (appErr || !newApp) {
+          errors.push(`行${rowNum}: 応募作成エラー - ${appErr?.message || '作成失敗'}`)
+          continue
+        }
+        applicationId = newApp.id
+      }
+
+      // === Step 3: Interview (if interview_date exists) ===
+      if (row.interview_date) {
+        const interviewerId = row.interviewer_name ? userMap.get(row.interviewer_name) || null : null
+        const result = csvParseInterviewResult(row.interview_result || '')
+
+        const { error: intErr } = await supabase.from('interviews').insert({
+          application_id: applicationId,
+          scheduled_at: row.interview_date,
+          conducted_at: row.interview_date,
+          interviewer_id: interviewerId,
+          result,
+        })
+
+        if (intErr) {
+          errors.push(`行${rowNum}: 面談作成エラー - ${intErr.message}`)
         }
       }
 
-      const { data: jobSeeker, error: jsError } = await supabase
-        .from('job_seekers')
-        .insert(buildJobSeekerFields(row))
-        .select('id')
-        .single()
+      // === Step 4: Companies + Jobs + Referrals (if dispatch_company_name exists) ===
+      if (row.dispatch_company_name) {
+        const dispatchCompanyId = await findOrCreateCompany(row.dispatch_company_name, 'dispatch')
+        if (!dispatchCompanyId) {
+          errors.push(`行${rowNum}: 派遣会社作成エラー`)
+          continue
+        }
 
-      if (jsError) {
-        errors.push(`行${rowNum}: ${jsError.message}`)
-        continue
+        let clientCompanyId: string | null = null
+        if (row.client_company_name) {
+          clientCompanyId = await findOrCreateCompany(row.client_company_name, 'client')
+          if (!clientCompanyId) {
+            errors.push(`行${rowNum}: 派遣先企業作成エラー`)
+            continue
+          }
+        }
+
+        const jobTitle = clientCompanyId
+          ? `${row.dispatch_company_name} → ${row.client_company_name}`
+          : row.dispatch_company_name
+
+        const jobId = await findOrCreateJob(dispatchCompanyId, clientCompanyId, jobTitle)
+        if (!jobId) {
+          errors.push(`行${rowNum}: 求人作成エラー`)
+          continue
+        }
+
+        // Check existing referral
+        const { data: existingRefs } = await supabase
+          .from('referrals')
+          .select('id')
+          .eq('application_id', applicationId)
+          .eq('job_id', jobId)
+          .limit(1)
+
+        let referralId: string
+        if (existingRefs && existingRefs.length > 0) {
+          referralId = existingRefs[0].id
+        } else {
+          const referralStatus = csvParseReferralStatus(row.referral_status || '')
+          const { data: newRef, error: refErr } = await supabase
+            .from('referrals')
+            .insert({
+              application_id: applicationId,
+              job_id: jobId,
+              referral_status: referralStatus,
+              referred_at: row.referred_at || new Date().toISOString(),
+              dispatch_interview_at: row.dispatch_interview_at || null,
+              hired_at: row.hired_at || null,
+              assignment_date: row.assignment_date || null,
+              start_work_date: row.start_work_date || null,
+            })
+            .select('id')
+            .single()
+
+          if (refErr || !newRef) {
+            errors.push(`行${rowNum}: 紹介作成エラー - ${refErr?.message || '作成失敗'}`)
+            continue
+          }
+          referralId = newRef.id
+        }
+
+        // === Step 5: Sale (if sale_amount exists) ===
+        if (row.sale_amount) {
+          const saleAmount = parseInt(row.sale_amount)
+          if (!isNaN(saleAmount)) {
+            const { data: newSale, error: saleErr } = await supabase
+              .from('sales')
+              .insert({
+                referral_id: referralId,
+                amount: saleAmount,
+                status: 'expected',
+              })
+              .select('id')
+              .single()
+
+            if (saleErr) {
+              errors.push(`行${rowNum}: 売上作成エラー - ${saleErr.message}`)
+            } else if (newSale) {
+              // === Step 6: Payment (if payment_amount exists) ===
+              if (row.payment_amount) {
+                const paymentAmount = parseInt(row.payment_amount)
+                if (!isNaN(paymentAmount)) {
+                  const payMonth = row.payment_month || null
+                  const { error: payErr } = await supabase.from('payments').insert({
+                    sale_id: newSale.id,
+                    amount: paymentAmount,
+                    paid_at: payMonth ? `${payMonth}-01` : new Date().toISOString(),
+                    payment_month: payMonth,
+                  })
+
+                  if (payErr) {
+                    errors.push(`行${rowNum}: 入金作成エラー - ${payErr.message}`)
+                  }
+                }
+              }
+            }
+          }
+        }
       }
-
-      const sourceId = row.source_name ? sourceMap.get(row.source_name) : null
-      const { error: appError } = await supabase.from('applications').insert({
-        job_seeker_id: jobSeeker.id,
-        source_id: sourceId,
-        application_status: 'new',
-        applied_at: new Date().toISOString(),
-      })
-
-      if (appError) {
-        errors.push(`行${rowNum}: 応募作成エラー - ${appError.message}`)
-        continue
-      }
-
-      success++
     }
 
     if (success > 0 || updated > 0) {
