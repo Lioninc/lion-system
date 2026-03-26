@@ -297,7 +297,9 @@ export interface Payment {
   sale_id: string
   amount: number
   paid_at: string
+  payment_month: string | null
   payment_method: string | null
+  refund_reason: string | null
   notes: string | null
   created_at: string
 }

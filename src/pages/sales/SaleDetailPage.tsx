@@ -10,11 +10,21 @@ import {
 import { Card, Button, Badge, Input } from '../../components/ui'
 import { Header } from '../../components/layout'
 import { supabase } from '../../lib/supabase'
-import { formatDate, formatCurrency } from '../../lib/utils'
+import { formatCurrency } from '../../lib/utils'
 import type { SaleStatus } from '../../types/database'
 import { SALE_STATUS_LABELS } from '../../types/database'
 
-interface SaleDetail {
+interface PaymentRecord {
+  id: string
+  amount: number
+  paid_at: string
+  payment_month: string | null
+  payment_method: string | null
+  refund_reason: string | null
+  notes: string | null
+}
+
+interface SaleRecord {
   id: string
   amount: number
   status: SaleStatus
@@ -23,41 +33,41 @@ interface SaleDetail {
   invoiced_date: string | null
   paid_date: string | null
   notes: string | null
-  referral: {
+  created_at: string
+}
+
+interface ReferralDetail {
+  id: string
+  referral_status: string
+  referred_at: string
+  application: {
     id: string
-    referral_status: string
-    referred_at: string
-    application: {
+    job_seeker: {
       id: string
-      job_seeker: {
-        id: string
-        name: string
-        phone: string
-      }
-      coordinator: {
-        id: string
-        name: string
-      } | null
+      name: string
+      phone: string
     }
-    job: {
+    coordinator: {
       id: string
-      title: string
-      fee_amount: number | null
-      company: {
-        id: string
-        name: string
-        phone: string | null
-        contact_person: string | null
-      }
+      name: string
+    } | null
+  }
+  job: {
+    id: string
+    title: string
+    fee_amount: number | null
+    company: {
+      id: string
+      name: string
+      phone: string | null
+      contact_person: string | null
     }
   }
-  payments?: {
-    id: string
-    amount: number
-    paid_at: string
-    payment_method: string | null
-    notes: string | null
-  }[]
+}
+
+interface SaleDetail extends SaleRecord {
+  referral: ReferralDetail
+  payments?: PaymentRecord[]
 }
 
 const SALE_STATUS_OPTIONS = Object.entries(SALE_STATUS_LABELS).map(([value, label]) => ({
@@ -69,9 +79,12 @@ export function SaleDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [sale, setSale] = useState<SaleDetail | null>(null)
+  const [allSales, setAllSales] = useState<SaleRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [showStatusModal, setShowStatusModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [showAddSaleModal, setShowAddSaleModal] = useState(false)
+  const [paymentMonth, setPaymentMonth] = useState('')
 
   useEffect(() => {
     if (id) {
@@ -122,7 +135,9 @@ export function SaleDetailPage() {
           id,
           amount,
           paid_at,
+          payment_month,
           payment_method,
+          refund_reason,
           notes
         )
       `)
@@ -135,7 +150,22 @@ export function SaleDetailPage() {
       return
     }
 
-    setSale(data as unknown as SaleDetail)
+    const saleData = data as unknown as SaleDetail
+    setSale(saleData)
+
+    // Fetch all sales for the same referral
+    if (saleData.referral?.id) {
+      const { data: salesData } = await supabase
+        .from('sales')
+        .select('*')
+        .eq('referral_id', saleData.referral.id)
+        .order('created_at', { ascending: false })
+
+      if (salesData) {
+        setAllSales(salesData as SaleRecord[])
+      }
+    }
+
     setLoading(false)
   }
 
@@ -144,18 +174,6 @@ export function SaleDetailPage() {
 
     const updates: Record<string, string | null> = {
       status: newStatus,
-    }
-
-    // Auto-fill dates based on status
-    const now = new Date().toISOString()
-    if (newStatus === 'confirmed' && !sale.confirmed_date) {
-      updates.confirmed_date = now
-    }
-    if (newStatus === 'invoiced' && !sale.invoiced_date) {
-      updates.invoiced_date = now
-    }
-    if (newStatus === 'paid' && !sale.paid_date) {
-      updates.paid_date = now
     }
 
     const { error } = await supabase
@@ -169,7 +187,6 @@ export function SaleDetailPage() {
       return
     }
 
-    // If marked as paid, update application progress status
     if (newStatus === 'paid') {
       await supabase
         .from('applications')
@@ -177,20 +194,24 @@ export function SaleDetailPage() {
         .eq('id', sale.referral.application.id)
     }
 
-    setSale({ ...sale, status: newStatus, ...updates })
+    setSale({ ...sale, status: newStatus })
     setShowStatusModal(false)
   }
 
-  async function updateDate(field: string, value: string) {
+  async function updatePaymentMonth(value: string) {
     if (!sale) return
 
+    setPaymentMonth(value)
+
+    // Save to expected_date field as YYYY-MM-01
+    const dateValue = value ? `${value}-01` : null
     const { error } = await supabase
       .from('sales')
-      .update({ [field]: value || null })
+      .update({ expected_date: dateValue })
       .eq('id', sale.id)
 
     if (!error) {
-      setSale({ ...sale, [field]: value || null })
+      setSale({ ...sale, expected_date: dateValue })
     }
   }
 
@@ -213,17 +234,30 @@ export function SaleDetailPage() {
   }
 
   const { referral } = sale
-  const totalPaid = sale.payments?.reduce((sum, p) => sum + p.amount, 0) || 0
-  const remaining = sale.amount - totalPaid
+
+  // Aggregate all payments across all sales for this referral
+  const allPayments = sale.payments || []
+  const totalPaid = allPayments.reduce((sum, p) => sum + p.amount, 0)
+  const totalSalesAmount = allSales.reduce((sum, s) => sum + s.amount, 0)
+  const remaining = totalSalesAmount - totalPaid
+
+  // Derive payment month from expected_date
+  const currentPaymentMonth = sale.expected_date ? sale.expected_date.substring(0, 7) : ''
 
   return (
     <div>
       <Header
         title="売上詳細"
         action={
-          <Button onClick={() => setShowStatusModal(true)}>
-            ステータス変更
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowAddSaleModal(true)}>
+              <Plus className="w-4 h-4 mr-1" />
+              売上追加
+            </Button>
+            <Button onClick={() => setShowStatusModal(true)}>
+              ステータス変更
+            </Button>
+          </div>
         }
       />
 
@@ -238,14 +272,15 @@ export function SaleDetailPage() {
               <p className="text-3xl font-bold text-slate-800 mt-2">
                 {formatCurrency(sale.amount)}
               </p>
-              {sale.payments && sale.payments.length > 0 && (
-                <div className="flex items-center gap-4 mt-2 text-sm">
-                  <span className="text-emerald-600">入金済: {formatCurrency(totalPaid)}</span>
-                  {remaining > 0 && (
-                    <span className="text-amber-600">残額: {formatCurrency(remaining)}</span>
-                  )}
-                </div>
-              )}
+              <div className="flex items-center gap-4 mt-2 text-sm">
+                <span className="text-emerald-600">入金済: {formatCurrency(totalPaid)}</span>
+                {remaining > 0 && (
+                  <span className="text-amber-600">残額: {formatCurrency(remaining)}</span>
+                )}
+                {remaining < 0 && (
+                  <span className="text-red-600">超過: {formatCurrency(Math.abs(remaining))}</span>
+                )}
+              </div>
             </div>
             <div className="text-right">
               <p className="text-sm text-slate-500">紹介元</p>
@@ -306,71 +341,91 @@ export function SaleDetailPage() {
           </Card>
         </div>
 
-        {/* Dates */}
+        {/* Payment Month */}
         <Card>
-          <h3 className="font-semibold text-slate-800 mb-4">日程</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm text-slate-500 mb-1">入金予定日</label>
-              <Input
-                type="date"
-                value={sale.expected_date?.split('T')[0] || ''}
-                onChange={(e) => updateDate('expected_date', e.target.value)}
-                className="text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-slate-500 mb-1">確定日</label>
-              <Input
-                type="date"
-                value={sale.confirmed_date?.split('T')[0] || ''}
-                onChange={(e) => updateDate('confirmed_date', e.target.value)}
-                className="text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-slate-500 mb-1">請求日</label>
-              <Input
-                type="date"
-                value={sale.invoiced_date?.split('T')[0] || ''}
-                onChange={(e) => updateDate('invoiced_date', e.target.value)}
-                className="text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-slate-500 mb-1">入金日</label>
-              <Input
-                type="date"
-                value={sale.paid_date?.split('T')[0] || ''}
-                onChange={(e) => updateDate('paid_date', e.target.value)}
-                className="text-sm"
-              />
-            </div>
+          <h3 className="font-semibold text-slate-800 mb-4">入金月</h3>
+          <div className="max-w-xs">
+            <Input
+              type="month"
+              value={paymentMonth || currentPaymentMonth}
+              onChange={(e) => updatePaymentMonth(e.target.value)}
+              className="text-sm"
+            />
           </div>
         </Card>
+
+        {/* All Sales for this Referral */}
+        {allSales.length > 1 && (
+          <Card padding="none">
+            <div className="p-4 border-b border-slate-200">
+              <h3 className="font-semibold text-slate-800">この紹介の売上一覧</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                合計: {formatCurrency(totalSalesAmount)}（{allSales.length}件）
+              </p>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {allSales.map((s) => (
+                <div
+                  key={s.id}
+                  className={`p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 ${
+                    s.id === sale.id ? 'bg-primary/5 border-l-4 border-primary' : ''
+                  }`}
+                  onClick={() => {
+                    if (s.id !== sale.id) navigate(`/sales/${s.id}`)
+                  }}
+                >
+                  <div>
+                    <p className="font-medium text-slate-800">{formatCurrency(s.amount)}</p>
+                    <p className="text-sm text-slate-500">
+                      {new Date(s.created_at).toLocaleDateString('ja-JP')}
+                    </p>
+                  </div>
+                  <Badge variant={getSaleStatusBadgeVariant(s.status)}>
+                    {SALE_STATUS_LABELS[s.status]}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         {/* Payments */}
         <Card padding="none">
           <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-            <h3 className="font-semibold text-slate-800">入金履歴</h3>
+            <div>
+              <h3 className="font-semibold text-slate-800">入金履歴</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                売上 {formatCurrency(totalSalesAmount)} / 入金済 {formatCurrency(totalPaid)} / 残り {formatCurrency(Math.max(0, remaining))}
+              </p>
+            </div>
             <Button size="sm" onClick={() => setShowPaymentModal(true)}>
               <Plus className="w-4 h-4 mr-1" />
               入金を記録
             </Button>
           </div>
-          {sale.payments && sale.payments.length > 0 ? (
+          {allPayments.length > 0 ? (
             <div className="divide-y divide-slate-100">
-              {sale.payments
-                .sort((a, b) => new Date(b.paid_at).getTime() - new Date(a.paid_at).getTime())
+              {allPayments
+                .sort((a, b) => {
+                  // Sort by payment_month desc, then paid_at desc
+                  const monthA = a.payment_month || ''
+                  const monthB = b.payment_month || ''
+                  if (monthA !== monthB) return monthB.localeCompare(monthA)
+                  return new Date(b.paid_at).getTime() - new Date(a.paid_at).getTime()
+                })
                 .map((payment) => (
                   <div key={payment.id} className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-medium text-slate-800">
-                          {formatCurrency(payment.amount)}
+                        <p className={`font-medium ${payment.amount < 0 ? 'text-red-600' : 'text-slate-800'}`}>
+                          {payment.amount < 0 ? (
+                            <>返金 {formatCurrency(Math.abs(payment.amount))}</>
+                          ) : (
+                            formatCurrency(payment.amount)
+                          )}
                         </p>
-                        {payment.payment_method && (
-                          <p className="text-sm text-slate-500">{payment.payment_method}</p>
+                        {payment.refund_reason && (
+                          <p className="text-sm text-red-500 mt-1">理由: {payment.refund_reason}</p>
                         )}
                         {payment.notes && (
                           <p className="text-sm text-slate-500 mt-1">{payment.notes}</p>
@@ -378,7 +433,7 @@ export function SaleDetailPage() {
                       </div>
                       <div className="flex items-center gap-2 text-sm text-slate-500">
                         <Calendar className="w-4 h-4" />
-                        {formatDate(payment.paid_at)}
+                        {payment.payment_month || new Date(payment.paid_at).toLocaleDateString('ja-JP')}
                       </div>
                     </div>
                   </div>
@@ -434,10 +489,22 @@ export function SaleDetailPage() {
       {showPaymentModal && (
         <PaymentModal
           saleId={sale.id}
-          defaultAmount={remaining}
+          defaultAmount={remaining > 0 ? remaining : 0}
           onClose={() => setShowPaymentModal(false)}
           onSave={() => {
             setShowPaymentModal(false)
+            fetchSale()
+          }}
+        />
+      )}
+
+      {/* Add Sale Modal */}
+      {showAddSaleModal && sale.referral && (
+        <AddSaleModal
+          referralId={sale.referral.id}
+          onClose={() => setShowAddSaleModal(false)}
+          onSave={() => {
+            setShowAddSaleModal(false)
             fetchSale()
           }}
         />
@@ -458,22 +525,26 @@ function PaymentModal({
   onSave: () => void
 }) {
   const [amount, setAmount] = useState(defaultAmount > 0 ? defaultAmount.toString() : '')
-  const [paidAt, setPaidAt] = useState(new Date().toISOString().split('T')[0])
-  const [paymentMethod, setPaymentMethod] = useState('')
-  const [notes, setNotes] = useState('')
+  const [paymentMonth, setPaymentMonth] = useState(
+    new Date().toISOString().substring(0, 7)
+  )
+  const [refundReason, setRefundReason] = useState('')
   const [saving, setSaving] = useState(false)
 
+  const numericAmount = parseInt(amount) || 0
+  const isRefund = numericAmount < 0
+
   async function handleSave() {
-    if (!amount || !paidAt) return
+    if (!amount || !paymentMonth) return
 
     setSaving(true)
 
     const { error } = await supabase.from('payments').insert({
       sale_id: saleId,
       amount: parseInt(amount),
-      paid_at: paidAt,
-      payment_method: paymentMethod || null,
-      notes: notes || null,
+      paid_at: `${paymentMonth}-01`,
+      payment_month: paymentMonth,
+      refund_reason: isRefund && refundReason ? refundReason : null,
     })
 
     if (error) {
@@ -493,6 +564,94 @@ function PaymentModal({
         <h3 className="text-lg font-semibold text-slate-800 mb-4">入金を記録</h3>
         <div className="space-y-4">
           <Input
+            label="入金年月"
+            type="month"
+            value={paymentMonth}
+            onChange={(e) => setPaymentMonth(e.target.value)}
+            required
+          />
+          <div>
+            <Input
+              label="金額（マイナス=返金）"
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="例: 400000 または -100000"
+              required
+            />
+            {isRefund && (
+              <p className="text-sm text-red-500 mt-1">※ マイナスのため返金として記録されます</p>
+            )}
+          </div>
+          {isRefund && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">返金理由</label>
+              <textarea
+                rows={2}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                placeholder="返金理由を入力..."
+                value={refundReason}
+                onChange={(e) => setRefundReason(e.target.value)}
+              />
+            </div>
+          )}
+        </div>
+        <div className="flex justify-end gap-2 mt-6">
+          <Button variant="outline" onClick={onClose}>
+            キャンセル
+          </Button>
+          <Button onClick={handleSave} isLoading={saving} disabled={!amount || !paymentMonth}>
+            記録
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AddSaleModal({
+  referralId,
+  onClose,
+  onSave,
+}: {
+  referralId: string
+  onClose: () => void
+  onSave: () => void
+}) {
+  const [amount, setAmount] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    if (!amount) return
+
+    setSaving(true)
+
+    const { error } = await supabase.from('sales').insert({
+      referral_id: referralId,
+      amount: parseInt(amount),
+      status: 'expected',
+    })
+
+    if (error) {
+      console.error('Error creating sale:', error)
+      alert('売上の追加に失敗しました')
+    } else {
+      onSave()
+    }
+
+    setSaving(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
+        <h3 className="text-lg font-semibold text-slate-800 mb-4">売上を追加</h3>
+        <p className="text-sm text-slate-500 mb-4">
+          同じ紹介に新しい売上レコードを追加します。
+        </p>
+        <div className="space-y-4">
+          <Input
             label="金額"
             type="number"
             value={amount}
@@ -500,36 +659,13 @@ function PaymentModal({
             placeholder="金額を入力"
             required
           />
-          <Input
-            label="入金日"
-            type="date"
-            value={paidAt}
-            onChange={(e) => setPaidAt(e.target.value)}
-            required
-          />
-          <Input
-            label="入金方法"
-            value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value)}
-            placeholder="例: 銀行振込、現金"
-          />
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">メモ</label>
-            <textarea
-              rows={2}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-              placeholder="備考..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
         </div>
         <div className="flex justify-end gap-2 mt-6">
           <Button variant="outline" onClick={onClose}>
             キャンセル
           </Button>
-          <Button onClick={handleSave} isLoading={saving} disabled={!amount || !paidAt}>
-            記録
+          <Button onClick={handleSave} isLoading={saving} disabled={!amount}>
+            追加
           </Button>
         </div>
       </div>
