@@ -737,7 +737,7 @@ function SaleModal({
   onSave: () => void
 }) {
   const [amount, setAmount] = useState(defaultAmount.toString())
-  const [expectedDate, setExpectedDate] = useState('')
+
   const [saving, setSaving] = useState(false)
 
   async function handleSave() {
@@ -749,7 +749,6 @@ function SaleModal({
       referral_id: referralId,
       amount: parseInt(amount),
       status: 'expected',
-      expected_date: expectedDate || null,
     })
 
     if (error) {
@@ -774,12 +773,6 @@ function SaleModal({
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="金額を入力"
-          />
-          <Input
-            label="入金予定日"
-            type="date"
-            value={expectedDate}
-            onChange={(e) => setExpectedDate(e.target.value)}
           />
         </div>
         <div className="flex justify-end gap-2 mt-6">
