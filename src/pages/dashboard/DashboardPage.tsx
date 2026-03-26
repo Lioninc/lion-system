@@ -154,7 +154,10 @@ export function DashboardPage() {
           ),
           job:jobs (
             title,
-            company:companies (
+            company:companies!company_id (
+              name
+            ),
+            client_company:companies!client_company_id (
               name
             )
           )
@@ -202,7 +205,10 @@ export function DashboardPage() {
           ),
           job:jobs (
             title,
-            company:companies (
+            company:companies!company_id (
+              name
+            ),
+            client_company:companies!client_company_id (
               name
             )
           ),

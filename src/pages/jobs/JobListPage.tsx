@@ -67,7 +67,8 @@ export function JobListPage() {
       .from('jobs')
       .select(`
         *,
-        company:companies (*)
+        company:companies!company_id (*),
+        client_company:companies!client_company_id (*)
       `)
       .order('created_at', { ascending: false })
 

@@ -125,11 +125,15 @@ export function ReferralDetailPage() {
           fee_type,
           fee_amount,
           fee_percentage,
-          company:companies (
+          company:companies!company_id (
             id,
             name,
             phone,
             contact_person
+          ),
+          client_company:companies!client_company_id (
+            id,
+            name
           )
         ),
         sales (

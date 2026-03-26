@@ -94,7 +94,8 @@ export function LegalDocumentsPage() {
             title,
             job_type,
             prefecture,
-            company:companies (name)
+            company:companies!company_id (name),
+            client_company:companies!client_company_id (name)
           )
         )
       `)
@@ -186,7 +187,8 @@ export function LegalDocumentsPage() {
             title,
             fee_type,
             fee_amount,
-            company:companies (name)
+            company:companies!company_id (name),
+            client_company:companies!client_company_id (name)
           )
         )
       `)

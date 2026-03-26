@@ -91,7 +91,11 @@ export function ReferralListPage() {
         job:jobs (
           id,
           title,
-          company:companies (
+          company:companies!company_id (
+            id,
+            name
+          ),
+          client_company:companies!client_company_id (
             id,
             name
           )

@@ -106,11 +106,15 @@ export function SaleDetailPage() {
             id,
             title,
             fee_amount,
-            company:companies (
+            company:companies!company_id (
               id,
               name,
               phone,
               contact_person
+            ),
+            client_company:companies!client_company_id (
+              id,
+              name
             )
           )
         ),

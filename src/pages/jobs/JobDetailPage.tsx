@@ -43,7 +43,8 @@ export function JobDetailPage() {
       .from('jobs')
       .select(`
         *,
-        company:companies (*)
+        company:companies!company_id (*),
+        client_company:companies!client_company_id (*)
       `)
       .eq('id', id)
       .single()

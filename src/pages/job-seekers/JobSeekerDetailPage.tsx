@@ -126,7 +126,10 @@ export function JobSeekerDetailPage() {
           job:jobs (
             id,
             title,
-            company:companies (
+            company:companies!company_id (
+              name
+            ),
+            client_company:companies!client_company_id (
               name
             )
           )
