@@ -95,7 +95,6 @@ export function ReferralNewPage() {
   const [showAddDirect, setShowAddDirect] = useState(false)
 
   const [notes, setNotes] = useState('')
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -144,7 +143,6 @@ export function ReferralNewPage() {
       return
     }
     setApplication(data as unknown as ApplicationWithSeeker)
-    setLoading(false)
   }
 
   async function fetchCompanies(type: CompanyType) {
