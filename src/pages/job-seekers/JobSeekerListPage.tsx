@@ -63,17 +63,121 @@ const PAGE_SIZE = 20
 const JOB_SEEKER_CSV_COLUMNS = [
   { key: 'name', label: '氏名', required: true },
   { key: 'phone', label: '電話番号', required: true },
-  { key: 'email', label: 'メールアドレス' },
   { key: 'name_kana', label: 'フリガナ' },
+  { key: 'email', label: 'メールアドレス' },
+  { key: 'line_id', label: 'LINE ID' },
   { key: 'birth_date', label: '生年月日' },
   { key: 'gender', label: '性別' },
   { key: 'postal_code', label: '郵便番号' },
   { key: 'prefecture', label: '都道府県' },
   { key: 'city', label: '市区町村' },
-  { key: 'address', label: '番地' },
+  { key: 'address', label: '番地・建物名' },
+  { key: 'height', label: '身長' },
+  { key: 'weight', label: '体重' },
+  { key: 'has_tattoo', label: 'タトゥー' },
+  { key: 'has_medical_condition', label: '持病' },
+  { key: 'medical_condition_detail', label: '持病の詳細' },
+  { key: 'has_spouse', label: '配偶者' },
+  { key: 'has_children', label: '子供' },
+  { key: 'employment_status', label: '就業状況' },
+  { key: 'desired_start_date', label: '希望開始日' },
+  { key: 'desired_period', label: '希望期間' },
+  { key: 'education_level', label: '最終学歴' },
+  { key: 'education_school', label: '学校名' },
+  { key: 'education_faculty', label: '学部・学科' },
+  { key: 'graduation_year', label: '卒業年' },
+  { key: 'work_history', label: '職務経歴' },
+  { key: 'current_job_type', label: '現職の職種' },
+  { key: 'reason_for_change', label: '転職理由' },
+  { key: 'current_annual_income', label: '現在の年収' },
+  { key: 'desired_annual_income', label: '希望年収' },
+  { key: 'desired_job_type', label: '希望職種' },
+  { key: 'desired_employment_type', label: '希望雇用形態' },
+  { key: 'desired_work_location', label: '希望勤務地' },
+  { key: 'remote_work_preference', label: 'リモートワーク希望' },
+  { key: 'pc_skill_level', label: 'PCスキル' },
+  { key: 'qualifications', label: '保有資格' },
+  { key: 'language_skill', label: '語学力' },
+  { key: 'toeic_score', label: 'TOEICスコア' },
+  { key: 'has_car_license', label: '普通自動車免許' },
+  { key: 'has_forklift', label: 'フォークリフト免許' },
+  { key: 'commute_method', label: '通勤手段' },
+  { key: 'commute_time', label: '通勤時間' },
+  { key: 'other_job_hunting', label: '他社選考状況' },
   { key: 'source_name', label: '流入元' },
   { key: 'notes', label: '備考' },
 ]
+
+function csvParseBoolean(value: string): boolean {
+  return ['あり', 'true', '1', 'yes'].includes(value.toLowerCase().trim())
+}
+
+function csvParseNumber(value: string): number | null {
+  if (!value || value.trim() === '') return null
+  const num = Number(value)
+  return isNaN(num) ? null : num
+}
+
+function csvParseGender(value: string): 'male' | 'female' | null {
+  if (value === '男性') return 'male'
+  if (value === '女性') return 'female'
+  return null
+}
+
+function csvParseEmploymentStatus(value: string): 'employed' | 'unemployed' | null {
+  if (value === '就業中') return 'employed'
+  if (value === '離職中' || value === '無職') return 'unemployed'
+  return null
+}
+
+function buildJobSeekerFields(row: Record<string, string>) {
+  return {
+    name: row.name,
+    phone: row.phone,
+    name_kana: row.name_kana || null,
+    email: row.email || null,
+    line_id: row.line_id || null,
+    birth_date: row.birth_date || null,
+    gender: csvParseGender(row.gender || ''),
+    postal_code: row.postal_code || null,
+    prefecture: row.prefecture || null,
+    city: row.city || null,
+    address: row.address || null,
+    height: csvParseNumber(row.height || ''),
+    weight: csvParseNumber(row.weight || ''),
+    has_tattoo: csvParseBoolean(row.has_tattoo || ''),
+    has_medical_condition: csvParseBoolean(row.has_medical_condition || ''),
+    medical_condition_detail: row.medical_condition_detail || null,
+    has_spouse: csvParseBoolean(row.has_spouse || ''),
+    has_children: csvParseBoolean(row.has_children || ''),
+    employment_status: csvParseEmploymentStatus(row.employment_status || ''),
+    desired_start_date: row.desired_start_date || null,
+    desired_period: row.desired_period || null,
+    education_level: row.education_level || null,
+    education_school: row.education_school || null,
+    education_faculty: row.education_faculty || null,
+    graduation_year: csvParseNumber(row.graduation_year || ''),
+    work_history: row.work_history || null,
+    current_job_type: row.current_job_type || null,
+    reason_for_change: row.reason_for_change || null,
+    current_annual_income: csvParseNumber(row.current_annual_income || ''),
+    desired_annual_income: csvParseNumber(row.desired_annual_income || ''),
+    desired_job_type: row.desired_job_type || null,
+    desired_employment_type: row.desired_employment_type || null,
+    desired_work_location: row.desired_work_location || null,
+    remote_work_preference: row.remote_work_preference || null,
+    pc_skill_level: row.pc_skill_level || null,
+    qualifications: row.qualifications || null,
+    language_skill: row.language_skill || null,
+    toeic_score: csvParseNumber(row.toeic_score || ''),
+    has_car_license: csvParseBoolean(row.has_car_license || ''),
+    has_forklift: csvParseBoolean(row.has_forklift || ''),
+    commute_method: row.commute_method || null,
+    commute_time: csvParseNumber(row.commute_time || ''),
+    other_job_hunting: row.other_job_hunting || null,
+    notes: row.notes || null,
+  }
+}
 
 export function JobSeekerListPage() {
   const navigate = useNavigate()
@@ -493,20 +597,10 @@ export function JobSeekerListPage() {
           skipped++
           continue
         } else if (duplicateAction === 'update') {
+          const fields = buildJobSeekerFields(row)
           const { error: updateError } = await supabase
             .from('job_seekers')
-            .update({
-              name: row.name,
-              email: row.email || null,
-              name_kana: row.name_kana || null,
-              birth_date: row.birth_date || null,
-              gender: row.gender === '男性' ? 'male' : row.gender === '女性' ? 'female' : null,
-              postal_code: row.postal_code || null,
-              prefecture: row.prefecture || null,
-              city: row.city || null,
-              address: row.address || null,
-              notes: row.notes || null,
-            })
+            .update(fields)
             .eq('id', existingId)
 
           if (updateError) {
@@ -534,19 +628,7 @@ export function JobSeekerListPage() {
 
       const { data: jobSeeker, error: jsError } = await supabase
         .from('job_seekers')
-        .insert({
-          name: row.name,
-          phone: row.phone,
-          email: row.email || null,
-          name_kana: row.name_kana || null,
-          birth_date: row.birth_date || null,
-          gender: row.gender === '男性' ? 'male' : row.gender === '女性' ? 'female' : null,
-          postal_code: row.postal_code || null,
-          prefecture: row.prefecture || null,
-          city: row.city || null,
-          address: row.address || null,
-          notes: row.notes || null,
-        })
+        .insert(buildJobSeekerFields(row))
         .select('id')
         .single()
 
