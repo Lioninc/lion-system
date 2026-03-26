@@ -61,6 +61,10 @@ interface ReferralDetail {
       phone: string | null
       contact_person: string | null
     }
+    client_company: {
+      id: string
+      name: string
+    } | null
   }
   sales?: {
     id: string
@@ -70,6 +74,12 @@ interface ReferralDetail {
     paid_date: string | null
   }[]
 }
+
+const WORK_STATUS_OPTIONS: { value: ReferralStatus; label: string }[] = [
+  { value: 'pre_assignment', label: '赴任前' },
+  { value: 'assigned', label: '赴任済み' },
+  { value: 'working', label: '稼働中' },
+]
 
 const REFERRAL_STATUS_OPTIONS = Object.entries(REFERRAL_STATUS_LABELS).map(([value, label]) => ({
   value,
@@ -83,6 +93,11 @@ export function ReferralDetailPage() {
   const [loading, setLoading] = useState(true)
   const [showStatusModal, setShowStatusModal] = useState(false)
   const [showSaleModal, setShowSaleModal] = useState(false)
+  const [editingFee, setEditingFee] = useState(false)
+  const [feeType, setFeeType] = useState<'fixed' | 'percentage'>('fixed')
+  const [feeAmount, setFeeAmount] = useState('')
+  const [feePercentage, setFeePercentage] = useState('')
+  const [savingFee, setSavingFee] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -153,7 +168,11 @@ export function ReferralDetailPage() {
       return
     }
 
-    setReferral(data as unknown as ReferralDetail)
+    const r = data as unknown as ReferralDetail
+    setReferral(r)
+    setFeeType(r.job.fee_type === 'percentage' ? 'percentage' : 'fixed')
+    setFeeAmount(r.job.fee_amount?.toString() || '')
+    setFeePercentage(r.job.fee_percentage?.toString() || '')
     setLoading(false)
   }
 
@@ -250,6 +269,39 @@ export function ReferralDetailPage() {
     }
   }
 
+  async function saveFee() {
+    if (!referral) return
+    setSavingFee(true)
+
+    const updates: Record<string, string | number | null> = {
+      fee_type: feeType,
+      fee_amount: feeType === 'fixed' && feeAmount ? parseFloat(feeAmount) : null,
+      fee_percentage: feeType === 'percentage' && feePercentage ? parseFloat(feePercentage) : null,
+    }
+
+    const { error } = await supabase
+      .from('jobs')
+      .update(updates)
+      .eq('id', referral.job.id)
+
+    if (error) {
+      console.error('Error updating fee:', error)
+      alert('紹介料の保存に失敗しました')
+    } else {
+      setReferral({
+        ...referral,
+        job: {
+          ...referral.job,
+          fee_type: feeType,
+          fee_amount: updates.fee_amount as number | null,
+          fee_percentage: updates.fee_percentage as number | null,
+        },
+      })
+      setEditingFee(false)
+    }
+    setSavingFee(false)
+  }
+
   function getStatusBadgeVariant(status: ReferralStatus): 'default' | 'success' | 'warning' | 'danger' | 'info' | 'purple' {
     switch (status) {
       case 'referred': return 'info'
@@ -310,15 +362,118 @@ export function ReferralDetailPage() {
                 <span className="text-slate-800 font-medium">{job.title}</span>
               </div>
             </div>
-            {job.fee_amount && (
-              <div className="text-right">
-                <p className="text-sm text-slate-500">成功報酬</p>
-                <p className="text-2xl font-bold text-emerald-600">
-                  {formatCurrency(job.fee_amount)}
-                </p>
+            <div className="text-right">
+              <p className="text-sm text-slate-500">成功報酬</p>
+              <p className="text-2xl font-bold text-emerald-600">
+                {job.fee_type === 'percentage' && job.fee_percentage
+                  ? `${job.fee_percentage}%`
+                  : job.fee_amount
+                  ? formatCurrency(job.fee_amount)
+                  : '未設定'}
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {/* Work Status Toggle */}
+        {(['hired', 'pre_assignment', 'assigned', 'working'] as ReferralStatus[]).includes(referral.referral_status) && (
+          <Card>
+            <h3 className="font-semibold text-slate-800 mb-3">稼働ステータス</h3>
+            <div className="flex gap-2">
+              {WORK_STATUS_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => updateStatus(opt.value)}
+                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    referral.referral_status === opt.value
+                      ? 'bg-primary text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </Card>
+        )}
+
+        {/* Fee Editing Section */}
+        <Card>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-slate-800">紹介料</h3>
+            {!editingFee ? (
+              <Button variant="outline" size="sm" onClick={() => setEditingFee(true)}>
+                編集
+              </Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => {
+                  setEditingFee(false)
+                  setFeeType(job.fee_type === 'percentage' ? 'percentage' : 'fixed')
+                  setFeeAmount(job.fee_amount?.toString() || '')
+                  setFeePercentage(job.fee_percentage?.toString() || '')
+                }}>
+                  キャンセル
+                </Button>
+                <Button size="sm" onClick={saveFee} isLoading={savingFee}>
+                  保存
+                </Button>
               </div>
             )}
           </div>
+          {editingFee ? (
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setFeeType('fixed')}
+                  className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    feeType === 'fixed'
+                      ? 'bg-primary text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  固定額
+                </button>
+                <button
+                  onClick={() => setFeeType('percentage')}
+                  className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    feeType === 'percentage'
+                      ? 'bg-primary text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  パーセンテージ
+                </button>
+              </div>
+              {feeType === 'fixed' ? (
+                <Input
+                  label="紹介料（円）"
+                  type="number"
+                  value={feeAmount}
+                  onChange={(e) => setFeeAmount(e.target.value)}
+                  placeholder="例: 300000"
+                />
+              ) : (
+                <Input
+                  label="紹介料（%）"
+                  type="number"
+                  value={feePercentage}
+                  onChange={(e) => setFeePercentage(e.target.value)}
+                  placeholder="例: 30"
+                />
+              )}
+            </div>
+          ) : (
+            <div className="text-slate-600">
+              {job.fee_type === 'fixed' && job.fee_amount ? (
+                <p>固定額: <span className="font-semibold text-emerald-600">{formatCurrency(job.fee_amount)}</span></p>
+              ) : job.fee_type === 'percentage' && job.fee_percentage ? (
+                <p>年収の <span className="font-semibold text-emerald-600">{job.fee_percentage}%</span></p>
+              ) : (
+                <p className="text-slate-400">未設定</p>
+              )}
+            </div>
+          )}
         </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
