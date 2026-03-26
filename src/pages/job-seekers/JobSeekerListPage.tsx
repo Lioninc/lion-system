@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Search,
   Plus,
@@ -76,6 +76,7 @@ const JOB_SEEKER_CSV_COLUMNS = [
 ]
 
 export function JobSeekerListPage() {
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [jobSeekers, setJobSeekers] = useState<JobSeekerSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -715,7 +716,7 @@ export function JobSeekerListPage() {
                   <div
                     key={js.id}
                     className="p-4 hover:bg-slate-50 cursor-pointer"
-                    onClick={() => window.location.href = `/job-seekers/${js.latest_application_id}`}
+                    onClick={() => navigate(`/job-seekers/${js.latest_application_id}`)}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
@@ -806,7 +807,7 @@ export function JobSeekerListPage() {
                       <tr
                         key={js.id}
                         className="hover:bg-slate-50 cursor-pointer"
-                        onClick={() => window.location.href = `/job-seekers/${js.latest_application_id}`}
+                        onClick={() => navigate(`/job-seekers/${js.latest_application_id}`)}
                       >
                         <td className="px-4 py-4">
                           <div>
