@@ -280,6 +280,14 @@ export function ReportsPage() {
       const referralAppMap = new Map<string, string>()
       for (const ref of allReferrals) referralAppMap.set(ref.id, ref.application_id)
 
+      // application → interviewer_id lookup (from the earliest conducted interview)
+      const appInterviewerMap = new Map<string, string | null>()
+      for (const iv of allInterviews) {
+        if (iv.conducted_at && !appInterviewerMap.has(iv.application_id)) {
+          appInterviewerMap.set(iv.application_id, iv.interviewer_id)
+        }
+      }
+
       // referral → interview month: find earliest interview for this application
       const appInterviewMonth = new Map<string, string>()
       for (const iv of allInterviews) {
@@ -330,7 +338,10 @@ export function ReportsPage() {
         if (!ivMonth) continue
 
         const m = ensureMonth(ivMonth)
-        m.referrals += 1
+        // 繋ぎ = referral_status が 'interview_done' のみカウント
+        if (ref.referral_status === 'interview_done') {
+          m.referrals += 1
+        }
 
         const sales = salesByRef.get(ref.id) || []
         if (sales.length > 0) {
@@ -523,8 +534,18 @@ export function ReportsPage() {
       }
 
       for (const ref of allReferrals) {
-        const crd = ensureCoord(ref.application_id)
-        crd.referrals += 1
+        // 繋ぎ数はinterviewer_id（面談担当者）で集計、interview_doneのみ
+        const interviewerId = appInterviewerMap.get(ref.application_id)
+        const iKey = interviewerId || '_none'
+        if (!crdMap.has(iKey)) {
+          const name = interviewerId ? (coordNameMap.get(interviewerId) || '不明') : '未設定'
+          crdMap.set(iKey, { name, interviews: 0, referrals: 0, prospects: 0, working: 0, workingSales: 0 })
+        }
+        const crd = crdMap.get(iKey)!
+
+        if (ref.referral_status === 'interview_done') {
+          crd.referrals += 1
+        }
 
         const sales = salesByRef.get(ref.id) || []
         if (sales.length > 0) crd.prospects += 1
