@@ -237,7 +237,8 @@ export function ReportsPage() {
         application_id: string
         scheduled_at: string
         conducted_at: string | null
-      }>('interviews', 'id, application_id, scheduled_at, conducted_at')
+        interviewer_id: string | null
+      }>('interviews', 'id, application_id, scheduled_at, conducted_at, interviewer_id')
       const allInterviews = rawInterviews.filter((iv) => appIdSet.has(iv.application_id))
 
       // 3. Referrals
@@ -511,7 +512,13 @@ export function ReportsPage() {
 
       for (const iv of allInterviews) {
         if (iv.conducted_at) {
-          ensureCoord(iv.application_id).interviews += 1
+          // 面接数はinterviewer_id（面談担当者）で集計
+          const interviewerKey = iv.interviewer_id || '_none'
+          if (!crdMap.has(interviewerKey)) {
+            const name = iv.interviewer_id ? (coordNameMap.get(iv.interviewer_id) || '不明') : '未設定'
+            crdMap.set(interviewerKey, { name, interviews: 0, referrals: 0, prospects: 0, working: 0, workingSales: 0 })
+          }
+          crdMap.get(interviewerKey)!.interviews += 1
         }
       }
 
