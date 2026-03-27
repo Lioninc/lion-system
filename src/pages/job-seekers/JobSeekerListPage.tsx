@@ -740,15 +740,39 @@ export function JobSeekerListPage() {
     const sourceMap = new Map(sourcesData?.map((s) => [s.name, s.id]) || [])
 
     const { data: usersData } = await supabase.from('users').select('id, name')
-    // Build user lookup: exact name → id, and normalized (no spaces) → id
+    const userList = usersData || []
+    // Build user lookup: exact name, normalized (no spaces), and prefix (surname) match
     const userMap = new Map<string, string>()
-    for (const u of usersData || []) {
+    for (const u of userList) {
       userMap.set(u.name, u.id)
-      // Also register without spaces (full-width & half-width)
       const normalized = u.name.replace(/[\s\u3000]/g, '')
       if (normalized !== u.name) userMap.set(normalized, u.id)
     }
-    console.log('[CSV Import] 登録ユーザー名一覧:', (usersData || []).map((u) => u.name))
+    // Lookup user by name: exact → normalized → best prefix match (longest overlap wins)
+    function findUserId(name: string): string | null {
+      if (!name) return null
+      const trimmed = name.trim()
+      const trimmedNoSpace = trimmed.replace(/[\s\u3000]/g, '')
+      // Exact or normalized match first
+      const exact = userMap.get(trimmed) || userMap.get(trimmedNoSpace)
+      if (exact) return exact
+      // Prefix match: longest overlap wins, then closest name length to query wins
+      // e.g. "山口正" → "山口正信"(3 match) > "山口達也"(2 match)
+      // e.g. "山口" → "山口達也"(2 match, diff=2) = "山口正信"(2 match, diff=2) → first match
+      let bestMatch: { id: string; overlap: number; diff: number } | null = null
+      for (const u of userList) {
+        const uNorm = u.name.replace(/[\s\u3000]/g, '')
+        if (uNorm.startsWith(trimmedNoSpace) || trimmedNoSpace.startsWith(uNorm)) {
+          const overlap = Math.min(uNorm.length, trimmedNoSpace.length)
+          const diff = Math.abs(uNorm.length - trimmedNoSpace.length)
+          if (!bestMatch || overlap > bestMatch.overlap || (overlap === bestMatch.overlap && diff < bestMatch.diff)) {
+            bestMatch = { id: u.id, overlap, diff }
+          }
+        }
+      }
+      return bestMatch?.id || null
+    }
+    console.log('[CSV Import] 登録ユーザー名一覧:', userList.map((u) => u.name))
 
     const { data: companiesData } = await supabase.from('companies').select('id, name, company_type_v2')
     const companyMap = new Map(companiesData?.map((c) => [c.name, c]) || [])
@@ -874,14 +898,9 @@ export function JobSeekerListPage() {
 
       // === Step 2: Application ===
       const sourceId = row.source_name ? sourceMap.get(row.source_name) || null : null
-      // Lookup coordinator: try exact match, then normalized (no spaces)
-      let coordinatorId: string | null = null
-      if (row.coordinator_name) {
-        const name = row.coordinator_name.trim()
-        coordinatorId = userMap.get(name) || userMap.get(name.replace(/[\s\u3000]/g, '')) || null
-        if (!coordinatorId) {
-          console.warn(`[CSV Import] 行${rowNum}: 応募担当者「${name}」がusersテーブルに見つかりません`)
-        }
+      const coordinatorId = findUserId(row.coordinator_name || '')
+      if (row.coordinator_name && !coordinatorId) {
+        console.warn(`[CSV Import] 行${rowNum}: 応募担当者「${row.coordinator_name}」がusersテーブルに見つかりません`)
       }
       const appliedAt = csvParseDate(row.applied_at) || new Date().toISOString()
 
@@ -921,13 +940,9 @@ export function JobSeekerListPage() {
 
       // === Step 3: Interview (if interview_date exists) ===
       if (row.interview_date) {
-        let interviewerId: string | null = null
-        if (row.interviewer_name) {
-          const name = row.interviewer_name.trim()
-          interviewerId = userMap.get(name) || userMap.get(name.replace(/[\s\u3000]/g, '')) || null
-          if (!interviewerId) {
-            console.warn(`[CSV Import] 行${rowNum}: 面談担当者「${name}」がusersテーブルに見つかりません`)
-          }
+        const interviewerId = findUserId(row.interviewer_name || '')
+        if (row.interviewer_name && !interviewerId) {
+          console.warn(`[CSV Import] 行${rowNum}: 面談担当者「${row.interviewer_name}」がusersテーブルに見つかりません`)
         }
         const result = csvParseInterviewResult(row.interview_result || '')
 
