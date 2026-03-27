@@ -511,16 +511,6 @@ export function ReportsPage() {
         workingSales: number
       }>()
 
-      const ensureCoord = (appId: string) => {
-        const coordId = appCoordMap.get(appId)
-        const key = coordId || '_none'
-        if (!crdMap.has(key)) {
-          const name = coordId ? (coordNameMap.get(coordId) || '不明') : '未設定'
-          crdMap.set(key, { name, interviews: 0, referrals: 0, prospects: 0, working: 0, workingSales: 0 })
-        }
-        return crdMap.get(key)!
-      }
-
       for (const iv of allInterviews) {
         if (iv.conducted_at) {
           // 面接数はinterviewer_id（面談担当者）で集計
