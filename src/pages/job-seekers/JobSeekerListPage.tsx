@@ -740,7 +740,15 @@ export function JobSeekerListPage() {
     const sourceMap = new Map(sourcesData?.map((s) => [s.name, s.id]) || [])
 
     const { data: usersData } = await supabase.from('users').select('id, name')
-    const userMap = new Map(usersData?.map((u) => [u.name, u.id]) || [])
+    // Build user lookup: exact name → id, and normalized (no spaces) → id
+    const userMap = new Map<string, string>()
+    for (const u of usersData || []) {
+      userMap.set(u.name, u.id)
+      // Also register without spaces (full-width & half-width)
+      const normalized = u.name.replace(/[\s\u3000]/g, '')
+      if (normalized !== u.name) userMap.set(normalized, u.id)
+    }
+    console.log('[CSV Import] 登録ユーザー名一覧:', (usersData || []).map((u) => u.name))
 
     const { data: companiesData } = await supabase.from('companies').select('id, name, company_type_v2')
     const companyMap = new Map(companiesData?.map((c) => [c.name, c]) || [])
@@ -866,7 +874,15 @@ export function JobSeekerListPage() {
 
       // === Step 2: Application ===
       const sourceId = row.source_name ? sourceMap.get(row.source_name) || null : null
-      const coordinatorId = row.coordinator_name ? userMap.get(row.coordinator_name) || null : null
+      // Lookup coordinator: try exact match, then normalized (no spaces)
+      let coordinatorId: string | null = null
+      if (row.coordinator_name) {
+        const name = row.coordinator_name.trim()
+        coordinatorId = userMap.get(name) || userMap.get(name.replace(/[\s\u3000]/g, '')) || null
+        if (!coordinatorId) {
+          console.warn(`[CSV Import] 行${rowNum}: 応募担当者「${name}」がusersテーブルに見つかりません`)
+        }
+      }
       const appliedAt = csvParseDate(row.applied_at) || new Date().toISOString()
 
       // Check existing application for this job_seeker
@@ -905,7 +921,14 @@ export function JobSeekerListPage() {
 
       // === Step 3: Interview (if interview_date exists) ===
       if (row.interview_date) {
-        const interviewerId = row.interviewer_name ? userMap.get(row.interviewer_name) || null : null
+        let interviewerId: string | null = null
+        if (row.interviewer_name) {
+          const name = row.interviewer_name.trim()
+          interviewerId = userMap.get(name) || userMap.get(name.replace(/[\s\u3000]/g, '')) || null
+          if (!interviewerId) {
+            console.warn(`[CSV Import] 行${rowNum}: 面談担当者「${name}」がusersテーブルに見つかりません`)
+          }
+        }
         const result = csvParseInterviewResult(row.interview_result || '')
 
         const { error: intErr } = await supabase.from('interviews').insert({
