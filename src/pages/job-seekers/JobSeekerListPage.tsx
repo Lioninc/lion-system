@@ -271,6 +271,20 @@ const CSV_IMPORT_FORMATS: ImportFormat[] = [
 
 function preprocessApplicationSheetRow(row: Record<string, string>): Record<string, string> {
   const processed = { ...row }
+  const year = processed.year || new Date().getFullYear().toString()
+
+  // 電話番号: ハイフン除去
+  if (processed.phone) {
+    processed.phone = processed.phone.replace(/-/g, '')
+  }
+
+  // 日付変換: MM/DD → YYYY/MM/DD (年列と結合)
+  const dateFields = ['applied_at', 'interview_date', 'dispatch_interview_at', 'assignment_date', 'start_work_date_planned', 'start_work_date_actual', 'birth_date']
+  for (const field of dateFields) {
+    if (processed[field] && /^\d{1,2}\/\d{1,2}$/.test(processed[field])) {
+      processed[field] = `${year}/${processed[field]}`
+    }
+  }
 
   // 配偶者: 既婚→あり (true), 未婚/other→ empty (false)
   if (processed.has_spouse === '既婚') processed.has_spouse = 'あり'
@@ -721,6 +735,11 @@ export function JobSeekerListPage() {
 
     const { data: companiesData } = await supabase.from('companies').select('id, name, company_type_v2')
     const companyMap = new Map(companiesData?.map((c) => [c.name, c]) || [])
+
+    // Normalize all phone numbers (remove hyphens)
+    for (const row of data) {
+      if (row.phone) row.phone = row.phone.replace(/-/g, '')
+    }
 
     const phones = data.map((row) => row.phone).filter(Boolean)
     const { data: existingJobSeekers } = await supabase
