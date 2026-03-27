@@ -265,6 +265,15 @@ export function ReportsPage() {
       }>('sales', 'id, referral_id, amount, status, expected_date, confirmed_date, paid_date, created_at')
       const allSales = rawSales.filter((s) => refIdSet.has(s.referral_id))
 
+      // 5. Payments
+      const saleIdSet = new Set(allSales.map((s) => s.id))
+      const rawPayments = await fetchAllRows<{
+        id: string
+        sale_id: string
+        amount: number
+      }>('payments', 'id, sale_id, amount')
+      const allPayments = rawPayments.filter((p) => saleIdSet.has(p.sale_id))
+
       // Lookup maps
       const appCoordMap = new Map<string, string | null>()
       for (const app of allApps) appCoordMap.set(app.id, app.coordinator_id)
@@ -438,10 +447,12 @@ export function ReportsPage() {
       setSalesMonthData(sortedSalesMonths)
 
       // ============================================================
-      // ストック・当月テーブル
+      // ストック・当月テーブル（面接月ベース）
       // ============================================================
-      // 各salesレコードの「稼働月」を決定
-      // confirmed_date or expected_dateから月を取得
+      // 面接月 = interviews.scheduled_at の年月
+      // 稼働月 = referrals.start_work_date の年月
+      // ストック: 面接月 ≠ 稼働月 → 面接月に計上
+      // 当月: 面接月 = 稼働月 → 面接月に計上
       const stockMap = new Map<string, {
         stockCount: number
         stockSales: number
@@ -458,29 +469,47 @@ export function ReportsPage() {
         return stockMap.get(month)!
       }
 
-      for (const sale of allSales) {
-        // 稼働月 = confirmed_date or expected_date
-        const workDate = sale.confirmed_date || sale.expected_date
-        if (!workDate) continue
-        const workMonth = workDate.substring(0, 7)
-        const createdMonth = sale.created_at.substring(0, 7)
-        const sm = ensureStockMonth(workMonth)
+      // sale_id → referral_id lookup
+      const saleRefMap = new Map<string, string>()
+      for (const sale of allSales) saleRefMap.set(sale.id, sale.referral_id)
 
-        if (createdMonth < workMonth) {
-          // ストック: 過去月に作成
+      // referral_id → referral lookup
+      const refById = new Map<string, typeof allReferrals[number]>()
+      for (const ref of allReferrals) refById.set(ref.id, ref)
+
+      for (const ref of allReferrals) {
+        if (!ref.start_work_date) continue
+        const workMonth = ref.start_work_date.substring(0, 7)
+        const ivMonth = appInterviewMonth.get(ref.application_id)
+        if (!ivMonth) continue
+
+        const sm = ensureStockMonth(ivMonth)
+        const sales = salesByRef.get(ref.id) || []
+        const refSalesAmount = sales.reduce((sum, s) => sum + s.amount, 0)
+
+        if (ivMonth !== workMonth) {
+          // ストック: 面接月 ≠ 稼働月
           sm.stockCount += 1
-          sm.stockSales += sale.amount
-        } else if (createdMonth === workMonth) {
-          // 当月作成
+          sm.stockSales += refSalesAmount
+        } else {
+          // 当月: 面接月 = 稼働月
           sm.currentCount += 1
-          sm.currentSales += sale.amount
+          sm.currentSales += refSalesAmount
         }
 
-        sm.totalSales += sale.amount
+        sm.totalSales += refSalesAmount
+      }
 
-        if (sale.status === 'paid') {
-          sm.paidAmount += sale.amount
-        }
+      // 入金: payments の amount を面接月に紐付け
+      for (const payment of allPayments) {
+        const referralId = saleRefMap.get(payment.sale_id)
+        if (!referralId) continue
+        const ref = refById.get(referralId)
+        if (!ref) continue
+        const ivMonth = appInterviewMonth.get(ref.application_id)
+        if (!ivMonth) continue
+        const sm = ensureStockMonth(ivMonth)
+        sm.paidAmount += payment.amount
       }
 
       const sortedStock = Array.from(stockMap.entries())
