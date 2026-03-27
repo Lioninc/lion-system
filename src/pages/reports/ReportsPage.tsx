@@ -338,10 +338,7 @@ export function ReportsPage() {
         if (!ivMonth) continue
 
         const m = ensureMonth(ivMonth)
-        // 繋ぎ = referral_status が 'interview_done' のみカウント
-        if (ref.referral_status === 'interview_done') {
-          m.referrals += 1
-        }
+        m.referrals += 1
 
         const sales = salesByRef.get(ref.id) || []
         if (sales.length > 0) {
@@ -533,9 +530,7 @@ export function ReportsPage() {
         }
         const crd = crdMap.get(iKey)!
 
-        if (ref.referral_status === 'interview_done') {
-          crd.referrals += 1
-        }
+        crd.referrals += 1
 
         const sales = salesByRef.get(ref.id) || []
         if (sales.length > 0) crd.prospects += 1
