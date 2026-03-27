@@ -57,8 +57,6 @@ interface StockRow {
   stockSales: number
   currentCount: number
   currentSales: number
-  paidAmount: number
-  paidRate: number
 }
 
 interface CoordinatorRow {
@@ -71,6 +69,7 @@ interface CoordinatorRow {
   working: number
   workingRate: number
   workingSales: number
+  paidAmount: number
 }
 
 // ============================================================
@@ -458,13 +457,11 @@ export function ReportsPage() {
         stockSales: number
         currentCount: number
         currentSales: number
-        paidAmount: number
-        totalSales: number
       }>()
 
       const ensureStockMonth = (month: string) => {
         if (!stockMap.has(month)) {
-          stockMap.set(month, { stockCount: 0, stockSales: 0, currentCount: 0, currentSales: 0, paidAmount: 0, totalSales: 0 })
+          stockMap.set(month, { stockCount: 0, stockSales: 0, currentCount: 0, currentSales: 0 })
         }
         return stockMap.get(month)!
       }
@@ -488,28 +485,12 @@ export function ReportsPage() {
         const refSalesAmount = sales.reduce((sum, s) => sum + s.amount, 0)
 
         if (ivMonth !== workMonth) {
-          // ストック: 面接月 ≠ 稼働月
           sm.stockCount += 1
           sm.stockSales += refSalesAmount
         } else {
-          // 当月: 面接月 = 稼働月
           sm.currentCount += 1
           sm.currentSales += refSalesAmount
         }
-
-        sm.totalSales += refSalesAmount
-      }
-
-      // 入金: payments の amount を面接月に紐付け
-      for (const payment of allPayments) {
-        const referralId = saleRefMap.get(payment.sale_id)
-        if (!referralId) continue
-        const ref = refById.get(referralId)
-        if (!ref) continue
-        const ivMonth = appInterviewMonth.get(ref.application_id)
-        if (!ivMonth) continue
-        const sm = ensureStockMonth(ivMonth)
-        sm.paidAmount += payment.amount
       }
 
       const sortedStock = Array.from(stockMap.entries())
@@ -520,8 +501,6 @@ export function ReportsPage() {
           stockSales: d.stockSales,
           currentCount: d.currentCount,
           currentSales: d.currentSales,
-          paidAmount: d.paidAmount,
-          paidRate: pct(d.paidAmount, d.totalSales),
         }))
       setStockData(sortedStock)
 
@@ -535,6 +514,7 @@ export function ReportsPage() {
         prospects: number
         working: number
         workingSales: number
+        paidAmount: number
       }>()
 
       for (const iv of allInterviews) {
@@ -543,7 +523,7 @@ export function ReportsPage() {
           const interviewerKey = iv.interviewer_id || '_none'
           if (!crdMap.has(interviewerKey)) {
             const name = iv.interviewer_id ? (coordNameMap.get(iv.interviewer_id) || '不明') : '未設定'
-            crdMap.set(interviewerKey, { name, interviews: 0, referrals: 0, prospects: 0, working: 0, workingSales: 0 })
+            crdMap.set(interviewerKey, { name, interviews: 0, referrals: 0, prospects: 0, working: 0, workingSales: 0, paidAmount: 0 })
           }
           crdMap.get(interviewerKey)!.interviews += 1
         }
@@ -555,7 +535,7 @@ export function ReportsPage() {
         const iKey = interviewerId || '_none'
         if (!crdMap.has(iKey)) {
           const name = interviewerId ? (coordNameMap.get(interviewerId) || '不明') : '未設定'
-          crdMap.set(iKey, { name, interviews: 0, referrals: 0, prospects: 0, working: 0, workingSales: 0 })
+          crdMap.set(iKey, { name, interviews: 0, referrals: 0, prospects: 0, working: 0, workingSales: 0, paidAmount: 0 })
         }
         const crd = crdMap.get(iKey)!
 
@@ -567,6 +547,19 @@ export function ReportsPage() {
         if (ref.referral_status === 'working') {
           crd.working += 1
           crd.workingSales += sales.reduce((sum, s) => sum + s.amount, 0)
+        }
+      }
+
+      // 入金: payments → sale → referral → interviewer_id で集計
+      for (const payment of allPayments) {
+        const referralId = saleRefMap.get(payment.sale_id)
+        if (!referralId) continue
+        const ref = refById.get(referralId)
+        if (!ref) continue
+        const interviewerId = appInterviewerMap.get(ref.application_id)
+        const iKey = interviewerId || '_none'
+        if (crdMap.has(iKey)) {
+          crdMap.get(iKey)!.paidAmount += payment.amount
         }
       }
 
@@ -582,6 +575,7 @@ export function ReportsPage() {
           working: d.working,
           workingRate: pct(d.working, d.prospects),
           workingSales: d.workingSales,
+          paidAmount: d.paidAmount,
         }))
       setCoordinatorData(sortedCoord)
 
@@ -872,8 +866,6 @@ export function ReportsPage() {
                       <th className="px-3 py-3 text-right text-xs font-medium text-orange-600">ストック売上</th>
                       <th className="px-3 py-3 text-right text-xs font-medium text-purple-600">当月件数</th>
                       <th className="px-3 py-3 text-right text-xs font-medium text-orange-600">当月売上</th>
-                      <th className="px-3 py-3 text-right text-xs font-medium text-emerald-600">入金</th>
-                      <th className="px-3 py-3 text-right text-xs font-medium text-green-600">入金率</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -884,8 +876,6 @@ export function ReportsPage() {
                         <td className="px-3 py-3 text-sm text-right text-orange-600">{fmtCurrency(row.stockSales)}</td>
                         <td className="px-3 py-3 text-sm text-right text-purple-600">{fmtNum(row.currentCount)}</td>
                         <td className="px-3 py-3 text-sm text-right text-orange-600">{fmtCurrency(row.currentSales)}</td>
-                        <td className="px-3 py-3 text-sm text-right text-emerald-600">{fmtCurrency(row.paidAmount)}</td>
-                        <td className={`px-3 py-3 text-sm text-right ${rateColor(row.paidRate)}`}>{fmtPct(row.paidRate)}</td>
                       </tr>
                     ))}
                     {stockData.length > 0 && (() => {
@@ -893,8 +883,6 @@ export function ReportsPage() {
                       const totSS = stockData.reduce((s, r) => s + r.stockSales, 0)
                       const totCC = stockData.reduce((s, r) => s + r.currentCount, 0)
                       const totCS = stockData.reduce((s, r) => s + r.currentSales, 0)
-                      const totPaid = stockData.reduce((s, r) => s + r.paidAmount, 0)
-                      const totAll = totSS + totCS
                       return (
                         <tr className="bg-slate-50 font-semibold">
                           <td className="px-3 py-3 text-sm text-slate-800">合計</td>
@@ -902,8 +890,6 @@ export function ReportsPage() {
                           <td className="px-3 py-3 text-sm text-right text-orange-600">{fmtCurrency(totSS)}</td>
                           <td className="px-3 py-3 text-sm text-right text-purple-600">{fmtNum(totCC)}</td>
                           <td className="px-3 py-3 text-sm text-right text-orange-600">{fmtCurrency(totCS)}</td>
-                          <td className="px-3 py-3 text-sm text-right text-emerald-600">{fmtCurrency(totPaid)}</td>
-                          <td className={`px-3 py-3 text-sm text-right ${rateColor(pct(totPaid, totAll))}`}>{fmtPct(pct(totPaid, totAll))}</td>
                         </tr>
                       )
                     })()}
@@ -934,6 +920,7 @@ export function ReportsPage() {
                         <th className="px-3 py-3 text-right text-xs font-medium text-rose-600">稼働数</th>
                         <th className="px-3 py-3 text-right text-xs font-medium text-green-600">稼働率</th>
                         <th className="px-3 py-3 text-right text-xs font-medium text-orange-600">稼働売上</th>
+                        <th className="px-3 py-3 text-right text-xs font-medium text-emerald-600">入金</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -948,6 +935,7 @@ export function ReportsPage() {
                           <td className="px-3 py-3 text-sm text-right text-rose-600">{fmtNum(c.working)}</td>
                           <td className={`px-3 py-3 text-sm text-right ${rateColor(c.workingRate)}`}>{fmtPct(c.workingRate)}</td>
                           <td className="px-3 py-3 text-sm text-right text-orange-600">{fmtCurrency(c.workingSales)}</td>
+                          <td className="px-3 py-3 text-sm text-right text-emerald-600">{fmtCurrency(c.paidAmount)}</td>
                         </tr>
                       ))}
                       {(() => {
@@ -956,6 +944,7 @@ export function ReportsPage() {
                         const totP = coordinatorData.reduce((s, r) => s + r.prospects, 0)
                         const totW = coordinatorData.reduce((s, r) => s + r.working, 0)
                         const totWS = coordinatorData.reduce((s, r) => s + r.workingSales, 0)
+                        const totPaid = coordinatorData.reduce((s, r) => s + r.paidAmount, 0)
                         return (
                           <tr className="bg-slate-50 font-semibold">
                             <td className="px-3 py-3 text-sm text-slate-800">合計</td>
@@ -967,6 +956,7 @@ export function ReportsPage() {
                             <td className="px-3 py-3 text-sm text-right text-rose-600">{fmtNum(totW)}</td>
                             <td className={`px-3 py-3 text-sm text-right ${rateColor(pct(totW, totP))}`}>{fmtPct(pct(totW, totP))}</td>
                             <td className="px-3 py-3 text-sm text-right text-orange-600">{fmtCurrency(totWS)}</td>
+                            <td className="px-3 py-3 text-sm text-right text-emerald-600">{fmtCurrency(totPaid)}</td>
                           </tr>
                         )
                       })()}
