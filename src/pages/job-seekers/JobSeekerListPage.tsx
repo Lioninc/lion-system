@@ -11,7 +11,7 @@ import {
   X,
   Upload,
 } from 'lucide-react'
-import { Card, Button, Select, Badge, CSVImportModal, type DuplicateAction } from '../../components/ui'
+import { Card, Button, Select, Badge, CSVImportModal, type DuplicateAction, type ImportFormat } from '../../components/ui'
 import { Header } from '../../components/layout'
 import { supabase } from '../../lib/supabase'
 import type { ApplicationStatus, ProgressStatus } from '../../types/database'
@@ -208,6 +208,111 @@ function buildJobSeekerFields(row: Record<string, string>) {
     other_job_hunting: row.other_job_hunting || null,
     notes: row.notes || null,
   }
+}
+
+const APPLICATION_SHEET_COLUMNS = [
+  // 求職者情報
+  { key: 'name', label: '氏名', required: true },
+  { key: 'name_kana', label: 'ふりがな' },
+  { key: 'phone', label: '電話番号', required: true },
+  { key: 'birth_date', label: '生年月日' },
+  { key: 'gender', label: '性別' },
+  { key: 'postal_code', label: '郵便番号' },
+  { key: 'prefecture', label: '都道府県' },
+  { key: 'city', label: '市区町村群' },
+  { key: 'height', label: '身長' },
+  { key: 'weight', label: '体重' },
+  { key: 'has_tattoo', label: 'タトゥー' },
+  { key: 'has_medical_condition', label: '持病' },
+  { key: 'has_spouse', label: '配偶者' },
+  { key: 'has_children', label: '子供' },
+  { key: 'source_name', label: '媒体' },
+  { key: 'notes', label: '備考' },
+  { key: 'desired_start_date', label: '就業時期' },
+  { key: 'desired_job_type', label: '職種' },
+  { key: 'desired_work_location', label: '勤務地' },
+  // 応募情報
+  { key: 'applied_at', label: '日付' },
+  { key: 'coordinator_name', label: '応募対応' },
+  // 面談情報
+  { key: 'interview_date', label: '面談日程' },
+  { key: 'interviewer_name', label: '担当CD' },
+  { key: 'interview_result', label: '繋ぎ' },
+  // 紹介・稼働
+  { key: 'dispatch_interview_at', label: '面接日' },
+  { key: 'dispatch_company_name', label: '紹介先' },
+  { key: 'client_company_name', label: '案件' },
+  { key: 'assignment_date', label: '赴任予定日' },
+  { key: 'start_work_date_planned', label: '稼働予定日' },
+  { key: 'start_work_date_actual', label: '稼働日' },
+  { key: 'progress', label: '進捗' },
+  // 売上・入金
+  { key: 'sale_amount', label: '確定売上' },
+  { key: 'payment_amount', label: '入金金額' },
+  { key: 'year', label: '年' },
+  { key: 'payment_m1', label: '入金1月' },
+  { key: 'payment_m2', label: '入金2月' },
+  { key: 'payment_m3', label: '入金3月' },
+  { key: 'payment_m4', label: '入金4月' },
+  { key: 'payment_m5', label: '入金5月' },
+  { key: 'payment_m6', label: '入金6月' },
+  { key: 'payment_m7', label: '入金7月' },
+  { key: 'payment_m8', label: '入金8月' },
+  { key: 'payment_m9', label: '入金9月' },
+  { key: 'payment_m10', label: '入金10月' },
+  { key: 'payment_m11', label: '入金11月' },
+  { key: 'payment_m12', label: '入金12月' },
+]
+
+const CSV_IMPORT_FORMATS: ImportFormat[] = [
+  { id: 'lion', label: 'LIONテンプレート形式', columns: JOB_SEEKER_CSV_COLUMNS },
+  { id: 'application_sheet', label: '応募シート形式', columns: APPLICATION_SHEET_COLUMNS },
+]
+
+function preprocessApplicationSheetRow(row: Record<string, string>): Record<string, string> {
+  const processed = { ...row }
+
+  // 配偶者: 既婚→あり (true), 未婚/other→ empty (false)
+  if (processed.has_spouse === '既婚') processed.has_spouse = 'あり'
+  else if (processed.has_spouse !== 'あり') processed.has_spouse = ''
+
+  // 子供: number > 0 → あり
+  const childrenCount = parseInt(processed.has_children || '0')
+  processed.has_children = (!isNaN(childrenCount) && childrenCount > 0) ? 'あり' : ''
+
+  // 繋ぎ→interview_result: 済み→派遣面接組み (so csvParseInterviewResult returns 'referred')
+  if (processed.interview_result === '済み') processed.interview_result = '派遣面接組み'
+
+  // start_work_date: actual takes priority over planned
+  if (processed.start_work_date_actual) {
+    processed.start_work_date = processed.start_work_date_actual
+  } else if (processed.start_work_date_planned) {
+    processed.start_work_date = processed.start_work_date_planned
+  }
+
+  // referred_at: use dispatch_interview_at
+  if (!processed.referred_at && processed.dispatch_interview_at) {
+    processed.referred_at = processed.dispatch_interview_at
+  }
+
+  // referral_status: determine from multiple fields
+  if (processed.dispatch_company_name) {
+    if (processed.start_work_date_actual) {
+      processed.referral_status = 'working'
+    } else if (processed.start_work_date_planned) {
+      processed.referral_status = 'assigned'
+    } else if (processed.assignment_date) {
+      processed.referral_status = 'pre_assignment'
+    } else if (processed.progress === '辞退') {
+      processed.referral_status = 'declined'
+    } else if (processed.progress === '済み' && !processed.assignment_date) {
+      processed.referral_status = 'interview_done'
+    } else {
+      processed.referral_status = 'interview_scheduled'
+    }
+  }
+
+  return processed
 }
 
 export function JobSeekerListPage() {
@@ -595,11 +700,17 @@ export function JobSeekerListPage() {
     label,
   }))
 
-  async function handleCSVImport(data: Record<string, string>[], duplicateAction: DuplicateAction): Promise<{ success: number; skipped: number; updated: number; errors: string[] }> {
+  async function handleCSVImport(data: Record<string, string>[], duplicateAction: DuplicateAction, formatId?: string): Promise<{ success: number; skipped: number; updated: number; errors: string[] }> {
     const errors: string[] = []
     let success = 0
     let skipped = 0
     let updated = 0
+    const isAppSheet = formatId === 'application_sheet'
+
+    // Preprocess application sheet rows
+    if (isAppSheet) {
+      data = data.map(preprocessApplicationSheetRow)
+    }
 
     // Pre-fetch lookup tables
     const { data: sourcesData } = await supabase.from('sources').select('id, name')
@@ -861,8 +972,43 @@ export function JobSeekerListPage() {
             if (saleErr) {
               errors.push(`行${rowNum}: 売上作成エラー - ${saleErr.message}`)
             } else if (newSale) {
-              // === Step 6: Payment (if payment_amount exists) ===
-              if (row.payment_amount) {
+              // === Step 6: Payments ===
+              if (isAppSheet) {
+                // Application sheet: monthly payment columns (入金1月〜12月)
+                const payYear = row.year || new Date().getFullYear().toString()
+                let hasMonthlyPayments = false
+                for (let m = 1; m <= 12; m++) {
+                  const mAmount = parseInt(row[`payment_m${m}`] || '')
+                  if (!isNaN(mAmount) && mAmount !== 0) {
+                    hasMonthlyPayments = true
+                    const payMonth = `${payYear}-${String(m).padStart(2, '0')}`
+                    const { error: payErr } = await supabase.from('payments').insert({
+                      sale_id: newSale.id,
+                      amount: mAmount,
+                      paid_at: `${payMonth}-01`,
+                      payment_month: payMonth,
+                    })
+                    if (payErr) {
+                      errors.push(`行${rowNum}: 入金${m}月作成エラー - ${payErr.message}`)
+                    }
+                  }
+                }
+                // Fallback: if no monthly data, use payment_amount
+                if (!hasMonthlyPayments && row.payment_amount) {
+                  const paymentAmount = parseInt(row.payment_amount)
+                  if (!isNaN(paymentAmount)) {
+                    const { error: payErr } = await supabase.from('payments').insert({
+                      sale_id: newSale.id,
+                      amount: paymentAmount,
+                      paid_at: new Date().toISOString(),
+                    })
+                    if (payErr) {
+                      errors.push(`行${rowNum}: 入金作成エラー - ${payErr.message}`)
+                    }
+                  }
+                }
+              } else if (row.payment_amount) {
+                // LION format: single payment
                 const paymentAmount = parseInt(row.payment_amount)
                 if (!isNaN(paymentAmount)) {
                   const payMonth = row.payment_month || null
@@ -872,7 +1018,6 @@ export function JobSeekerListPage() {
                     paid_at: payMonth ? `${payMonth}-01` : new Date().toISOString(),
                     payment_month: payMonth,
                   })
-
                   if (payErr) {
                     errors.push(`行${rowNum}: 入金作成エラー - ${payErr.message}`)
                   }
@@ -1321,6 +1466,7 @@ export function JobSeekerListPage() {
         onImport={handleCSVImport}
         duplicateCheckKey="phone"
         duplicateCheckLabel="電話番号"
+        formats={CSV_IMPORT_FORMATS}
       />
     </div>
   )

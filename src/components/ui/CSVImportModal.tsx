@@ -4,15 +4,22 @@ import { Button } from './Button'
 
 export type DuplicateAction = 'skip' | 'update' | 'create'
 
+export interface ImportFormat {
+  id: string
+  label: string
+  columns: { key: string; label: string; required?: boolean }[]
+}
+
 interface CSVImportModalProps {
   isOpen: boolean
   onClose: () => void
   title: string
   templateColumns: { key: string; label: string; required?: boolean }[]
-  onImport: (data: Record<string, string>[], duplicateAction: DuplicateAction) => Promise<{ success: number; skipped: number; updated: number; errors: string[] }>
+  onImport: (data: Record<string, string>[], duplicateAction: DuplicateAction, formatId?: string) => Promise<{ success: number; skipped: number; updated: number; errors: string[] }>
   templateFileName: string
   duplicateCheckKey?: string // e.g., 'phone' for job seekers
   duplicateCheckLabel?: string // e.g., '電話番号'
+  formats?: ImportFormat[]
 }
 
 export function CSVImportModal({
@@ -24,15 +31,29 @@ export function CSVImportModal({
   templateFileName,
   duplicateCheckKey,
   duplicateCheckLabel,
+  formats,
 }: CSVImportModalProps) {
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<Record<string, string>[]>([])
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState<{ success: number; skipped: number; updated: number; errors: string[] } | null>(null)
   const [duplicateAction, setDuplicateAction] = useState<DuplicateAction>('skip')
+  const [selectedFormatId, setSelectedFormatId] = useState<string>(formats?.[0]?.id || '')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   if (!isOpen) return null
+
+  // Use selected format's columns, or fall back to templateColumns
+  const activeColumns = formats
+    ? formats.find((f) => f.id === selectedFormatId)?.columns || templateColumns
+    : templateColumns
+
+  function handleFormatChange(formatId: string) {
+    setSelectedFormatId(formatId)
+    setFile(null)
+    setPreview([])
+    setResult(null)
+  }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selectedFile = e.target.files?.[0]
@@ -94,8 +115,8 @@ export function CSVImportModal({
   }
 
   function downloadTemplate() {
-    const headers = templateColumns.map((col) => col.label).join(',')
-    const sampleRow = templateColumns.map((col) => {
+    const headers = activeColumns.map((col) => col.label).join(',')
+    const sampleRow = activeColumns.map((col) => {
       if (col.required) return `サンプル${col.label}`
       return ''
     }).join(',')
@@ -121,16 +142,17 @@ export function CSVImportModal({
       const text = event.target?.result as string
       const rows = parseCSV(text)
 
-      // Map CSV labels to keys
+      // Map CSV labels to keys using active columns
       const mappedData = rows.map((row) => {
         const mapped: Record<string, string> = {}
-        templateColumns.forEach((col) => {
+        activeColumns.forEach((col) => {
           mapped[col.key] = row[col.label] || ''
         })
         return mapped
       })
 
-      const importResult = await onImport(mappedData, duplicateAction)
+      const formatId = formats ? selectedFormatId : undefined
+      const importResult = await onImport(mappedData, duplicateAction, formatId)
       setResult(importResult)
       setImporting(false)
     }
@@ -162,6 +184,28 @@ export function CSVImportModal({
 
         {/* Content */}
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+          {/* Format Selection */}
+          {formats && formats.length > 1 && (
+            <div className="mb-6 p-4 bg-slate-50 rounded-lg">
+              <p className="text-sm font-medium text-slate-700 mb-3">インポート形式</p>
+              <div className="flex flex-col gap-2">
+                {formats.map((format) => (
+                  <label key={format.id} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="importFormat"
+                      value={format.id}
+                      checked={selectedFormatId === format.id}
+                      onChange={() => handleFormatChange(format.id)}
+                      className="w-4 h-4 text-primary"
+                    />
+                    <span className="text-sm text-slate-600">{format.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Template Download */}
           <div className="mb-6 p-4 bg-blue-50 rounded-lg">
             <div className="flex items-start gap-3">
@@ -188,7 +232,7 @@ export function CSVImportModal({
           <div className="mb-6">
             <p className="text-sm font-medium text-slate-700 mb-2">必須項目</p>
             <div className="flex flex-wrap gap-2">
-              {templateColumns.filter((col) => col.required).map((col) => (
+              {activeColumns.filter((col) => col.required).map((col) => (
                 <span
                   key={col.key}
                   className="px-2 py-1 bg-red-50 text-red-700 text-xs rounded-md"
