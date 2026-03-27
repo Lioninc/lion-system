@@ -999,6 +999,11 @@ export function JobSeekerListPage() {
           referralId = existingRefs[0].id
         } else {
           const referralStatus = csvParseReferralStatus(row.referral_status || '')
+
+          // interview_scheduled（進捗空欄・稼働日なし・赴任予定日なし）の場合はreferral作成しない
+          if (referralStatus === 'interview_scheduled') {
+            continue
+          }
           const { data: newRef, error: refErr } = await supabase
             .from('referrals')
             .insert({
