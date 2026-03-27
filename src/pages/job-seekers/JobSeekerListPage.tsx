@@ -147,6 +147,15 @@ function csvParseEmploymentStatus(value: string): 'employed' | 'unemployed' | nu
   return null
 }
 
+function csvParseDate(value: string): string | null {
+  if (!value || value.trim() === '') return null
+  // Try parsing various date formats and return ISO string
+  const cleaned = value.replace(/\//g, '-')
+  const date = new Date(cleaned)
+  if (!isNaN(date.getTime())) return date.toISOString()
+  return value // fallback: return as-is
+}
+
 function csvParseInterviewResult(value: string): string | null {
   if (value === '派遣面接組み') return 'referred'
   if (value === '検討中') return 'considering'
@@ -858,7 +867,7 @@ export function JobSeekerListPage() {
       // === Step 2: Application ===
       const sourceId = row.source_name ? sourceMap.get(row.source_name) || null : null
       const coordinatorId = row.coordinator_name ? userMap.get(row.coordinator_name) || null : null
-      const appliedAt = row.applied_at || new Date().toISOString()
+      const appliedAt = csvParseDate(row.applied_at) || new Date().toISOString()
 
       // Check existing application for this job_seeker
       const { data: existingApps } = await supabase
@@ -901,8 +910,8 @@ export function JobSeekerListPage() {
 
         const { error: intErr } = await supabase.from('interviews').insert({
           application_id: applicationId,
-          scheduled_at: row.interview_date,
-          conducted_at: row.interview_date,
+          scheduled_at: csvParseDate(row.interview_date) || row.interview_date,
+          conducted_at: csvParseDate(row.interview_date) || row.interview_date,
           interviewer_id: interviewerId,
           result,
         })
@@ -958,11 +967,11 @@ export function JobSeekerListPage() {
               application_id: applicationId,
               job_id: jobId,
               referral_status: referralStatus,
-              referred_at: row.referred_at || new Date().toISOString(),
-              dispatch_interview_at: row.dispatch_interview_at || null,
-              hired_at: row.hired_at || null,
-              assignment_date: row.assignment_date || null,
-              start_work_date: row.start_work_date || null,
+              referred_at: csvParseDate(row.referred_at) || new Date().toISOString(),
+              dispatch_interview_at: csvParseDate(row.dispatch_interview_at) || null,
+              hired_at: csvParseDate(row.hired_at) || null,
+              assignment_date: csvParseDate(row.assignment_date) || null,
+              start_work_date: csvParseDate(row.start_work_date) || null,
             })
             .select('id')
             .single()
