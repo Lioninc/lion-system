@@ -1295,12 +1295,42 @@ function InterviewRecordModal({
   const [interviewResult, setInterviewResult] = useState(interview.result || '')
 
   // Job seeker fields (synced)
+  const [nameKana, setNameKana] = useState(jobSeeker.name_kana || '')
+  const [email, setEmail] = useState(jobSeeker.email || '')
+  const [lineId, setLineId] = useState(jobSeeker.line_id || '')
+  const [gender, setGender] = useState(jobSeeker.gender || '')
   const [birthDate, setBirthDate] = useState(jobSeeker.birth_date || '')
+  const [postalCode, setPostalCode] = useState(jobSeeker.postal_code || '')
   const [prefecture, setPrefecture] = useState(jobSeeker.prefecture || '')
   const [city, setCity] = useState(jobSeeker.city || '')
   const [address, setAddress] = useState(jobSeeker.address || '')
-  const [email, setEmail] = useState(jobSeeker.email || '')
+  const [height, setHeight] = useState(jobSeeker.height?.toString() || '')
+  const [weight, setWeight] = useState(jobSeeker.weight?.toString() || '')
+  const [hasTattoo, setHasTattoo] = useState(jobSeeker.has_tattoo)
+  const [hasMedicalCondition, setHasMedicalCondition] = useState(jobSeeker.has_medical_condition)
+  const [medicalConditionDetail, setMedicalConditionDetail] = useState(jobSeeker.medical_condition_detail || '')
+  const [hasSpouse, setHasSpouse] = useState(jobSeeker.has_spouse)
+  const [hasChildren, setHasChildren] = useState(jobSeeker.has_children)
+  const [desiredStartDate, setDesiredStartDate] = useState(jobSeeker.desired_start_date || '')
+  const [desiredPeriod, setDesiredPeriod] = useState(jobSeeker.desired_period || '')
   const [employmentStatus, setEmploymentStatus] = useState(jobSeeker.employment_status || '')
+  const [currentJobType, setCurrentJobType] = useState(jobSeeker.current_job_type || '')
+  const [currentAnnualIncome, setCurrentAnnualIncome] = useState(jobSeeker.current_annual_income?.toString() || '')
+  const [pcSkillLevel, setPcSkillLevel] = useState(jobSeeker.pc_skill_level || '')
+  const [languageSkill, setLanguageSkill] = useState(jobSeeker.language_skill || '')
+  const [toeicScore, setToeicScore] = useState(jobSeeker.toeic_score?.toString() || '')
+  const [qualifications, setQualifications] = useState(jobSeeker.qualifications || '')
+  const [otherJobHunting, setOtherJobHunting] = useState(jobSeeker.other_job_hunting || '')
+  const [reasonForChange, setReasonForChange] = useState(jobSeeker.reason_for_change || '')
+  const [desiredJobType, setDesiredJobType] = useState(jobSeeker.desired_job_type || '')
+  const [desiredEmploymentType, setDesiredEmploymentType] = useState(jobSeeker.desired_employment_type || '')
+  const [desiredAnnualIncome, setDesiredAnnualIncome] = useState(jobSeeker.desired_annual_income?.toString() || '')
+  const [desiredWorkLocation, setDesiredWorkLocation] = useState(jobSeeker.desired_work_location || '')
+  const [remoteWorkPreference, setRemoteWorkPreference] = useState(jobSeeker.remote_work_preference || '')
+  const [hasCarLicense, setHasCarLicense] = useState(jobSeeker.has_car_license)
+  const [hasForklift, setHasForklift] = useState(jobSeeker.has_forklift)
+  const [commuteMethod, setCommuteMethod] = useState(jobSeeker.commute_method || '')
+  const [commuteTime, setCommuteTime] = useState(jobSeeker.commute_time?.toString() || '')
   const [educationLevel, setEducationLevel] = useState(jobSeeker.education_level || '')
   const [educationSchool, setEducationSchool] = useState(jobSeeker.education_school || '')
   const [workHistory, setWorkHistory] = useState(jobSeeker.work_history || '')
@@ -1344,12 +1374,42 @@ function InterviewRecordModal({
     await supabase
       .from('job_seekers')
       .update({
+        name_kana: nameKana || null,
+        email: email || null,
+        line_id: lineId || null,
+        gender: gender || null,
         birth_date: birthDate || null,
+        postal_code: postalCode || null,
         prefecture: prefecture || null,
         city: city || null,
         address: address || null,
-        email: email || null,
+        height: height ? parseInt(height) : null,
+        weight: weight ? parseInt(weight) : null,
+        has_tattoo: hasTattoo,
+        has_medical_condition: hasMedicalCondition,
+        medical_condition_detail: hasMedicalCondition ? (medicalConditionDetail || null) : null,
+        has_spouse: hasSpouse,
+        has_children: hasChildren,
+        desired_start_date: desiredStartDate || null,
+        desired_period: desiredPeriod || null,
         employment_status: employmentStatus || null,
+        current_job_type: currentJobType || null,
+        current_annual_income: currentAnnualIncome ? parseInt(currentAnnualIncome) : null,
+        pc_skill_level: pcSkillLevel || null,
+        language_skill: languageSkill || null,
+        toeic_score: toeicScore ? parseInt(toeicScore) : null,
+        qualifications: qualifications || null,
+        other_job_hunting: otherJobHunting || null,
+        reason_for_change: reasonForChange || null,
+        desired_job_type: desiredJobType || null,
+        desired_employment_type: desiredEmploymentType || null,
+        desired_annual_income: desiredAnnualIncome ? parseInt(desiredAnnualIncome) : null,
+        desired_work_location: desiredWorkLocation || null,
+        remote_work_preference: remoteWorkPreference || null,
+        has_car_license: hasCarLicense,
+        has_forklift: hasForklift,
+        commute_method: commuteMethod || null,
+        commute_time: commuteTime ? parseInt(commuteTime) : null,
         education_level: educationLevel || null,
         education_school: educationSchool || null,
         work_history: workHistory || null,
@@ -1403,57 +1463,164 @@ function InterviewRecordModal({
         </div>
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)] space-y-4">
 
-          {/* 基本情報（job_seekers連動） */}
+          {/* 個人情報（job_seekers連動） */}
           <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-3">
-            <p className="text-sm font-medium text-blue-800">基本情報（求職者に反映）</p>
-
+            <p className="text-sm font-medium text-blue-800">個人情報</p>
             <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">氏名カナ</label>
+                <input type="text" className={inputClass} placeholder="ヤマグチ タロウ" value={nameKana} onChange={(e) => setNameKana(e.target.value)} />
+              </div>
               <div>
                 <label className="block text-xs font-medium text-blue-700 mb-1">生年月日</label>
                 <input type="date" className={inputClass} value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-blue-700 mb-1">メールアドレス</label>
                 <input type="email" className={inputClass} placeholder="example@mail.com" value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">LINE ID</label>
+                <input type="text" className={inputClass} placeholder="line_id" value={lineId} onChange={(e) => setLineId(e.target.value)} />
+              </div>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-blue-700 mb-2">性別</label>
+              <div className="grid grid-cols-3 gap-2">
+                {([['male', '男性'], ['female', '女性'], ['other', 'その他']] as const).map(([v, label]) => (
+                  <button key={v} type="button" onClick={() => setGender(v)}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${gender === v ? 'bg-primary text-white border-primary' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+                  >{label}</button>
+                ))}
+              </div>
+            </div>
+          </div>
 
-            <div className="grid grid-cols-3 gap-3">
+          {/* 住所 */}
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-3">
+            <p className="text-sm font-medium text-blue-800">住所</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">郵便番号</label>
+                <input type="text" className={inputClass} placeholder="123-4567" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} />
+              </div>
               <div>
                 <label className="block text-xs font-medium text-blue-700 mb-1">都道府県</label>
-                <input type="text" className={inputClass} placeholder="東京都" value={prefecture} onChange={(e) => setPrefecture(e.target.value)} />
+                <select className={inputClass} value={prefecture} onChange={(e) => setPrefecture(e.target.value)}>
+                  <option value="">選択してください</option>
+                  {['北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県','茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','富山県','石川県','福井県','山梨県','長野県','岐阜県','静岡県','愛知県','三重県','滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県','鳥取県','島根県','岡山県','広島県','山口県','徳島県','香川県','愛媛県','高知県','福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県'].map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-blue-700 mb-1">市区町村</label>
                 <input type="text" className={inputClass} placeholder="渋谷区" value={city} onChange={(e) => setCity(e.target.value)} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-blue-700 mb-1">番地以降</label>
-                <input type="text" className={inputClass} placeholder="1-2-3" value={address} onChange={(e) => setAddress(e.target.value)} />
+                <label className="block text-xs font-medium text-blue-700 mb-1">番地・建物名</label>
+                <input type="text" className={inputClass} placeholder="1-2-3 〇〇ビル" value={address} onChange={(e) => setAddress(e.target.value)} />
               </div>
             </div>
+          </div>
 
-            {/* 就業状況 */}
+          {/* 身体情報 */}
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-3">
+            <p className="text-sm font-medium text-blue-800">身体情報</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">身長 (cm)</label>
+                <input type="number" className={inputClass} placeholder="170" value={height} onChange={(e) => setHeight(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">体重 (kg)</label>
+                <input type="number" className={inputClass} placeholder="65" value={weight} onChange={(e) => setWeight(e.target.value)} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-2">タトゥー</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([[false, 'なし'], [true, 'あり']] as const).map(([v, label]) => (
+                    <button key={String(v)} type="button" onClick={() => setHasTattoo(v as boolean)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${hasTattoo === v ? 'bg-primary text-white border-primary' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+                    >{label}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-2">持病</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([[false, 'なし'], [true, 'あり']] as const).map(([v, label]) => (
+                    <button key={String(v)} type="button" onClick={() => setHasMedicalCondition(v as boolean)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${hasMedicalCondition === v ? 'bg-primary text-white border-primary' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+                    >{label}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            {hasMedicalCondition && (
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">持病の詳細</label>
+                <input type="text" className={inputClass} placeholder="詳細を入力..." value={medicalConditionDetail} onChange={(e) => setMedicalConditionDetail(e.target.value)} />
+              </div>
+            )}
+          </div>
+
+          {/* 家族・就業状況 */}
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-3">
+            <p className="text-sm font-medium text-blue-800">家族・就業状況</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-2">配偶者</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([[false, 'なし'], [true, 'あり']] as const).map(([v, label]) => (
+                    <button key={String(v)} type="button" onClick={() => setHasSpouse(v as boolean)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${hasSpouse === v ? 'bg-primary text-white border-primary' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+                    >{label}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-2">子供</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([[false, 'なし'], [true, 'あり']] as const).map(([v, label]) => (
+                    <button key={String(v)} type="button" onClick={() => setHasChildren(v as boolean)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${hasChildren === v ? 'bg-primary text-white border-primary' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+                    >{label}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
             <div>
               <label className="block text-xs font-medium text-blue-700 mb-2">現在の就業状況</label>
               <div className="grid grid-cols-2 gap-2">
                 {(['unemployed', 'employed'] as const).map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setEmploymentStatus(v)}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${
-                      employmentStatus === v
-                        ? 'bg-primary text-white border-primary'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                    }`}
-                  >
-                    {v === 'unemployed' ? '離職中' : '就業中'}
-                  </button>
+                  <button key={v} type="button" onClick={() => setEmploymentStatus(v)}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${employmentStatus === v ? 'bg-primary text-white border-primary' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+                  >{v === 'unemployed' ? '離職中' : '就業中'}</button>
                 ))}
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">希望開始日</label>
+                <input type="date" className={inputClass} value={desiredStartDate} onChange={(e) => setDesiredStartDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">希望期間</label>
+                <input type="text" className={inputClass} placeholder="3ヶ月〜" value={desiredPeriod} onChange={(e) => setDesiredPeriod(e.target.value)} />
+              </div>
+            </div>
+          </div>
 
+          {/* 職歴・スキル */}
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-3">
+            <p className="text-sm font-medium text-blue-800">職歴・スキル</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-blue-700 mb-1">最終学歴</label>
@@ -1464,10 +1631,137 @@ function InterviewRecordModal({
                 <input type="text" className={inputClass} placeholder="〇〇大学" value={educationSchool} onChange={(e) => setEducationSchool(e.target.value)} />
               </div>
             </div>
-
             <div>
               <label className="block text-xs font-medium text-blue-700 mb-1">職務経歴</label>
               <textarea rows={3} className={inputClass} placeholder="職務経歴を入力..." value={workHistory} onChange={(e) => setWorkHistory(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">現職の職種</label>
+                <input type="text" className={inputClass} placeholder="製造業等" value={currentJobType} onChange={(e) => setCurrentJobType(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">現在の年収（万円）</label>
+                <input type="number" className={inputClass} placeholder="300" value={currentAnnualIncome} onChange={(e) => setCurrentAnnualIncome(e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-blue-700 mb-2">PCスキル</label>
+              <div className="grid grid-cols-3 gap-2">
+                {([['basic', '基本'], ['intermediate', '中級'], ['advanced', '上級']] as const).map(([v, label]) => (
+                  <button key={v} type="button" onClick={() => setPcSkillLevel(v)}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${pcSkillLevel === v ? 'bg-primary text-white border-primary' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+                  >{label}</button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">語学力</label>
+                <select className={inputClass} value={languageSkill} onChange={(e) => setLanguageSkill(e.target.value)}>
+                  <option value="">選択してください</option>
+                  <option value="none">なし</option>
+                  <option value="daily">日常会話</option>
+                  <option value="business">ビジネスレベル</option>
+                  <option value="native">ネイティブ</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">TOEICスコア</label>
+                <input type="number" className={inputClass} placeholder="600" value={toeicScore} onChange={(e) => setToeicScore(e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-blue-700 mb-1">保有資格</label>
+              <textarea rows={2} className={inputClass} placeholder="資格を入力..." value={qualifications} onChange={(e) => setQualifications(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-blue-700 mb-1">他社選考状況</label>
+              <input type="text" className={inputClass} placeholder="選考状況を入力..." value={otherJobHunting} onChange={(e) => setOtherJobHunting(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-blue-700 mb-1">転職理由</label>
+              <textarea rows={2} className={inputClass} placeholder="転職理由を入力..." value={reasonForChange} onChange={(e) => setReasonForChange(e.target.value)} />
+            </div>
+          </div>
+
+          {/* 希望条件 */}
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-3">
+            <p className="text-sm font-medium text-blue-800">希望条件</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">希望職種</label>
+                <input type="text" className={inputClass} placeholder="製造業等" value={desiredJobType} onChange={(e) => setDesiredJobType(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">希望雇用形態</label>
+                <input type="text" className={inputClass} placeholder="派遣・正社員等" value={desiredEmploymentType} onChange={(e) => setDesiredEmploymentType(e.target.value)} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">希望年収（万円）</label>
+                <input type="number" className={inputClass} placeholder="400" value={desiredAnnualIncome} onChange={(e) => setDesiredAnnualIncome(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">希望勤務地</label>
+                <input type="text" className={inputClass} placeholder="東京都内" value={desiredWorkLocation} onChange={(e) => setDesiredWorkLocation(e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-blue-700 mb-2">リモートワーク希望</label>
+              <div className="grid grid-cols-3 gap-2">
+                {([['any', '不問'], ['preferred', '希望'], ['required', '必須']] as const).map(([v, label]) => (
+                  <button key={v} type="button" onClick={() => setRemoteWorkPreference(v)}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${remoteWorkPreference === v ? 'bg-primary text-white border-primary' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+                  >{label}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 免許・通勤 */}
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-3">
+            <p className="text-sm font-medium text-blue-800">免許・通勤</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-2">普通自動車免許</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([[false, 'なし'], [true, 'あり']] as const).map(([v, label]) => (
+                    <button key={String(v)} type="button" onClick={() => setHasCarLicense(v as boolean)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${hasCarLicense === v ? 'bg-primary text-white border-primary' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+                    >{label}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-2">フォークリフト免許</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([[false, 'なし'], [true, 'あり']] as const).map(([v, label]) => (
+                    <button key={String(v)} type="button" onClick={() => setHasForklift(v as boolean)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${hasForklift === v ? 'bg-primary text-white border-primary' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+                    >{label}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">通勤手段</label>
+                <select className={inputClass} value={commuteMethod} onChange={(e) => setCommuteMethod(e.target.value)}>
+                  <option value="">選択してください</option>
+                  <option value="car">自動車</option>
+                  <option value="train">電車</option>
+                  <option value="bus">バス</option>
+                  <option value="bicycle">自転車</option>
+                  <option value="walk">徒歩</option>
+                  <option value="other">その他</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-blue-700 mb-1">通勤時間（分）</label>
+                <input type="number" className={inputClass} placeholder="30" value={commuteTime} onChange={(e) => setCommuteTime(e.target.value)} />
+              </div>
             </div>
           </div>
 

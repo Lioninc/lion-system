@@ -7,6 +7,7 @@ import {
   Mail,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Filter,
   X,
   Upload,
@@ -32,6 +33,12 @@ interface JobSeekerSummary {
   email: string | null
   birth_date: string | null
   prefecture: string | null
+  gender: string | null
+  desired_work_location: string | null
+  has_car_license: boolean
+  has_forklift: boolean
+  employment_status: string | null
+  desired_employment_type: string | null
   application_count: number // 応募回数（その人が応募した回数）
   contact_count: number // 対応回数（電話/LINE/メール等の対応記録）
   interview_count: number // 面談回数（面談予定・実施）
@@ -47,6 +54,18 @@ interface JobSeekerSummary {
   all_interviewer_ids: string[] // 全面談の担当者ID（フィルター用）
   latest_job_type: string | null // 最新応募の職種
   latest_applied_at: string
+}
+
+interface AdvancedFilterState {
+  desiredWorkLocation: string
+  prefecture: string
+  ageMin: string
+  ageMax: string
+  gender: string
+  hasCarLicense: string
+  hasForklift: string
+  employmentStatus: string
+  desiredEmploymentType: string
 }
 
 interface FilterState {
@@ -357,6 +376,18 @@ export function JobSeekerListPage() {
     interviewer: searchParams.get('interviewer') || '',
     source: searchParams.get('source') || '',
   })
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilterState>({
+    desiredWorkLocation: '',
+    prefecture: '',
+    ageMin: '',
+    ageMax: '',
+    gender: '',
+    hasCarLicense: '',
+    hasForklift: '',
+    employmentStatus: '',
+    desiredEmploymentType: '',
+  })
   const [showCSVImport, setShowCSVImport] = useState(false)
   const [editingStatusId, setEditingStatusId] = useState<string | null>(null)
   const [editingCoordinatorId, setEditingCoordinatorId] = useState<string | null>(null)
@@ -369,7 +400,7 @@ export function JobSeekerListPage() {
 
   useEffect(() => {
     fetchJobSeekers()
-  }, [currentPage, filters])
+  }, [currentPage, filters, advancedFilters])
 
   async function fetchFilterOptions() {
     // Fetch coordinators (users excluding 管理部)
@@ -458,7 +489,7 @@ export function JobSeekerListPage() {
     const { data, error: detailError } = await supabase
       .from('job_seekers')
       .select(`
-        id, name, name_kana, phone, email, birth_date, prefecture,
+        id, name, name_kana, phone, email, birth_date, prefecture, gender, desired_work_location, has_car_license, has_forklift, employment_status, desired_employment_type,
         applications (
           id, application_status, progress_status, job_type, applied_at,
           coordinator_id, source_id,
@@ -490,6 +521,12 @@ export function JobSeekerListPage() {
       email: string | null
       birth_date: string | null
       prefecture: string | null
+      gender: string | null
+      desired_work_location: string | null
+      has_car_license: boolean
+      has_forklift: boolean
+      employment_status: string | null
+      desired_employment_type: string | null
       applications: any[]
       total_contact_count: number
       total_interview_count: number
@@ -535,6 +572,12 @@ export function JobSeekerListPage() {
           email: js.email as string | null,
           birth_date: js.birth_date as string | null,
           prefecture: js.prefecture as string | null,
+          gender: (js as any).gender as string | null,
+          desired_work_location: (js as any).desired_work_location as string | null,
+          has_car_license: !!(js as any).has_car_license,
+          has_forklift: !!(js as any).has_forklift,
+          employment_status: (js as any).employment_status as string | null,
+          desired_employment_type: (js as any).desired_employment_type as string | null,
           applications: apps,
           total_contact_count: contactCount,
           total_interview_count: interviewCount,
@@ -608,6 +651,12 @@ export function JobSeekerListPage() {
           email: js.email,
           birth_date: js.birth_date,
           prefecture: js.prefecture,
+          gender: js.gender,
+          desired_work_location: js.desired_work_location,
+          has_car_license: js.has_car_license,
+          has_forklift: js.has_forklift,
+          employment_status: js.employment_status,
+          desired_employment_type: js.desired_employment_type,
           application_count: applications.length,
           contact_count: js.total_contact_count,
           interview_count: js.total_interview_count,
@@ -633,6 +682,42 @@ export function JobSeekerListPage() {
     }
     if (filters.interviewer === 'unset') {
       results = results.filter((js) => js.all_interviewer_ids.length === 0)
+    }
+
+    // 詳細フィルター（クライアントサイド）
+    if (advancedFilters.desiredWorkLocation) {
+      results = results.filter((js) => js.desired_work_location?.includes(advancedFilters.desiredWorkLocation))
+    }
+    if (advancedFilters.prefecture) {
+      results = results.filter((js) => js.prefecture === advancedFilters.prefecture)
+    }
+    if (advancedFilters.ageMin || advancedFilters.ageMax) {
+      const today = new Date()
+      results = results.filter((js) => {
+        if (!js.birth_date) return false
+        const birth = new Date(js.birth_date)
+        let age = today.getFullYear() - birth.getFullYear()
+        const m = today.getMonth() - birth.getMonth()
+        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--
+        if (advancedFilters.ageMin && age < parseInt(advancedFilters.ageMin)) return false
+        if (advancedFilters.ageMax && age > parseInt(advancedFilters.ageMax)) return false
+        return true
+      })
+    }
+    if (advancedFilters.gender) {
+      results = results.filter((js) => js.gender === advancedFilters.gender)
+    }
+    if (advancedFilters.hasCarLicense) {
+      results = results.filter((js) => advancedFilters.hasCarLicense === 'true' ? js.has_car_license : !js.has_car_license)
+    }
+    if (advancedFilters.hasForklift) {
+      results = results.filter((js) => advancedFilters.hasForklift === 'true' ? js.has_forklift : !js.has_forklift)
+    }
+    if (advancedFilters.employmentStatus) {
+      results = results.filter((js) => js.employment_status === advancedFilters.employmentStatus)
+    }
+    if (advancedFilters.desiredEmploymentType) {
+      results = results.filter((js) => js.desired_employment_type?.includes(advancedFilters.desiredEmploymentType))
     }
 
     // 最新応募日でソート
@@ -706,12 +791,23 @@ export function JobSeekerListPage() {
       source: '',
     }
     setFilters(emptyFilters)
+    setAdvancedFilters({
+      desiredWorkLocation: '',
+      prefecture: '',
+      ageMin: '',
+      ageMax: '',
+      gender: '',
+      hasCarLicense: '',
+      hasForklift: '',
+      employmentStatus: '',
+      desiredEmploymentType: '',
+    })
     setSearchParams({})
     setCurrentPage(1)
   }
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE)
-  const hasActiveFilters = Object.values(filters).some((v) => v !== '')
+  const hasActiveFilters = Object.values(filters).some((v) => v !== '') || Object.values(advancedFilters).some((v) => v !== '')
 
   const statusOptions = Object.entries(APPLICATION_STATUS_LABELS).map(([value, label]) => ({
     value,
@@ -1213,6 +1309,128 @@ export function JobSeekerListPage() {
                   onChange={(e) => handleFilterChange('source', e.target.value)}
                 />
               </div>
+              {/* 詳細フィルター（折りたたみ） */}
+              <div className="mt-4 pt-4 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className="flex items-center gap-1 text-sm font-medium text-slate-600 hover:text-slate-800"
+                >
+                  <ChevronDown className={`w-4 h-4 transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`} />
+                  詳細フィルター
+                  {Object.values(advancedFilters).some((v) => v !== '') && (
+                    <span className="ml-1 w-2 h-2 bg-primary rounded-full" />
+                  )}
+                </button>
+                {showAdvancedFilters && (
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">希望勤務地</label>
+                      <input
+                        type="text"
+                        placeholder="部分一致検索..."
+                        value={advancedFilters.desiredWorkLocation}
+                        onChange={(e) => setAdvancedFilters((p) => ({ ...p, desiredWorkLocation: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">都道府県</label>
+                      <select
+                        value={advancedFilters.prefecture}
+                        onChange={(e) => setAdvancedFilters((p) => ({ ...p, prefecture: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value="">すべて</option>
+                        {['北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県','茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','富山県','石川県','福井県','山梨県','長野県','岐阜県','静岡県','愛知県','三重県','滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県','鳥取県','島根県','岡山県','広島県','山口県','徳島県','香川県','愛媛県','高知県','福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県'].map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">年齢</label>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          placeholder="下限"
+                          value={advancedFilters.ageMin}
+                          onChange={(e) => setAdvancedFilters((p) => ({ ...p, ageMin: e.target.value }))}
+                          className="w-full px-2 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        <span className="text-xs text-slate-400">〜</span>
+                        <input
+                          type="number"
+                          placeholder="上限"
+                          value={advancedFilters.ageMax}
+                          onChange={(e) => setAdvancedFilters((p) => ({ ...p, ageMax: e.target.value }))}
+                          className="w-full px-2 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        <span className="text-xs text-slate-400 whitespace-nowrap">歳</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">性別</label>
+                      <select
+                        value={advancedFilters.gender}
+                        onChange={(e) => setAdvancedFilters((p) => ({ ...p, gender: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value="">すべて</option>
+                        <option value="male">男性</option>
+                        <option value="female">女性</option>
+                        <option value="other">その他</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">普通自動車免許</label>
+                      <select
+                        value={advancedFilters.hasCarLicense}
+                        onChange={(e) => setAdvancedFilters((p) => ({ ...p, hasCarLicense: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value="">すべて</option>
+                        <option value="true">あり</option>
+                        <option value="false">なし</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">フォークリフト免許</label>
+                      <select
+                        value={advancedFilters.hasForklift}
+                        onChange={(e) => setAdvancedFilters((p) => ({ ...p, hasForklift: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value="">すべて</option>
+                        <option value="true">あり</option>
+                        <option value="false">なし</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">就業状況</label>
+                      <select
+                        value={advancedFilters.employmentStatus}
+                        onChange={(e) => setAdvancedFilters((p) => ({ ...p, employmentStatus: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value="">すべて</option>
+                        <option value="unemployed">離職中</option>
+                        <option value="employed">就業中</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">希望雇用形態</label>
+                      <input
+                        type="text"
+                        placeholder="部分一致検索..."
+                        value={advancedFilters.desiredEmploymentType}
+                        onChange={(e) => setAdvancedFilters((p) => ({ ...p, desiredEmploymentType: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {hasActiveFilters && (
                 <div className="mt-4 flex justify-end">
                   <Button variant="ghost" size="sm" onClick={clearFilters}>
