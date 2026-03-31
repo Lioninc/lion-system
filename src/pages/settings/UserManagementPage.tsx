@@ -13,9 +13,9 @@ interface UserWithStatus extends User {
   is_active: boolean
 }
 
-// 社員番号からメールアドレスを生成（内部用、ユーザーには非表示）
+// 社員番号からメールアドレスを生成（内部用ダミーアドレス）
 function employeeIdToEmail(employeeId: string): string {
-  return `emp${employeeId}@gmail.com`
+  return `emp${employeeId}@lion-system.local`
 }
 
 // 次の社員番号を生成（3桁の連番）
@@ -436,13 +436,12 @@ function UserModal({
           }
         }
       } else {
-        // 新規ユーザー作成（Supabase Authに登録）
-        const { data: authData, error: authError } = await supabase.auth.signUp({
+        // 新規ユーザー作成（Admin APIでメール確認スキップ）
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
           email,
           password,
-          options: {
-            data: { name: name.trim() }
-          }
+          email_confirm: true,
+          user_metadata: { name: name.trim() }
         })
 
         if (authError) {
