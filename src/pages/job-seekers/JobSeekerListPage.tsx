@@ -943,40 +943,15 @@ export function JobSeekerListPage() {
       }
 
       // === Step 1: Job Seeker ===
+      // 電話番号が重複している場合は既存の求職者を使用（スキップ）
+      // 重複していなければ新規作成
       let jobSeekerId: string
       const existingId = existingPhoneMap.get(row.phone)
 
       if (existingId) {
-        if (duplicateAction === 'skip') {
-          skipped++
-          continue
-        } else if (duplicateAction === 'update') {
-          const { error: updateError } = await supabase
-            .from('job_seekers')
-            .update(buildJobSeekerFields(row))
-            .eq('id', existingId)
-
-          if (updateError) {
-            errors.push(`行${rowNum}: 更新エラー - ${updateError.message}`)
-            continue
-          }
-          jobSeekerId = existingId
-          updated++
-        } else {
-          // duplicateAction === 'create'
-          const { data: newJs, error: jsErr } = await supabase
-            .from('job_seekers')
-            .insert(buildJobSeekerFields(row))
-            .select('id')
-            .single()
-
-          if (jsErr || !newJs) {
-            errors.push(`行${rowNum}: ${jsErr?.message || '作成失敗'}`)
-            continue
-          }
-          jobSeekerId = newJs.id
-          success++
-        }
+        // 既存の求職者を使用（求職者データはスキップ、応募は新規追加）
+        jobSeekerId = existingId
+        skipped++
       } else {
         const { data: newJs, error: jsErr } = await supabase
           .from('job_seekers')
@@ -989,6 +964,7 @@ export function JobSeekerListPage() {
           continue
         }
         jobSeekerId = newJs.id
+        existingPhoneMap.set(row.phone, jobSeekerId)
         success++
       }
 
@@ -1000,21 +976,9 @@ export function JobSeekerListPage() {
       }
       const appliedAt = csvParseDate(row.applied_at) || new Date().toISOString()
 
-      // Check existing application for this job_seeker
-      const { data: existingApps } = await supabase
-        .from('applications')
-        .select('id')
-        .eq('job_seeker_id', jobSeekerId)
-        .limit(1)
-
+      // 応募は常に新規作成（同じ求職者でも複数応募を蓄積）
       let applicationId: string
-      if (existingApps && existingApps.length > 0 && existingId && duplicateAction !== 'create') {
-        applicationId = existingApps[0].id
-        // Update coordinator if provided
-        if (coordinatorId) {
-          await supabase.from('applications').update({ coordinator_id: coordinatorId }).eq('id', applicationId)
-        }
-      } else {
+      {
         const { data: newApp, error: appErr } = await supabase
           .from('applications')
           .insert({
