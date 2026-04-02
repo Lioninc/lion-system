@@ -819,7 +819,7 @@ export function JobSeekerListPage() {
     label,
   }))
 
-  async function handleCSVImport(data: Record<string, string>[], duplicateAction: DuplicateAction, formatId?: string): Promise<{ success: number; skipped: number; updated: number; errors: string[] }> {
+  async function handleCSVImport(data: Record<string, string>[], _duplicateAction: DuplicateAction, formatId?: string): Promise<{ success: number; skipped: number; updated: number; errors: string[] }> {
     const errors: string[] = []
     let success = 0
     let skipped = 0
