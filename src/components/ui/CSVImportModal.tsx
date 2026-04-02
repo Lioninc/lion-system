@@ -380,7 +380,7 @@ export function CSVImportModal({
                       <p className="text-emerald-700">{result.success}件 新規登録</p>
                     )}
                     {result.updated > 0 && (
-                      <p className="text-blue-700">{result.updated}件 更新</p>
+                      <p className="text-blue-700">{result.updated}件 過去応募更新</p>
                     )}
                     {result.skipped > 0 && (
                       <p className="text-slate-500">{result.skipped}件 スキップ（重複）</p>

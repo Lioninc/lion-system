@@ -949,9 +949,9 @@ export function JobSeekerListPage() {
       const existingId = existingPhoneMap.get(row.phone)
 
       if (existingId) {
-        // 既存の求職者を使用（求職者データはスキップ、応募は新規追加）
+        // 既存の求職者を使用（応募は新規追加）
         jobSeekerId = existingId
-        skipped++
+        updated++
       } else {
         const { data: newJs, error: jsErr } = await supabase
           .from('job_seekers')
