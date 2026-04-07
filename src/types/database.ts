@@ -21,7 +21,7 @@ export type ProgressStatus =
   | 'working'
   | 'full_paid'
 
-export type UserRole = 'super_admin' | 'admin' | 'coordinator' | 'clerk' | 'viewer'
+export type UserRole = 'super_admin' | 'admin' | 'coordinator' | 'clerk' | 'viewer' | 'partner'
 
 export type EmploymentStatus = 'active' | 'retired'
 
@@ -361,6 +361,7 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
   coordinator: 'コーディネーター',
   clerk: '事務員',
   viewer: '閲覧者',
+  partner: 'パートナー',
 }
 
 export type ReferralStatus =

@@ -38,6 +38,10 @@ const settingsMenuItems: MenuItem[] = [
   { href: '/settings', icon: Settings, label: '設定', roles: ['super_admin', 'admin'] },
 ]
 
+const partnerMenuItems: MenuItem[] = [
+  { href: '/partner/job-seekers', icon: Users, label: '求職者リスト' },
+]
+
 interface SidebarProps {
   onClose?: () => void
 }
@@ -45,6 +49,7 @@ interface SidebarProps {
 export function Sidebar({ onClose }: SidebarProps) {
   const location = useLocation()
   const { user } = useAuthStore()
+  const isPartner = user?.role === 'partner'
 
   const isActiveRoute = (href: string) => {
     if (href === '/') {
@@ -90,58 +95,88 @@ export function Sidebar({ onClose }: SidebarProps) {
 
       {/* Main Menu */}
       <nav className="flex-1 py-4 overflow-y-auto">
-        <div className="px-4 mb-2">
-          <p className="text-xs text-slate-500 uppercase tracking-wider">メインメニュー</p>
-        </div>
-        {mainMenuItems.map((item) => {
-          if (!canAccess(item.roles)) return null
-          const isActive = isActiveRoute(item.href)
-          const Icon = item.icon
-          return (
-            <Link
-              key={item.href}
-              to={item.href}
-              onClick={handleLinkClick}
-              className={cn(
-                'flex items-center gap-3 px-4 py-3 mx-2 rounded-lg transition-colors',
-                isActive
-                  ? 'bg-primary text-white'
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-              )}
-            >
-              <Icon className="w-5 h-5 flex-shrink-0" />
-              <span className="text-sm font-medium">{item.label}</span>
-            </Link>
-          )
-        })}
+        {isPartner ? (
+          <>
+            <div className="px-4 mb-2">
+              <p className="text-xs text-slate-500 uppercase tracking-wider">パートナーメニュー</p>
+            </div>
+            {partnerMenuItems.map((item) => {
+              const isActive = isActiveRoute(item.href)
+              const Icon = item.icon
+              return (
+                <Link
+                  key={item.href}
+                  to={item.href}
+                  onClick={handleLinkClick}
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-3 mx-2 rounded-lg transition-colors',
+                    isActive
+                      ? 'bg-primary text-white'
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  )}
+                >
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  <span className="text-sm font-medium">{item.label}</span>
+                </Link>
+              )
+            })}
+          </>
+        ) : (
+          <>
+            <div className="px-4 mb-2">
+              <p className="text-xs text-slate-500 uppercase tracking-wider">メインメニュー</p>
+            </div>
+            {mainMenuItems.map((item) => {
+              if (!canAccess(item.roles)) return null
+              const isActive = isActiveRoute(item.href)
+              const Icon = item.icon
+              return (
+                <Link
+                  key={item.href}
+                  to={item.href}
+                  onClick={handleLinkClick}
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-3 mx-2 rounded-lg transition-colors',
+                    isActive
+                      ? 'bg-primary text-white'
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  )}
+                >
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  <span className="text-sm font-medium">{item.label}</span>
+                </Link>
+              )
+            })}
 
-        {/* Settings Menu */}
-        <div className="mt-6 pt-4 border-t border-slate-700">
-          <div className="px-4 mb-2">
-            <p className="text-xs text-slate-500 uppercase tracking-wider">その他</p>
-          </div>
-          {settingsMenuItems.map((item) => {
-            if (!canAccess(item.roles)) return null
-            const isActive = isActiveRoute(item.href)
-            const Icon = item.icon
-            return (
-              <Link
-                key={item.href}
-                to={item.href}
-                onClick={handleLinkClick}
-                className={cn(
-                  'flex items-center gap-3 px-4 py-3 mx-2 rounded-lg transition-colors',
-                  isActive
-                    ? 'bg-primary text-white'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                )}
-              >
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                <span className="text-sm font-medium">{item.label}</span>
-              </Link>
-            )
-          })}
-        </div>
+            {/* Settings Menu */}
+            <div className="mt-6 pt-4 border-t border-slate-700">
+              <div className="px-4 mb-2">
+                <p className="text-xs text-slate-500 uppercase tracking-wider">その他</p>
+              </div>
+              {settingsMenuItems.map((item) => {
+                if (!canAccess(item.roles)) return null
+                const isActive = isActiveRoute(item.href)
+                const Icon = item.icon
+                return (
+                  <Link
+                    key={item.href}
+                    to={item.href}
+                    onClick={handleLinkClick}
+                    className={cn(
+                      'flex items-center gap-3 px-4 py-3 mx-2 rounded-lg transition-colors',
+                      isActive
+                        ? 'bg-primary text-white'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    )}
+                  >
+                    <Icon className="w-5 h-5 flex-shrink-0" />
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </Link>
+                )
+              })}
+            </div>
+          </>
+        )}
       </nav>
 
       {/* User Info */}

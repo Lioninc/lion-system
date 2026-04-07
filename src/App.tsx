@@ -13,6 +13,7 @@ import { InterviewSchedulePage } from './pages/interviews'
 import { SalesListPage, SaleDetailPage } from './pages/sales'
 import { ReportsPage, LegalDocumentsPage } from './pages/reports'
 import { SettingsPage, UserManagementPage } from './pages/settings'
+import { PartnerJobSeekersPage } from './pages/partner'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,6 +40,24 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />
   }
 
+  return <>{children}</>
+}
+
+// Partner-only redirect: パートナーが通常ページにアクセスしたら/partner/job-seekersへ
+function NonPartnerRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuthStore()
+  if (user?.role === 'partner') {
+    return <Navigate to="/partner/job-seekers" replace />
+  }
+  return <>{children}</>
+}
+
+// Partner-only: パートナー以外がアクセスしたら/にリダイレクト
+function PartnerOnlyRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuthStore()
+  if (user?.role !== 'partner') {
+    return <Navigate to="/" replace />
+  }
   return <>{children}</>
 }
 
@@ -90,27 +109,30 @@ function App() {
               </ProtectedRoute>
             }
           >
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/job-seekers" element={<JobSeekerListPage />} />
-            <Route path="/job-seekers/new" element={<JobSeekerNewPage />} />
-            <Route path="/job-seekers/:id" element={<JobSeekerDetailPage />} />
-            <Route path="/job-seekers/:id/edit" element={<JobSeekerEditPage />} />
-            <Route path="/companies" element={<CompanyListPage />} />
-            <Route path="/companies/new" element={<CompanyNewPage />} />
-            <Route path="/companies/:id" element={<CompanyDetailPage />} />
-            <Route path="/jobs" element={<JobListPage />} />
-            <Route path="/jobs/new" element={<JobNewPage />} />
-            <Route path="/jobs/:id" element={<JobDetailPage />} />
-            <Route path="/interviews" element={<InterviewSchedulePage />} />
-            <Route path="/referrals" element={<ReferralListPage />} />
-            <Route path="/referrals/new" element={<ReferralNewPage />} />
-            <Route path="/referrals/:id" element={<ReferralDetailPage />} />
-            <Route path="/sales" element={<SalesListPage />} />
-            <Route path="/sales/:id" element={<SaleDetailPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/reports/legal" element={<LegalDocumentsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/settings/users" element={<UserManagementPage />} />
+            <Route path="/" element={<NonPartnerRoute><DashboardPage /></NonPartnerRoute>} />
+            <Route path="/job-seekers" element={<NonPartnerRoute><JobSeekerListPage /></NonPartnerRoute>} />
+            <Route path="/job-seekers/new" element={<NonPartnerRoute><JobSeekerNewPage /></NonPartnerRoute>} />
+            <Route path="/job-seekers/:id" element={<NonPartnerRoute><JobSeekerDetailPage /></NonPartnerRoute>} />
+            <Route path="/job-seekers/:id/edit" element={<NonPartnerRoute><JobSeekerEditPage /></NonPartnerRoute>} />
+            <Route path="/companies" element={<NonPartnerRoute><CompanyListPage /></NonPartnerRoute>} />
+            <Route path="/companies/new" element={<NonPartnerRoute><CompanyNewPage /></NonPartnerRoute>} />
+            <Route path="/companies/:id" element={<NonPartnerRoute><CompanyDetailPage /></NonPartnerRoute>} />
+            <Route path="/jobs" element={<NonPartnerRoute><JobListPage /></NonPartnerRoute>} />
+            <Route path="/jobs/new" element={<NonPartnerRoute><JobNewPage /></NonPartnerRoute>} />
+            <Route path="/jobs/:id" element={<NonPartnerRoute><JobDetailPage /></NonPartnerRoute>} />
+            <Route path="/interviews" element={<NonPartnerRoute><InterviewSchedulePage /></NonPartnerRoute>} />
+            <Route path="/referrals" element={<NonPartnerRoute><ReferralListPage /></NonPartnerRoute>} />
+            <Route path="/referrals/new" element={<NonPartnerRoute><ReferralNewPage /></NonPartnerRoute>} />
+            <Route path="/referrals/:id" element={<NonPartnerRoute><ReferralDetailPage /></NonPartnerRoute>} />
+            <Route path="/sales" element={<NonPartnerRoute><SalesListPage /></NonPartnerRoute>} />
+            <Route path="/sales/:id" element={<NonPartnerRoute><SaleDetailPage /></NonPartnerRoute>} />
+            <Route path="/reports" element={<NonPartnerRoute><ReportsPage /></NonPartnerRoute>} />
+            <Route path="/reports/legal" element={<NonPartnerRoute><LegalDocumentsPage /></NonPartnerRoute>} />
+            <Route path="/settings" element={<NonPartnerRoute><SettingsPage /></NonPartnerRoute>} />
+            <Route path="/settings/users" element={<NonPartnerRoute><UserManagementPage /></NonPartnerRoute>} />
+
+            {/* Partner Routes */}
+            <Route path="/partner/job-seekers" element={<PartnerOnlyRoute><PartnerJobSeekersPage /></PartnerOnlyRoute>} />
           </Route>
 
           {/* Catch all */}
