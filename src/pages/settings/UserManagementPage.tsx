@@ -18,6 +18,9 @@ function employeeIdToEmail(employeeId: string): string {
   return `emp${employeeId}@lion-system.local`
 }
 
+// パートナーユーザー固定 tenant_id
+const PARTNER_TENANT_ID = '00000000-0000-0000-0000-000000000001'
+
 // 次の社員番号を生成（3桁の連番）
 function generateNextEmployeeId(existingIds: (string | null)[]): string {
   const numericIds = existingIds
@@ -101,6 +104,8 @@ export function UserManagementPage() {
         return 'info'
       case 'viewer':
         return 'success'
+      case 'partner':
+        return 'warning'
       default:
         return 'info'
     }
@@ -168,6 +173,7 @@ export function UserManagementPage() {
                 { value: 'coordinator', label: 'コーディネーター' },
                 { value: 'clerk', label: '事務員' },
                 { value: 'viewer', label: '閲覧者' },
+                { value: 'partner', label: '外部パートナー' },
               ]}
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
@@ -465,7 +471,7 @@ function UserModal({
             name: name.trim(),
             role,
             employment_status: employmentStatus,
-            tenant_id: tenantId,
+            tenant_id: role === 'partner' ? PARTNER_TENANT_ID : tenantId,
             is_active: true,
           })
 
@@ -547,6 +553,7 @@ function UserModal({
               { value: 'coordinator', label: 'コーディネーター - 通常業務が可能' },
               { value: 'clerk', label: '事務員 - 通常業務が可能' },
               { value: 'viewer', label: '閲覧者 - 閲覧のみ可能' },
+              { value: 'partner', label: '外部パートナー - 共有求職者のみ閲覧可能' },
             ]}
             value={role}
             onChange={(e) => setRole(e.target.value as UserRole)}
