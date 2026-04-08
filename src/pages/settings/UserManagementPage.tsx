@@ -430,20 +430,22 @@ function UserModal({
 
         if (updateError) throw updateError
 
-        // パスワード変更は本人のみ supabase.auth.updateUser で可能
-        // それ以外はパスワードリセットメールを送る
+        // パスワード変更
+        // - 本人 → supabase.auth.updateUser
+        // - 他ユーザー → admin_update_user_password RPC で auth.users を直接更新
         if (password) {
           const { data: { user: currentAuthUser } } = await supabase.auth.getUser()
           if (currentAuthUser?.id === user.id) {
             const { error: pwError } = await supabase.auth.updateUser({ password })
             if (pwError) throw new Error(`パスワード更新に失敗しました: ${pwError.message}`)
           } else {
-            // 他ユーザーのパスワードは直接変更不可 → リセットメール
-            const { error: resetError } = await supabase.auth.resetPasswordForEmail(email)
-            if (resetError) {
-              throw new Error(`パスワードリセットメール送信に失敗しました: ${resetError.message}`)
+            const { error: rpcError } = await supabase.rpc('admin_update_user_password', {
+              target_user_id: user.id,
+              new_password: password,
+            })
+            if (rpcError) {
+              throw new Error(`パスワード更新に失敗しました: ${rpcError.message}`)
             }
-            alert('他ユーザーのパスワードは直接変更できません。パスワードリセットメールを送信しました。')
           }
         }
       } else {
