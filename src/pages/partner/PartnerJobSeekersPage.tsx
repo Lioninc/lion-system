@@ -80,6 +80,14 @@ export function PartnerJobSeekersPage() {
       })
     }
 
+    // 応募日の新しい順に並び替え（null は末尾）
+    filtered.sort((a, b) => {
+      if (!a.latest_applied_at && !b.latest_applied_at) return 0
+      if (!a.latest_applied_at) return 1
+      if (!b.latest_applied_at) return -1
+      return b.latest_applied_at.localeCompare(a.latest_applied_at)
+    })
+
     setJobSeekers(filtered)
     setLoading(false)
   }
@@ -186,6 +194,12 @@ export function PartnerJobSeekersPage() {
                           )}
                         </div>
                         <p className="text-sm text-slate-600 mt-1">{formatPhone(js.phone)}</p>
+                        {js.latest_applied_at && (
+                          <p className="text-sm text-slate-600 mt-1">
+                            <span className="text-slate-500">応募日: </span>
+                            {formatDate(js.latest_applied_at)}
+                          </p>
+                        )}
                       </div>
 
                       {/* 居住地 */}
