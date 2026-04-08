@@ -25,7 +25,7 @@ export function PartnerJobSeekersPage() {
   // フィルター
   const [minAge, setMinAge] = useState('')
   const [maxAge, setMaxAge] = useState('')
-  const [locationFilter, setLocationFilter] = useState('')
+  const [prefectureFilter, setPrefectureFilter] = useState('')
   const [genderFilter, setGenderFilter] = useState<'' | 'male' | 'female'>('')
   const [appliedFrom, setAppliedFrom] = useState('')
   const [appliedTo, setAppliedTo] = useState('')
@@ -102,7 +102,7 @@ export function PartnerJobSeekersPage() {
 
   const filteredSeekers = useMemo(() => {
     const lower = search.toLowerCase()
-    const locationLower = locationFilter.toLowerCase()
+    const prefectureLower = prefectureFilter.toLowerCase()
     const minAgeNum = minAge ? Number(minAge) : null
     const maxAgeNum = maxAge ? Number(maxAge) : null
 
@@ -124,9 +124,9 @@ export function PartnerJobSeekersPage() {
       if (minAgeNum !== null && (js.age === null || js.age < minAgeNum)) return false
       if (maxAgeNum !== null && (js.age === null || js.age > maxAgeNum)) return false
 
-      // 希望勤務地
-      if (locationLower) {
-        if (!js.desired_work_location?.toLowerCase().includes(locationLower)) return false
+      // 居住地（都道府県）
+      if (prefectureLower) {
+        if (!js.prefecture?.toLowerCase().includes(prefectureLower)) return false
       }
 
       // 性別
@@ -142,7 +142,7 @@ export function PartnerJobSeekersPage() {
 
       return true
     })
-  }, [jobSeekers, search, minAge, maxAge, locationFilter, genderFilter, appliedFrom, appliedTo])
+  }, [jobSeekers, search, minAge, maxAge, prefectureFilter, genderFilter, appliedFrom, appliedTo])
 
   const totalPages = Math.max(1, Math.ceil(filteredSeekers.length / PAGE_SIZE))
   const pagedSeekers = filteredSeekers.slice(
@@ -159,7 +159,7 @@ export function PartnerJobSeekersPage() {
   function handleResetFilters() {
     setMinAge('')
     setMaxAge('')
-    setLocationFilter('')
+    setPrefectureFilter('')
     setGenderFilter('')
     setAppliedFrom('')
     setAppliedTo('')
@@ -169,7 +169,7 @@ export function PartnerJobSeekersPage() {
   // フィルター変更時はページを1に戻す
   useEffect(() => {
     setCurrentPage(1)
-  }, [minAge, maxAge, locationFilter, genderFilter, appliedFrom, appliedTo])
+  }, [minAge, maxAge, prefectureFilter, genderFilter, appliedFrom, appliedTo])
 
   async function handleSave(updates: Partial<JobSeeker>) {
     if (!editingSeeker) return
@@ -244,14 +244,14 @@ export function PartnerJobSeekersPage() {
               </div>
             </div>
 
-            {/* 希望勤務地 */}
+            {/* 居住地 */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">希望勤務地</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">居住地</label>
               <input
                 type="text"
-                placeholder="地名で検索"
-                value={locationFilter}
-                onChange={(e) => setLocationFilter(e.target.value)}
+                placeholder="都道府県で検索"
+                value={prefectureFilter}
+                onChange={(e) => setPrefectureFilter(e.target.value)}
                 className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
