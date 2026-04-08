@@ -22,6 +22,14 @@ export function PartnerJobSeekersPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [editingSeeker, setEditingSeeker] = useState<JobSeeker | null>(null)
 
+  // フィルター
+  const [minAge, setMinAge] = useState('')
+  const [maxAge, setMaxAge] = useState('')
+  const [locationFilter, setLocationFilter] = useState('')
+  const [genderFilter, setGenderFilter] = useState<'' | 'male' | 'female'>('')
+  const [appliedFrom, setAppliedFrom] = useState('')
+  const [appliedTo, setAppliedTo] = useState('')
+
   useEffect(() => {
     fetchJobSeekers()
   }, [])
@@ -93,20 +101,48 @@ export function PartnerJobSeekersPage() {
   }
 
   const filteredSeekers = useMemo(() => {
-    if (!search) return jobSeekers
     const lower = search.toLowerCase()
+    const locationLower = locationFilter.toLowerCase()
+    const minAgeNum = minAge ? Number(minAge) : null
+    const maxAgeNum = maxAge ? Number(maxAge) : null
+
     return jobSeekers.filter((js) => {
-      return (
-        js.name?.toLowerCase().includes(lower) ||
-        js.name_kana?.toLowerCase().includes(lower) ||
-        js.phone?.includes(search) ||
-        js.prefecture?.toLowerCase().includes(lower) ||
-        js.city?.toLowerCase().includes(lower) ||
-        js.desired_job_type?.toLowerCase().includes(lower) ||
-        js.desired_work_location?.toLowerCase().includes(lower)
-      )
+      // テキスト検索
+      if (search) {
+        const matchesSearch =
+          js.name?.toLowerCase().includes(lower) ||
+          js.name_kana?.toLowerCase().includes(lower) ||
+          js.phone?.includes(search) ||
+          js.prefecture?.toLowerCase().includes(lower) ||
+          js.city?.toLowerCase().includes(lower) ||
+          js.desired_job_type?.toLowerCase().includes(lower) ||
+          js.desired_work_location?.toLowerCase().includes(lower)
+        if (!matchesSearch) return false
+      }
+
+      // 年齢
+      if (minAgeNum !== null && (js.age === null || js.age < minAgeNum)) return false
+      if (maxAgeNum !== null && (js.age === null || js.age > maxAgeNum)) return false
+
+      // 希望勤務地
+      if (locationLower) {
+        if (!js.desired_work_location?.toLowerCase().includes(locationLower)) return false
+      }
+
+      // 性別
+      if (genderFilter && js.gender !== genderFilter) return false
+
+      // 応募日範囲
+      if (appliedFrom) {
+        if (!js.latest_applied_at || js.latest_applied_at < appliedFrom) return false
+      }
+      if (appliedTo) {
+        if (!js.latest_applied_at || js.latest_applied_at > appliedTo + 'T23:59:59') return false
+      }
+
+      return true
     })
-  }, [jobSeekers, search])
+  }, [jobSeekers, search, minAge, maxAge, locationFilter, genderFilter, appliedFrom, appliedTo])
 
   const totalPages = Math.max(1, Math.ceil(filteredSeekers.length / PAGE_SIZE))
   const pagedSeekers = filteredSeekers.slice(
@@ -119,6 +155,21 @@ export function PartnerJobSeekersPage() {
     setSearch(searchInput)
     setCurrentPage(1)
   }
+
+  function handleResetFilters() {
+    setMinAge('')
+    setMaxAge('')
+    setLocationFilter('')
+    setGenderFilter('')
+    setAppliedFrom('')
+    setAppliedTo('')
+    setCurrentPage(1)
+  }
+
+  // フィルター変更時はページを1に戻す
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [minAge, maxAge, locationFilter, genderFilter, appliedFrom, appliedTo])
 
   async function handleSave(updates: Partial<JobSeeker>) {
     if (!editingSeeker) return
@@ -158,6 +209,87 @@ export function PartnerJobSeekersPage() {
             </div>
             <Button type="submit">検索</Button>
           </form>
+        </Card>
+
+        {/* フィルター */}
+        <Card>
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-sm font-bold text-slate-700">フィルター</h3>
+            <Button type="button" variant="outline" size="sm" onClick={handleResetFilters}>
+              リセット
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* 年齢 */}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">年齢</label>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="最小"
+                  value={minAge}
+                  onChange={(e) => setMinAge(e.target.value)}
+                  className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <span className="text-slate-400">〜</span>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="最大"
+                  value={maxAge}
+                  onChange={(e) => setMaxAge(e.target.value)}
+                  className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+
+            {/* 希望勤務地 */}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">希望勤務地</label>
+              <input
+                type="text"
+                placeholder="地名で検索"
+                value={locationFilter}
+                onChange={(e) => setLocationFilter(e.target.value)}
+                className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+
+            {/* 性別 */}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">性別</label>
+              <select
+                value={genderFilter}
+                onChange={(e) => setGenderFilter(e.target.value as '' | 'male' | 'female')}
+                className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+              >
+                <option value="">すべて</option>
+                <option value="male">男性</option>
+                <option value="female">女性</option>
+              </select>
+            </div>
+
+            {/* 応募日 */}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">応募日</label>
+              <div className="flex items-center gap-1">
+                <input
+                  type="date"
+                  value={appliedFrom}
+                  onChange={(e) => setAppliedFrom(e.target.value)}
+                  className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <span className="text-slate-400">〜</span>
+                <input
+                  type="date"
+                  value={appliedTo}
+                  onChange={(e) => setAppliedTo(e.target.value)}
+                  className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+          </div>
         </Card>
 
         {loading ? (
