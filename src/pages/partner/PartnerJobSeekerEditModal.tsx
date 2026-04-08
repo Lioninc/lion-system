@@ -48,8 +48,7 @@ export function PartnerJobSeekerEditModal({
 
   const [saving, setSaving] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  async function handleSave() {
     setSaving(true)
     try {
       await onSave({
@@ -78,11 +77,13 @@ export function PartnerJobSeekerEditModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center p-4 border-b border-slate-200">
           <h2 className="text-lg font-bold text-slate-800">プロフィール編集</h2>
           <button
+            type="button"
             onClick={onClose}
             className="p-1 rounded hover:bg-slate-100"
           >
@@ -90,7 +91,7 @@ export function PartnerJobSeekerEditModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
           {/* 基本情報 */}
           <section>
             <h3 className="text-sm font-bold text-slate-700 mb-3 pb-1 border-b border-slate-200">
@@ -251,13 +252,13 @@ export function PartnerJobSeekerEditModal({
               </div>
             </div>
           </section>
-        </form>
+        </div>
 
         <div className="flex justify-end gap-2 p-4 border-t border-slate-200">
-          <Button variant="outline" onClick={onClose} disabled={saving}>
+          <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
             キャンセル
           </Button>
-          <Button onClick={handleSubmit} disabled={saving}>
+          <Button type="button" onClick={handleSave} disabled={saving}>
             {saving ? '保存中...' : '保存'}
           </Button>
         </div>

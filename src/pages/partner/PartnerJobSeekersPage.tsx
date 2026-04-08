@@ -258,6 +258,7 @@ export function PartnerJobSeekersPage() {
 
                     <div>
                       <Button
+                        type="button"
                         variant="outline"
                         size="sm"
                         onClick={() => setEditingSeeker(js)}
@@ -279,6 +280,7 @@ export function PartnerJobSeekersPage() {
               </p>
               <div className="flex gap-2">
                 <Button
+                  type="button"
                   variant="outline"
                   size="sm"
                   disabled={currentPage === 1}
@@ -290,6 +292,7 @@ export function PartnerJobSeekersPage() {
                   {currentPage} / {totalPages}
                 </span>
                 <Button
+                  type="button"
                   variant="outline"
                   size="sm"
                   disabled={currentPage >= totalPages}
