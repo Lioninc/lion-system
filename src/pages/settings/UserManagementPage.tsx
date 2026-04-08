@@ -13,9 +13,9 @@ interface UserWithStatus extends User {
   is_active: boolean
 }
 
-// 社員番号からメールアドレスを生成（内部用ダミーアドレス）
+// 社員番号からメールアドレスを生成（内部用ダミーアドレス、LoginPage と同じ形式）
 function employeeIdToEmail(employeeId: string): string {
-  return `emp${employeeId}@lion-system.local`
+  return `emp${employeeId}@gmail.com`
 }
 
 // パートナーユーザー固定 tenant_id
