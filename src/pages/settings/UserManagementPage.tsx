@@ -430,36 +430,57 @@ function UserModal({
 
         if (updateError) throw updateError
 
-        // パスワードが入力されていれば Edge Function 経由で更新
+        // パスワード変更は本人のみ supabase.auth.updateUser で可能
+        // それ以外はパスワードリセットメールを送る
         if (password) {
-          const { data: pwData, error: pwError } = await supabase.functions.invoke(
-            'update-user-password',
-            { body: { user_id: user.id, password } }
-          )
-          if (pwError || (pwData && pwData.error)) {
-            throw new Error(pwData?.error || pwError?.message || 'パスワード更新に失敗しました')
+          const { data: { user: currentAuthUser } } = await supabase.auth.getUser()
+          if (currentAuthUser?.id === user.id) {
+            const { error: pwError } = await supabase.auth.updateUser({ password })
+            if (pwError) throw new Error(`パスワード更新に失敗しました: ${pwError.message}`)
+          } else {
+            // 他ユーザーのパスワードは直接変更不可 → リセットメール
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(email)
+            if (resetError) {
+              throw new Error(`パスワードリセットメール送信に失敗しました: ${resetError.message}`)
+            }
+            alert('他ユーザーのパスワードは直接変更できません。パスワードリセットメールを送信しました。')
           }
         }
       } else {
-        // 新規ユーザー作成は Edge Function (service role key) 経由
-        const { data: createData, error: createError } = await supabase.functions.invoke(
-          'create-user',
-          {
-            body: {
-              email,
-              password,
-              employee_id: employeeId.trim(),
-              name: name.trim(),
-              role,
-              employment_status: employmentStatus,
-              tenant_id: role === 'partner' ? PARTNER_TENANT_ID : tenantId,
-            },
-          }
-        )
+        // 新規ユーザー作成: signUp で Auth ユーザー作成 → users テーブルに INSERT
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { name: name.trim() },
+          },
+        })
 
-        if (createError || (createData && createData.error)) {
-          throw new Error(createData?.error || createError?.message || 'ユーザーの作成に失敗しました')
+        if (signUpError) {
+          if (signUpError.message.toLowerCase().includes('already')) {
+            throw new Error('この社員番号は既に登録されています')
+          }
+          throw signUpError
         }
+
+        if (!signUpData.user) {
+          throw new Error('ユーザーの作成に失敗しました')
+        }
+
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert({
+            id: signUpData.user.id,
+            email,
+            employee_id: employeeId.trim(),
+            name: name.trim(),
+            role,
+            employment_status: employmentStatus,
+            tenant_id: role === 'partner' ? PARTNER_TENANT_ID : tenantId,
+            is_active: true,
+          })
+
+        if (insertError) throw insertError
       }
 
       onSave()
