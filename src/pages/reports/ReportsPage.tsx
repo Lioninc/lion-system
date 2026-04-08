@@ -423,6 +423,42 @@ export function ReportsPage() {
       setTotalWorking(totWorking)
 
       // ============================================================
+      // 🔍 DEBUG: appAggMap ロジックの検証
+      // ============================================================
+      const conductedInterviews = allInterviews.filter((iv) => iv.conducted_at)
+      const uniqueAppIdsWithReferral = new Set<string>()
+      const uniqueAppIdsWithSales = new Set<string>()
+      const uniqueAppIdsWithWorking = new Set<string>()
+      for (const [appId, agg] of appAggMap) {
+        if (agg.hasReferral) uniqueAppIdsWithReferral.add(appId)
+        if (agg.hasSales) uniqueAppIdsWithSales.add(appId)
+        if (agg.hasWorking) uniqueAppIdsWithWorking.add(appId)
+      }
+      console.log('========== ReportsPage DEBUG ==========')
+      console.log('[1] allApps.length (期間内application数):', allApps.length)
+      console.log('[2] allInterviews.length (interviews行数):', allInterviews.length)
+      console.log('[3] conducted interviews行数:', conductedInterviews.length)
+      console.log('[4] appInterviewMonth.size (面接実施したapp数):', appInterviewMonth.size)
+      console.log('[5] allReferrals.length (referrals行数):', allReferrals.length)
+      console.log('[6] appAggMap.size (referralを持つapp数):', appAggMap.size)
+      console.log('[7] hasReferral=trueなapp数:', uniqueAppIdsWithReferral.size)
+      console.log('[8] hasSales=trueなapp数:', uniqueAppIdsWithSales.size)
+      console.log('[9] hasWorking=trueなapp数:', uniqueAppIdsWithWorking.size)
+      console.log('[10] sortedMonths.length:', sortedMonths.length)
+      console.log('[11] 月別interviews合計 (KPI面接数):', totInterviews)
+      console.log('[12] 月別referrals合計 (KPI繋ぎ数):', totReferrals)
+      console.log('[13] 月別prospects合計 (KPI見込み数):', totProspects)
+      console.log('[14] 月別working合計 (KPI稼働数):', totWorking)
+      console.log('[15] 月別データ:', sortedMonths.map((m) => ({
+        month: m.month,
+        interviews: m.interviews,
+        referrals: m.referrals,
+        prospects: m.prospects,
+        working: m.working,
+      })))
+      console.log('========================================')
+
+      // ============================================================
       // 月別推移（売上月ベース） — sales.created_at月で集計
       // ============================================================
       const salesMonthMap = new Map<string, {
