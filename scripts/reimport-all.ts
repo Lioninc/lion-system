@@ -6,14 +6,14 @@
  * 3. 月別数値を検証
  *
  * 【集計定義】
- * - 面談:    AZ=「済み」、担当=BB、月=AU+AV
- * - 繋ぎ:    BF=「繋ぎ」、月=AU+AV
- * - 面接予定: BJ に値あり、月=AU+AV
- * - 面接済:  BM=「済み」、月=AU+AV
- * - 採用:    BN=「採用」、月=AU+AV
- * - 売上見込: BX金額、月=AU+AV
- * - 売上確定: CG金額、月=AU+AV
- * - 入金:    CH金額、月=AU+AV
+ * - 面談:    AZ=「済み」、担当=BB、月=AU+AV+AW
+ * - 繋ぎ:    BM=「済み」（派遣面接済み）、月=AU+AV+AW
+ * - 面接予定: BJ に値あり、月=AU+AV+AW
+ * - 面接済:  BM=「済み」、月=AU+AV+AW
+ * - 採用:    BN=「採用」、月=AU+AV+AW
+ * - 売上見込: BX金額、月=AU+AV+AW
+ * - 売上確定: CG金額、月=AU+AV+AW
+ * - 入金:    CH金額、月=AU+AV+AW
  *
  * 使い方:
  *   npx tsx scripts/reimport-all.ts                     # dry-run (CSV解析のみ)
@@ -65,6 +65,7 @@ const COL = {
   INQUIRY_STATUS: 35, // AJ: 問い合わせ状態
   AU: 46,            // AU: 日程_年
   AV: 47,            // AV: 日程_月
+  AW: 48,            // AW: 日程_日
   AX: 49,            // AX: 面談時間
   AY: 50,            // AY: 面談日程
   AZ: 51,            // AZ: 面談ステータス(済み/流れ/辞退)
@@ -147,11 +148,12 @@ function parseBool(v: string): boolean {
   return v.includes('あり') || v.includes('有') || v === '○'
 }
 
-/** AU+AVからfiscal dateを構築 (YYYY-MM-15) */
-function buildFiscalDate(au: string, av: string): string | null {
+/** AU+AV+AWからfiscal dateを構築 (YYYY-MM-DD) */
+function buildFiscalDate(au: string, av: string, aw: string): string | null {
   if (!au || !av) return null
   const month = av.padStart(2, '0')
-  return `${au}-${month}-15`
+  const day = aw ? aw.padStart(2, '0') : '15'
+  return `${au}-${month}-${day}`
 }
 
 /**
@@ -334,7 +336,7 @@ async function main() {
 
     if (month) {
       if (row[COL.AZ]?.trim() === '済み') incMap(csvCounts.interviews, month)
-      if (row[COL.BF]?.trim() === '繋ぎ') incMap(csvCounts.referrals, month)
+      if (row[COL.BM]?.trim() === '済み') incMap(csvCounts.referrals, month)
       if (row[COL.BJ]?.trim()) incMap(csvCounts.dispatchScheduled, month)
       if (row[COL.BM]?.trim() === '済み') incMap(csvCounts.dispatchDone, month)
       if (row[COL.BN]?.trim() === '採用') incMap(csvCounts.hired, month)
@@ -545,24 +547,20 @@ async function main() {
     const appliedAt = parseDate(row[COL.DATE]) || new Date().toISOString().split('T')[0]
     const au = row[COL.AU]?.trim() || ''
     const av = row[COL.AV]?.trim() || ''
+    const aw = row[COL.AW]?.trim() || ''
     const ayDate = parseDate(row[COL.AY])
-    const fiscalDate = ayDate || buildFiscalDate(au, av)
+    const fiscalDate = ayDate || buildFiscalDate(au, av, aw)
 
     // 担当者
     const coordId = findCoord(row[COL.BB]?.trim() || '')
 
     // ステータス
-    const statusRaw = row[COL.INQUIRY_STATUS]?.trim() || ''
-    const appStatus = STATUS_MAP[statusRaw] || 'new'
-
-    const referralStatusRaw = row[COL.BF]?.trim() || ''
     const progressRaw = row[COL.BM]?.trim() || ''
     const paymentRaw = row[COL.CJ]?.trim() || ''
 
     let progressStatus: string | null = null
     if (paymentRaw?.includes('確定')) progressStatus = 'full_paid'
     else if (progressRaw) progressStatus = PROGRESS_MAP[progressRaw] || null
-    else if (referralStatusRaw) progressStatus = PROGRESS_MAP[referralStatusRaw] || 'referred'
 
     // Application
     const appId = crypto.randomUUID()
@@ -572,7 +570,7 @@ async function main() {
       job_seeker_id: jsId,
       source_id: sourceMap.get(row[COL.SOURCE]?.trim() || '') || null,
       coordinator_id: coordId,
-      application_status: appStatus,
+      application_status: 'new',
       progress_status: progressStatus,
       job_type: row[COL.JOB_TYPE]?.trim() || null,
       applied_at: appliedAt,
@@ -582,7 +580,7 @@ async function main() {
     // Interview (AZ has value: 済み/流れ/辞退)
     const az = row[COL.AZ]?.trim() || ''
     if (az === '済み' || az === '流れ' || az === '辞退') {
-      const scheduledDate = ayDate || buildFiscalDate(au, av) || appliedAt
+      const scheduledDate = ayDate || buildFiscalDate(au, av, aw) || appliedAt
       const axTime = row[COL.AX]?.trim() || ''
       // AX列の時間(HH:MM:SS)を組み合わせてJSTタイムスタンプに
       const scheduledAt = axTime
@@ -602,8 +600,8 @@ async function main() {
       ivRows.push(ivData)
     }
 
-    // Referral (BF=「繋ぎ」のみ。「繋げず」は紹介なし)
-    if (referralStatusRaw === '繋ぎ') {
+    // Referral (BM=「済み」（派遣面接済み）のとき紹介レコードを作成)
+    if (progressRaw === '済み') {
       const companyName = row[COL.BL]?.trim()
       // 紹介先あり → 対応する会社/求人、なし → プレースホルダー
       let jobId: string | null = null
@@ -619,9 +617,7 @@ async function main() {
       }
 
       if (jobId) {
-        let refStatus = 'referred'
-        if (progressRaw) refStatus = REFERRAL_STATUS_MAP[progressRaw] || PROGRESS_MAP[progressRaw] || 'referred'
-        else if (referralStatusRaw) refStatus = REFERRAL_STATUS_MAP[referralStatusRaw] || 'referred'
+        const refStatus = 'interview_done'
 
         // BG/BH/CF を先に取得（BJ/CF両方で使う）
         const cfRaw = row[COL.CF]?.trim() || ''

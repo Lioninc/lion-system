@@ -274,35 +274,21 @@ export function ReportsPage() {
       const allPayments = rawPayments.filter((p) => saleIdSet.has(p.sale_id))
 
       // Lookup maps
-      const appCoordMap = new Map<string, string | null>()
-      for (const app of allApps) appCoordMap.set(app.id, app.coordinator_id)
-
       const coordNameMap = new Map<string, string>()
       filterOptions.coordinators.forEach((c) => coordNameMap.set(c.id, c.name))
 
-      // interview → application lookup
-      const interviewAppMap = new Map<string, string>()
-      for (const iv of allInterviews) interviewAppMap.set(iv.id, iv.application_id)
-
-      // referral → application lookup
-      const referralAppMap = new Map<string, string>()
-      for (const ref of allReferrals) referralAppMap.set(ref.id, ref.application_id)
-
-      // application → interviewer_id lookup (from the earliest conducted interview)
-      const appInterviewerMap = new Map<string, string | null>()
-      for (const iv of allInterviews) {
-        if (iv.conducted_at && !appInterviewerMap.has(iv.application_id)) {
-          appInterviewerMap.set(iv.application_id, iv.interviewer_id)
-        }
-      }
-
-      // referral → interview month: find earliest interview for this application
+      // application → 最初のconducted面接の月 と interviewer_id を算出
       const appInterviewMonth = new Map<string, string>()
+      const appInterviewerMap = new Map<string, string | null>()
+      const appEarliestIvDate = new Map<string, string>()
       for (const iv of allInterviews) {
         if (!iv.conducted_at) continue
-        const month = iv.scheduled_at.substring(0, 7)
-        const existing = appInterviewMonth.get(iv.application_id)
-        if (!existing || month < existing) appInterviewMonth.set(iv.application_id, month)
+        const existing = appEarliestIvDate.get(iv.application_id)
+        if (!existing || iv.scheduled_at < existing) {
+          appEarliestIvDate.set(iv.application_id, iv.scheduled_at)
+          appInterviewMonth.set(iv.application_id, iv.scheduled_at.substring(0, 7))
+          appInterviewerMap.set(iv.application_id, iv.interviewer_id)
+        }
       }
 
       // salesByRef
@@ -318,35 +304,16 @@ export function ReportsPage() {
       for (const ref of allReferrals) refById.set(ref.id, ref)
 
       // ============================================================
-      // application単位の集計マップ（重複防止のためすべての指標で使用）
+      // 集計定義
       // ============================================================
-      interface AppAgg {
-        hasReferral: boolean
-        hasSales: boolean
-        hasWorking: boolean
-        prospectSales: number
-        workingSales: number
-      }
-      const appAggMap = new Map<string, AppAgg>()
-      for (const ref of allReferrals) {
-        let agg = appAggMap.get(ref.application_id)
-        if (!agg) {
-          agg = { hasReferral: false, hasSales: false, hasWorking: false, prospectSales: 0, workingSales: 0 }
-          appAggMap.set(ref.application_id, agg)
-        }
-        agg.hasReferral = true
+      // 繋ぎ: referral_status が interview_done 以降
+      const TSUNAGI_STATUSES = ['interview_done', 'hired', 'pre_assignment', 'assigned', 'working']
 
-        const sales = salesByRef.get(ref.id) || []
-        const totalAmount = sales.reduce((sum, s) => sum + s.amount, 0)
-
-        if (sales.length > 0) {
-          agg.hasSales = true
-          agg.prospectSales += totalAmount
-        }
-
-        if (ref.referral_status === 'working') {
-          agg.hasWorking = true
-          agg.workingSales += totalAmount
+      // 稼働: salesテーブルにstatus='confirmed'のレコードがあるreferral
+      const refHasConfirmedSale = new Set<string>()
+      for (const sale of allSales) {
+        if (sale.status === 'confirmed') {
+          refHasConfirmedSale.add(sale.referral_id)
         }
       }
 
@@ -374,23 +341,28 @@ export function ReportsPage() {
         ensureMonth(month).interviews += 1
       }
 
-      // 繋ぎ・見込み・稼働: applicationごとに最初の面接月でユニークカウント
-      for (const [appId, agg] of appAggMap) {
-        const ivMonth = appInterviewMonth.get(appId)
+      // 繋ぎ・見込み・稼働: referralごとにカウント（面接月ベース）
+      for (const ref of allReferrals) {
+        const ivMonth = appInterviewMonth.get(ref.application_id)
         if (!ivMonth) continue
 
         const m = ensureMonth(ivMonth)
 
-        if (agg.hasReferral) m.referrals += 1
+        // 繋ぎ: referral_status が interview_done 以降
+        if (TSUNAGI_STATUSES.includes(ref.referral_status)) m.referrals += 1
 
-        if (agg.hasSales) {
+        // 見込み: salesレコードが存在
+        const sales = salesByRef.get(ref.id) || []
+        if (sales.length > 0) {
           m.prospects += 1
-          m.prospectSales += agg.prospectSales
+          m.prospectSales += sales.reduce((sum, s) => sum + s.amount, 0)
         }
 
-        if (agg.hasWorking) {
+        // 稼働: salesにstatus='confirmed'のレコードがある
+        if (refHasConfirmedSale.has(ref.id)) {
           m.working += 1
-          m.workingSales += agg.workingSales
+          const confirmedSales = sales.filter((s) => s.status === 'confirmed')
+          m.workingSales += confirmedSales.reduce((sum, s) => sum + s.amount, 0)
         }
       }
 
@@ -423,42 +395,6 @@ export function ReportsPage() {
       setTotalWorking(totWorking)
 
       // ============================================================
-      // 🔍 DEBUG: appAggMap ロジックの検証
-      // ============================================================
-      const conductedInterviews = allInterviews.filter((iv) => iv.conducted_at)
-      const uniqueAppIdsWithReferral = new Set<string>()
-      const uniqueAppIdsWithSales = new Set<string>()
-      const uniqueAppIdsWithWorking = new Set<string>()
-      for (const [appId, agg] of appAggMap) {
-        if (agg.hasReferral) uniqueAppIdsWithReferral.add(appId)
-        if (agg.hasSales) uniqueAppIdsWithSales.add(appId)
-        if (agg.hasWorking) uniqueAppIdsWithWorking.add(appId)
-      }
-      console.log('========== ReportsPage DEBUG ==========')
-      console.log('[1] allApps.length (期間内application数):', allApps.length)
-      console.log('[2] allInterviews.length (interviews行数):', allInterviews.length)
-      console.log('[3] conducted interviews行数:', conductedInterviews.length)
-      console.log('[4] appInterviewMonth.size (面接実施したapp数):', appInterviewMonth.size)
-      console.log('[5] allReferrals.length (referrals行数):', allReferrals.length)
-      console.log('[6] appAggMap.size (referralを持つapp数):', appAggMap.size)
-      console.log('[7] hasReferral=trueなapp数:', uniqueAppIdsWithReferral.size)
-      console.log('[8] hasSales=trueなapp数:', uniqueAppIdsWithSales.size)
-      console.log('[9] hasWorking=trueなapp数:', uniqueAppIdsWithWorking.size)
-      console.log('[10] sortedMonths.length:', sortedMonths.length)
-      console.log('[11] 月別interviews合計 (KPI面接数):', totInterviews)
-      console.log('[12] 月別referrals合計 (KPI繋ぎ数):', totReferrals)
-      console.log('[13] 月別prospects合計 (KPI見込み数):', totProspects)
-      console.log('[14] 月別working合計 (KPI稼働数):', totWorking)
-      console.log('[15] 月別データ:', sortedMonths.map((m) => ({
-        month: m.month,
-        interviews: m.interviews,
-        referrals: m.referrals,
-        prospects: m.prospects,
-        working: m.working,
-      })))
-      console.log('========================================')
-
-      // ============================================================
       // 月別推移（売上月ベース） — sales.created_at月で集計
       // ============================================================
       const salesMonthMap = new Map<string, {
@@ -475,9 +411,9 @@ export function ReportsPage() {
         return salesMonthMap.get(month)!
       }
 
-      // Group sales by application_id + month to count unique applications per month
-      const appMonthProspect = new Set<string>()
-      const appMonthWorking = new Set<string>()
+      // Group sales by referral_id + month to count unique referrals per month
+      const refMonthProspect = new Set<string>()
+      const refMonthWorking = new Set<string>()
 
       for (const sale of allSales) {
         const saleMonth = sale.created_at.substring(0, 7)
@@ -485,18 +421,18 @@ export function ReportsPage() {
 
         const ref = refById.get(sale.referral_id)
         if (!ref) continue
-        const appId = ref.application_id
 
-        const appKey = `${appId}_${saleMonth}`
-        if (!appMonthProspect.has(appKey)) {
-          appMonthProspect.add(appKey)
+        const refKey = `${ref.id}_${saleMonth}`
+        if (!refMonthProspect.has(refKey)) {
+          refMonthProspect.add(refKey)
           sm.prospects += 1
         }
         sm.prospectSales += sale.amount
 
-        if (ref.referral_status === 'working') {
-          if (!appMonthWorking.has(appKey)) {
-            appMonthWorking.add(appKey)
+        // 稼働: sales.status = 'confirmed'
+        if (sale.status === 'confirmed') {
+          if (!refMonthWorking.has(refKey)) {
+            refMonthWorking.add(refKey)
             sm.working += 1
           }
           sm.workingSales += sale.amount
@@ -540,15 +476,19 @@ export function ReportsPage() {
       const saleRefMap = new Map<string, string>()
       for (const sale of allSales) saleRefMap.set(sale.id, sale.referral_id)
 
+      // referralごとにストック/当月を判定（稼働 = confirmed sale がある紹介のみ）
       for (const ref of allReferrals) {
         if (!ref.start_work_date) continue
-        const workMonth = ref.start_work_date.substring(0, 7)
+        if (!refHasConfirmedSale.has(ref.id)) continue
+
         const ivMonth = appInterviewMonth.get(ref.application_id)
         if (!ivMonth) continue
 
+        const workMonth = ref.start_work_date.substring(0, 7)
         const sm = ensureStockMonth(ivMonth)
         const sales = salesByRef.get(ref.id) || []
-        const refSalesAmount = sales.reduce((sum, s) => sum + s.amount, 0)
+        const confirmedSales = sales.filter((s) => s.status === 'confirmed')
+        const refSalesAmount = confirmedSales.reduce((sum, s) => sum + s.amount, 0)
 
         if (ivMonth !== workMonth) {
           sm.stockCount += 1
@@ -593,9 +533,9 @@ export function ReportsPage() {
         crdMap.get(interviewerKey)!.interviews += 1
       }
 
-      // 繋ぎ・見込み・稼働: applicationごとにユニークカウント
-      for (const [appId, agg] of appAggMap) {
-        const interviewerId = appInterviewerMap.get(appId)
+      // 繋ぎ・見込み・稼働: referralごとにカウント
+      for (const ref of allReferrals) {
+        const interviewerId = appInterviewerMap.get(ref.application_id)
         const iKey = interviewerId || '_none'
         if (!crdMap.has(iKey)) {
           const name = interviewerId ? (coordNameMap.get(interviewerId) || '不明') : '未設定'
@@ -603,11 +543,15 @@ export function ReportsPage() {
         }
         const crd = crdMap.get(iKey)!
 
-        if (agg.hasReferral) crd.referrals += 1
-        if (agg.hasSales) crd.prospects += 1
-        if (agg.hasWorking) {
+        if (TSUNAGI_STATUSES.includes(ref.referral_status)) crd.referrals += 1
+
+        const sales = salesByRef.get(ref.id) || []
+        if (sales.length > 0) crd.prospects += 1
+
+        if (refHasConfirmedSale.has(ref.id)) {
           crd.working += 1
-          crd.workingSales += agg.workingSales
+          const confirmedSales = sales.filter((s) => s.status === 'confirmed')
+          crd.workingSales += confirmedSales.reduce((sum, s) => sum + s.amount, 0)
         }
       }
 
