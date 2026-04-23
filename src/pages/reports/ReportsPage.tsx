@@ -342,8 +342,10 @@ export function ReportsPage() {
       }
 
       // 繋ぎ・見込み・稼働: referralごとにカウント（面接月ベース）
+      // conducted_atがない面談の場合はreferred_at月をフォールバックに使用
       for (const ref of allReferrals) {
         const ivMonth = appInterviewMonth.get(ref.application_id)
+          || (ref.referred_at ? ref.referred_at.substring(0, 7) : null)
         if (!ivMonth) continue
 
         const m = ensureMonth(ivMonth)
@@ -487,6 +489,7 @@ export function ReportsPage() {
         if (!refHasConfirmedSale.has(ref.id)) continue
 
         const ivMonth = appInterviewMonth.get(ref.application_id)
+          || (ref.referred_at ? ref.referred_at.substring(0, 7) : null)
         if (!ivMonth) continue
 
         const workMonth = ref.start_work_date.substring(0, 7)
