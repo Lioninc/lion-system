@@ -549,7 +549,7 @@ async function main() {
     const av = row[COL.AV]?.trim() || ''
     const aw = row[COL.AW]?.trim() || ''
     const ayDate = parseDate(row[COL.AY])
-    const fiscalDate = ayDate || buildFiscalDate(au, av, aw)
+    const fiscalDate = buildFiscalDate(au, av, aw) || ayDate
 
     // 担当者
     const coordId = findCoord(row[COL.BB]?.trim() || '')
@@ -580,7 +580,7 @@ async function main() {
     // Interview (AZ has value: 済み/流れ/辞退)
     const az = row[COL.AZ]?.trim() || ''
     if (az === '済み' || az === '流れ' || az === '辞退') {
-      const scheduledDate = ayDate || buildFiscalDate(au, av, aw) || appliedAt
+      const scheduledDate = buildFiscalDate(au, av, aw) || ayDate || appliedAt
       const axTime = row[COL.AX]?.trim() || ''
       // AX列の時間(HH:MM:SS)を組み合わせてJSTタイムスタンプに
       const scheduledAt = axTime
