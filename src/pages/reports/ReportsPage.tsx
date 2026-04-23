@@ -351,11 +351,12 @@ export function ReportsPage() {
         // 繋ぎ: referral_status が interview_done 以降
         if (TSUNAGI_STATUSES.includes(ref.referral_status)) m.referrals += 1
 
-        // 見込み: salesレコードが存在
+        // 見込み: salesレコード(expected)が存在
         const sales = salesByRef.get(ref.id) || []
-        if (sales.length > 0) {
+        const expectedSales = sales.filter((s) => s.status === 'expected')
+        if (expectedSales.length > 0) {
           m.prospects += 1
-          m.prospectSales += sales.reduce((sum, s) => sum + s.amount, 0)
+          m.prospectSales += expectedSales.reduce((sum, s) => sum + s.amount, 0)
         }
 
         // 稼働: salesにstatus='confirmed'のレコードがある
@@ -423,11 +424,15 @@ export function ReportsPage() {
         if (!ref) continue
 
         const refKey = `${ref.id}_${saleMonth}`
-        if (!refMonthProspect.has(refKey)) {
-          refMonthProspect.add(refKey)
-          sm.prospects += 1
+
+        // 見込み: expected status のみ
+        if (sale.status === 'expected') {
+          if (!refMonthProspect.has(refKey)) {
+            refMonthProspect.add(refKey)
+            sm.prospects += 1
+          }
+          sm.prospectSales += sale.amount
         }
-        sm.prospectSales += sale.amount
 
         // 稼働: sales.status = 'confirmed'
         if (sale.status === 'confirmed') {
