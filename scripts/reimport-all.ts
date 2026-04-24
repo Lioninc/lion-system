@@ -11,7 +11,7 @@
  * - 面接予定: BJ に値あり、月=AU+AV+AW
  * - 面接済:  BM=「済み」、月=AU+AV+AW
  * - 採用:    BN=「採用」、月=AU+AV+AW
- * - 売上見込: BX金額、月=AU+AV+AW
+ * - 売上見込: BX金額（AZ=済み かつ BX>0 の行も含む）、月=AU+AV+AW
  * - 売上確定: CG金額、月=AU+AV+AW
  * - 入金:    CH金額、月=AU+AV+AW
  *
@@ -600,8 +600,12 @@ async function main() {
       ivRows.push(ivData)
     }
 
-    // Referral (BM=「済み」（派遣面接済み）のとき紹介レコードを作成)
-    if (progressRaw === '済み') {
+    // Referral
+    // BM=「済み」、またはBM≠済みでもAZ=済み かつ BX金額がある場合は紹介+売上を作成
+    const expectedAmt = parseAmount(row[COL.BX])
+    const shouldCreateReferral = progressRaw === '済み' || (az === '済み' && expectedAmt && expectedAmt > 0)
+
+    if (shouldCreateReferral) {
       const companyName = row[COL.BL]?.trim()
       // 紹介先あり → 対応する会社/求人、なし → プレースホルダー
       let jobId: string | null = null
@@ -612,12 +616,18 @@ async function main() {
           const jobKey = `${companyId}:${jobTitle}`
           jobId = jobMap.get(jobKey) || null
         }
+        // 会社名あるがマッチしない場合もプレースホルダーを使用
+        if (!jobId) jobId = placeholderJobId
       } else {
         jobId = placeholderJobId
       }
 
       if (jobId) {
-        const refStatus = 'interview_done'
+        // BM=済み → interview_done、BM=辞退 → declined、その他 → referred
+        let refStatus = 'interview_done'
+        if (progressRaw !== '済み') {
+          refStatus = progressRaw === '辞退' ? 'declined' : 'referred'
+        }
 
         // BG/BH/CF を先に取得（BJ/CF両方で使う）
         const cfRaw = row[COL.CF]?.trim() || ''
@@ -664,7 +674,6 @@ async function main() {
         })
 
         // Sales (日付フィールドに稼働月日付を格納、面談月ベースはreferred_atから取得)
-        const expectedAmt = parseAmount(row[COL.BX])
         const confirmedAmt = parseAmount(row[COL.CG])
         const paidAmt = parseAmount(row[COL.CH])
         const workDate = workMonthDate || fiscalDate || appliedAt
