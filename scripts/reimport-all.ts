@@ -603,9 +603,11 @@ async function main() {
     }
 
     // Referral
-    // BM=「済み」、またはBM≠済みでもAZ=済み かつ BX金額がある場合は紹介+売上を作成
+    // BM=「済み」、またはAZ=済み+BX金額ありの場合は紹介+売上を作成
+    // ただしBM=辞退かつBN≠採用の行は除外（辞退して不採用 = 見込みに含めない）
     const expectedAmt = parseAmount(row[COL.BX])
-    const shouldCreateReferral = progressRaw === '済み' || (az === '済み' && expectedAmt && expectedAmt > 0)
+    const resultRaw = row[COL.BN]?.trim()
+    const shouldCreateReferral = progressRaw === '済み' || (az === '済み' && expectedAmt && expectedAmt > 0 && (progressRaw !== '辞退' || resultRaw === '採用'))
 
     if (shouldCreateReferral) {
       const companyName = row[COL.BL]?.trim()
@@ -654,7 +656,6 @@ async function main() {
           }
         }
 
-        const resultRaw = row[COL.BN]?.trim()
         const hiredAt = resultRaw === '採用' ? (interviewDate || appliedAt) : null
 
         // 稼働月: CF(稼働日)→BG+BH(派遣予定)→null
