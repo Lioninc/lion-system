@@ -485,7 +485,9 @@ async function main() {
 
   for (let idx = 0; idx < dataRows.length; idx++) {
     const row = dataRows[idx]
-    const phone = normalizePhone(row[COL.PHONE] || '')
+    let phone = normalizePhone(row[COL.PHONE] || '')
+    // 7桁未満の電話番号は無効とみなしユニーク値に置換（CSVの行番号等が入っているケース）
+    if (phone && phone.length < 7) phone = ''
 
     // 名前
     let name = row[COL.NAME]?.trim() || ''
@@ -520,7 +522,7 @@ async function main() {
 
       const { data: newJS, error } = await supabase.from('job_seekers').insert({
         tenant_id: tenantId,
-        phone: phone || `unknown-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        phone: phone || `U${idx}-${Math.random().toString(36).slice(2, 8)}`,
         name: name || '名前不明',
         name_kana: kana || null,
         birth_date: parseDate(row[COL.BIRTH_DATE]),
