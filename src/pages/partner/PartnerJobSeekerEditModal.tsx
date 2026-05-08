@@ -30,6 +30,9 @@ export function PartnerJobSeekerEditModal({
   const [hasForklift, setHasForklift] = useState(jobSeeker.has_forklift || false)
   const [pcSkillLevel, setPcSkillLevel] = useState(jobSeeker.pc_skill_level || '')
 
+  // 備考
+  const [notes, setNotes] = useState(jobSeeker.notes || '')
+
   // 希望条件
   const [desiredJobType, setDesiredJobType] = useState(jobSeeker.desired_job_type || '')
   const [desiredEmploymentType, setDesiredEmploymentType] = useState(
@@ -70,6 +73,7 @@ export function PartnerJobSeekerEditModal({
         desired_annual_income: desiredAnnualIncome ? Number(desiredAnnualIncome) : null,
         desired_start_date: desiredStartDate || null,
         employment_status: (employmentStatus || null) as JobSeeker['employment_status'],
+        notes: notes || null,
       })
     } finally {
       setSaving(false)
@@ -251,6 +255,20 @@ export function PartnerJobSeekerEditModal({
                 </select>
               </div>
             </div>
+          </section>
+
+          {/* 備考 */}
+          <section>
+            <h3 className="text-sm font-bold text-slate-700 mb-3 pb-1 border-b border-slate-200">
+              備考
+            </h3>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={4}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-vertical"
+              placeholder="備考・メモなど"
+            />
           </section>
         </div>
 
