@@ -108,9 +108,20 @@ export interface JobSeeker {
   commute_method: string | null
   commute_time: number | null
   other_job_hunting: string | null
+  lion_interview_done: boolean
+  ttt_interview_done: boolean
+  partner_status: PartnerStatus
   created_by: string | null
   created_at: string
   updated_at: string
+}
+
+export type PartnerStatus = 'pending' | 'no_issue' | 'no_contact'
+
+export const PARTNER_STATUS_LABELS: Record<PartnerStatus, string> = {
+  pending: '未対応',
+  no_issue: '問題なし',
+  no_contact: '今後連絡不要',
 }
 
 export interface Application {

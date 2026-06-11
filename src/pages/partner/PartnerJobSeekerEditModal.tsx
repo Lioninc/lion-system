@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import { Button, Input } from '../../components/ui'
-import type { JobSeeker } from '../../types/database'
+import type { JobSeeker, PartnerStatus } from '../../types/database'
+import { PARTNER_STATUS_LABELS } from '../../types/database'
 
 interface PartnerJobSeekerEditModalProps {
   jobSeeker: JobSeeker
@@ -32,6 +33,17 @@ export function PartnerJobSeekerEditModal({
 
   // 備考
   const [notes, setNotes] = useState(jobSeeker.notes || '')
+
+  // 面談状況・ステータス
+  const [lionInterviewDone, setLionInterviewDone] = useState(
+    jobSeeker.lion_interview_done || false,
+  )
+  const [tttInterviewDone, setTttInterviewDone] = useState(
+    jobSeeker.ttt_interview_done || false,
+  )
+  const [partnerStatus, setPartnerStatus] = useState<PartnerStatus>(
+    jobSeeker.partner_status || 'pending',
+  )
 
   // 希望条件
   const [desiredJobType, setDesiredJobType] = useState(jobSeeker.desired_job_type || '')
@@ -74,6 +86,9 @@ export function PartnerJobSeekerEditModal({
         desired_start_date: desiredStartDate || null,
         employment_status: (employmentStatus || null) as JobSeeker['employment_status'],
         notes: notes || null,
+        lion_interview_done: lionInterviewDone,
+        ttt_interview_done: tttInterviewDone,
+        partner_status: partnerStatus,
       })
     } finally {
       setSaving(false)
@@ -96,6 +111,47 @@ export function PartnerJobSeekerEditModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          {/* 面談状況・ステータス */}
+          <section>
+            <h3 className="text-sm font-bold text-slate-700 mb-3 pb-1 border-b border-slate-200">
+              面談状況・ステータス
+            </h3>
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={lionInterviewDone}
+                    onChange={(e) => setLionInterviewDone(e.target.checked)}
+                    className="w-4 h-4 accent-primary"
+                  />
+                  <span className="text-sm">リオン面談実施済み</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={tttInterviewDone}
+                    onChange={(e) => setTttInterviewDone(e.target.checked)}
+                    className="w-4 h-4 accent-primary"
+                  />
+                  <span className="text-sm">TTT面談実施済み</span>
+                </label>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">ステータス</label>
+                <select
+                  value={partnerStatus}
+                  onChange={(e) => setPartnerStatus(e.target.value as PartnerStatus)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                >
+                  <option value="pending">{PARTNER_STATUS_LABELS.pending}</option>
+                  <option value="no_issue">{PARTNER_STATUS_LABELS.no_issue}</option>
+                  <option value="no_contact">{PARTNER_STATUS_LABELS.no_contact}</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
           {/* 基本情報 */}
           <section>
             <h3 className="text-sm font-bold text-slate-700 mb-3 pb-1 border-b border-slate-200">

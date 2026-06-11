@@ -2,9 +2,12 @@ import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Menu } from 'lucide-react'
+import { useAuthStore } from '../../stores/authStore'
 
 export function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { user } = useAuthStore()
+  const isPartner = user?.role === 'partner'
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -16,12 +19,16 @@ export function MainLayout() {
         >
           <Menu className="w-6 h-6" />
         </button>
-        <div className="ml-3 flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-lg font-bold">L</span>
+        {isPartner ? (
+          <span className="ml-3 font-bold">求職者リスト</span>
+        ) : (
+          <div className="ml-3 flex items-center gap-2">
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+              <span className="text-lg font-bold">L</span>
+            </div>
+            <span className="font-bold">LION System</span>
           </div>
-          <span className="font-bold">LION System</span>
-        </div>
+        )}
       </div>
 
       {/* Mobile Sidebar Overlay */}
