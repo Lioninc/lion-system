@@ -9,7 +9,7 @@ import { Header } from '../../components/layout'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 import { usePostalCodeLookup } from '../../hooks/usePostalCodeLookup'
-import { calculateAge } from '../../lib/utils'
+import { calculateAge, normalizePhone } from '../../lib/utils'
 
 // Form data type
 interface JobSeekerFormData {
@@ -171,6 +171,9 @@ export function JobSeekerNewPage() {
     setSearching(true)
     setExistingJobSeeker(null)
 
+    // 入力を正規化してから既存レコードを検索 (Excel由来の0欠落値もヒットさせる)
+    const normalized = normalizePhone(phoneInput) || phoneInput
+
     const { data, error } = await supabase
       .from('job_seekers')
       .select(`
@@ -183,14 +186,14 @@ export function JobSeekerNewPage() {
           applied_at
         )
       `)
-      .eq('phone', phoneInput)
+      .eq('phone', normalized)
       .single()
 
     if (data && !error) {
       setExistingJobSeeker(data as ExistingJobSeeker)
     } else {
       // No existing job seeker, proceed to form
-      setValue('phone', phoneInput)
+      setValue('phone', normalized)
       await loadSources()
       setStep('form')
     }

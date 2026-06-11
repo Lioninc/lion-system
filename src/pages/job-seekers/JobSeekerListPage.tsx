@@ -17,7 +17,7 @@ import { Header } from '../../components/layout'
 import { supabase } from '../../lib/supabase'
 import type { ApplicationStatus, ProgressStatus } from '../../types/database'
 import { APPLICATION_STATUS_LABELS, PROGRESS_STATUS_LABELS } from '../../types/database'
-import { formatDate, calculateAge } from '../../lib/utils'
+import { formatDate, calculateAge, normalizePhone } from '../../lib/utils'
 
 interface SourceCount {
   name: string
@@ -460,7 +460,9 @@ export function JobSeekerListPage() {
       .range(offset, offset + PAGE_SIZE - 1)
 
     if (filters.search) {
-      idQuery = idQuery.or(`name.ilike.%${filters.search}%,name_kana.ilike.%${filters.search}%,phone.ilike.%${filters.search}%`)
+      // 電話番号検索は正規化してから (Excel で先頭0が落ちた値も含めヒットさせるため)
+      const phoneSearch = normalizePhone(filters.search) || filters.search
+      idQuery = idQuery.or(`name.ilike.%${filters.search}%,name_kana.ilike.%${filters.search}%,phone.ilike.%${phoneSearch}%`)
     }
     if (filters.status) idQuery = idQuery.eq('applications.application_status', filters.status)
     if (filters.progressStatus) idQuery = idQuery.eq('applications.progress_status', filters.progressStatus)
@@ -873,9 +875,9 @@ export function JobSeekerListPage() {
     const { data: companiesData } = await supabase.from('companies').select('id, name, company_type_v2')
     const companyMap = new Map(companiesData?.map((c) => [c.name, c]) || [])
 
-    // Normalize all phone numbers (remove hyphens)
+    // Normalize all phone numbers (先頭0補完含む)
     for (const row of data) {
-      if (row.phone) row.phone = row.phone.replace(/-/g, '')
+      if (row.phone) row.phone = normalizePhone(row.phone)
     }
 
     const phones = data.map((row) => row.phone).filter(Boolean)

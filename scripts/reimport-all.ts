@@ -103,9 +103,29 @@ function parseCsvLine(line: string): string[] {
   return result
 }
 
+// Excelで数値解釈されて先頭0が落ちたケース等を補正する
+// src/lib/utils.ts の normalizePhone と同じロジックを維持すること
 function normalizePhone(phone: string): string {
   if (!phone) return ''
-  return phone.replace(/[-\s\u3000()（）]/g, '').trim().slice(0, 20)
+  let s = String(phone).trim()
+
+  // 全角→半角
+  s = s.replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xfee0))
+
+  if (s.startsWith('+81')) {
+    s = '0' + s.slice(3)
+  } else if (s.startsWith('81') && s.length >= 12) {
+    s = '0' + s.slice(2)
+  }
+
+  const digits = s.replace(/\D/g, '')
+
+  if (digits.length === 11 && digits.startsWith('0')) return digits
+  if (digits.length === 10 && digits.startsWith('0')) return digits
+  if (digits.length === 10 && /^[789]/.test(digits)) return '0' + digits
+  if (digits.length === 9 && /^[1-9]/.test(digits)) return '0' + digits
+
+  return digits.slice(0, 20)
 }
 
 function parseDate(dateStr: string): string | null {

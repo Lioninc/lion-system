@@ -5,7 +5,7 @@ import { Header } from '../../components/layout'
 import { supabase } from '../../lib/supabase'
 import type { JobSeeker, PartnerStatus } from '../../types/database'
 import { PARTNER_STATUS_LABELS } from '../../types/database'
-import { calculateAge, formatPhone, formatDate } from '../../lib/utils'
+import { calculateAge, formatPhone, formatDate, normalizePhone } from '../../lib/utils'
 import { PartnerJobSeekerEditModal } from './PartnerJobSeekerEditModal'
 
 interface PartnerJobSeeker extends JobSeeker {
@@ -110,6 +110,8 @@ export function PartnerJobSeekersPage() {
     const prefectureLower = prefectureFilter.toLowerCase()
     const minAgeNum = minAge ? Number(minAge) : null
     const maxAgeNum = maxAge ? Number(maxAge) : null
+    // 電話番号検索は正規化値も使う (Excelで0が落ちた値での検索もヒットさせる)
+    const phoneSearch = normalizePhone(search)
 
     return jobSeekers.filter((js) => {
       // テキスト検索
@@ -118,6 +120,7 @@ export function PartnerJobSeekersPage() {
           js.name?.toLowerCase().includes(lower) ||
           js.name_kana?.toLowerCase().includes(lower) ||
           js.phone?.includes(search) ||
+          (phoneSearch && js.phone?.includes(phoneSearch)) ||
           js.prefecture?.toLowerCase().includes(lower) ||
           js.city?.toLowerCase().includes(lower) ||
           js.desired_job_type?.toLowerCase().includes(lower) ||
