@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import { Button, Input } from '../../components/ui'
-import type { JobSeeker, PartnerStatus } from '../../types/database'
-import { PARTNER_STATUS_LABELS } from '../../types/database'
+import type { JobSeeker, HandlerStatus } from '../../types/database'
+import { HANDLER_STATUS_LABELS, HANDLERS } from '../../types/database'
 
 interface PartnerJobSeekerEditModalProps {
   jobSeeker: JobSeeker
@@ -34,16 +34,33 @@ export function PartnerJobSeekerEditModal({
   // 備考
   const [notes, setNotes] = useState(jobSeeker.notes || '')
 
-  // 面談状況・ステータス
+  // 面談状況・担当ステータス
   const [lionInterviewDone, setLionInterviewDone] = useState(
     jobSeeker.lion_interview_done || false,
   )
   const [tttInterviewDone, setTttInterviewDone] = useState(
     jobSeeker.ttt_interview_done || false,
   )
-  const [partnerStatus, setPartnerStatus] = useState<PartnerStatus>(
-    jobSeeker.partner_status || 'pending',
+  const [katoStatus, setKatoStatus] = useState<HandlerStatus>(
+    jobSeeker.kato_status || 'pending',
   )
+  const [taniguchiStatus, setTaniguchiStatus] = useState<HandlerStatus>(
+    jobSeeker.taniguchi_status || 'pending',
+  )
+  const [watanabeStatus, setWatanabeStatus] = useState<HandlerStatus>(
+    jobSeeker.watanabe_status || 'pending',
+  )
+
+  const handlerStatusSetters: Record<(typeof HANDLERS)[number]['key'], (s: HandlerStatus) => void> = {
+    kato_status: setKatoStatus,
+    taniguchi_status: setTaniguchiStatus,
+    watanabe_status: setWatanabeStatus,
+  }
+  const handlerStatusValues: Record<(typeof HANDLERS)[number]['key'], HandlerStatus> = {
+    kato_status: katoStatus,
+    taniguchi_status: taniguchiStatus,
+    watanabe_status: watanabeStatus,
+  }
 
   // 希望条件
   const [desiredJobType, setDesiredJobType] = useState(jobSeeker.desired_job_type || '')
@@ -88,7 +105,9 @@ export function PartnerJobSeekerEditModal({
         notes: notes || null,
         lion_interview_done: lionInterviewDone,
         ttt_interview_done: tttInterviewDone,
-        partner_status: partnerStatus,
+        kato_status: katoStatus,
+        taniguchi_status: taniguchiStatus,
+        watanabe_status: watanabeStatus,
       })
     } finally {
       setSaving(false)
@@ -111,10 +130,10 @@ export function PartnerJobSeekerEditModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
-          {/* 面談状況・ステータス */}
+          {/* 面談状況・担当ステータス */}
           <section>
             <h3 className="text-sm font-bold text-slate-700 mb-3 pb-1 border-b border-slate-200">
-              面談状況・ステータス
+              面談状況・担当ステータス
             </h3>
             <div className="space-y-3">
               <div className="flex flex-wrap gap-4">
@@ -137,17 +156,21 @@ export function PartnerJobSeekerEditModal({
                   <span className="text-sm">TTT面談実施済み</span>
                 </label>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">ステータス</label>
-                <select
-                  value={partnerStatus}
-                  onChange={(e) => setPartnerStatus(e.target.value as PartnerStatus)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                >
-                  <option value="pending">{PARTNER_STATUS_LABELS.pending}</option>
-                  <option value="no_issue">{PARTNER_STATUS_LABELS.no_issue}</option>
-                  <option value="no_contact">{PARTNER_STATUS_LABELS.no_contact}</option>
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {HANDLERS.map((h) => (
+                  <div key={h.key}>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{h.label}</label>
+                    <select
+                      value={handlerStatusValues[h.key]}
+                      onChange={(e) => handlerStatusSetters[h.key](e.target.value as HandlerStatus)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                    >
+                      {(Object.keys(HANDLER_STATUS_LABELS) as HandlerStatus[]).map((s) => (
+                        <option key={s} value={s}>{HANDLER_STATUS_LABELS[s]}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
               </div>
             </div>
           </section>

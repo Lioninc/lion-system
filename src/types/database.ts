@@ -110,19 +110,42 @@ export interface JobSeeker {
   other_job_hunting: string | null
   lion_interview_done: boolean
   ttt_interview_done: boolean
-  partner_status: PartnerStatus
+  kato_status: HandlerStatus
+  taniguchi_status: HandlerStatus
+  watanabe_status: HandlerStatus
   created_by: string | null
   created_at: string
   updated_at: string
 }
 
-export type PartnerStatus = 'pending' | 'no_issue' | 'no_contact'
+export type HandlerStatus =
+  | 'pending'
+  | 'absent'
+  | 'immediate_ng'
+  | 'no_issue'
+  | 'no_contact'
 
-export const PARTNER_STATUS_LABELS: Record<PartnerStatus, string> = {
+export const HANDLER_STATUS_LABELS: Record<HandlerStatus, string> = {
   pending: '未対応',
+  absent: '不在',
+  immediate_ng: '即NG',
   no_issue: '問題なし',
   no_contact: '今後連絡不要',
 }
+
+export const HANDLER_STATUS_BADGE_CLASS: Record<HandlerStatus, string> = {
+  pending: 'bg-amber-100 text-amber-800',
+  absent: 'bg-blue-100 text-blue-800',
+  immediate_ng: 'bg-red-100 text-red-800',
+  no_issue: 'bg-emerald-100 text-emerald-800',
+  no_contact: 'bg-slate-200 text-slate-600',
+}
+
+export const HANDLERS: Array<{ key: 'kato_status' | 'taniguchi_status' | 'watanabe_status'; label: string }> = [
+  { key: 'kato_status', label: '加藤' },
+  { key: 'taniguchi_status', label: '谷口' },
+  { key: 'watanabe_status', label: '渡辺' },
+]
 
 export interface Application {
   id: string

@@ -3,8 +3,8 @@ import { Search, Pencil, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react
 import { Card, Button } from '../../components/ui'
 import { Header } from '../../components/layout'
 import { supabase } from '../../lib/supabase'
-import type { JobSeeker, PartnerStatus } from '../../types/database'
-import { PARTNER_STATUS_LABELS } from '../../types/database'
+import type { JobSeeker, HandlerStatus } from '../../types/database'
+import { HANDLER_STATUS_LABELS, HANDLER_STATUS_BADGE_CLASS, HANDLERS } from '../../types/database'
 import { calculateAge, formatPhone, formatDate, normalizePhone } from '../../lib/utils'
 import { PartnerJobSeekerEditModal } from './PartnerJobSeekerEditModal'
 
@@ -12,6 +12,8 @@ interface PartnerJobSeeker extends JobSeeker {
   age: number | null
   latest_applied_at: string | null
 }
+
+type HandlerKey = (typeof HANDLERS)[number]['key']
 
 const PAGE_SIZE = 20
 
@@ -30,7 +32,9 @@ export function PartnerJobSeekersPage() {
   const [genderFilter, setGenderFilter] = useState<'' | 'male' | 'female'>('')
   const [appliedFrom, setAppliedFrom] = useState('')
   const [appliedTo, setAppliedTo] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'' | PartnerStatus>('')
+  const [katoFilter, setKatoFilter] = useState<'' | HandlerStatus>('')
+  const [taniguchiFilter, setTaniguchiFilter] = useState<'' | HandlerStatus>('')
+  const [watanabeFilter, setWatanabeFilter] = useState<'' | HandlerStatus>('')
 
   // インライン更新の保存中表示
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set())
@@ -148,12 +152,14 @@ export function PartnerJobSeekersPage() {
         if (!js.latest_applied_at || js.latest_applied_at > appliedTo + 'T23:59:59') return false
       }
 
-      // ステータス
-      if (statusFilter && js.partner_status !== statusFilter) return false
+      // 担当ステータス (AND)
+      if (katoFilter && js.kato_status !== katoFilter) return false
+      if (taniguchiFilter && js.taniguchi_status !== taniguchiFilter) return false
+      if (watanabeFilter && js.watanabe_status !== watanabeFilter) return false
 
       return true
     })
-  }, [jobSeekers, search, minAge, maxAge, prefectureFilter, genderFilter, appliedFrom, appliedTo, statusFilter])
+  }, [jobSeekers, search, minAge, maxAge, prefectureFilter, genderFilter, appliedFrom, appliedTo, katoFilter, taniguchiFilter, watanabeFilter])
 
   const totalPages = Math.max(1, Math.ceil(filteredSeekers.length / PAGE_SIZE))
   const pagedSeekers = filteredSeekers.slice(
@@ -174,19 +180,21 @@ export function PartnerJobSeekersPage() {
     setGenderFilter('')
     setAppliedFrom('')
     setAppliedTo('')
-    setStatusFilter('')
+    setKatoFilter('')
+    setTaniguchiFilter('')
+    setWatanabeFilter('')
     setCurrentPage(1)
   }
 
   // フィルター変更時はページを1に戻す
   useEffect(() => {
     setCurrentPage(1)
-  }, [minAge, maxAge, prefectureFilter, genderFilter, appliedFrom, appliedTo, statusFilter])
+  }, [minAge, maxAge, prefectureFilter, genderFilter, appliedFrom, appliedTo, katoFilter, taniguchiFilter, watanabeFilter])
 
   // 楽観的UI更新付きのインライン保存
   async function updatePartnerField(
     id: string,
-    updates: Partial<Pick<JobSeeker, 'lion_interview_done' | 'ttt_interview_done' | 'partner_status'>>,
+    updates: Partial<Pick<JobSeeker, 'lion_interview_done' | 'ttt_interview_done' | HandlerKey>>,
   ) {
     const before = jobSeekers.find((js) => js.id === id)
     if (!before) return
@@ -232,6 +240,17 @@ export function PartnerJobSeekersPage() {
     setEditingSeeker(null)
     await fetchJobSeekers()
   }
+
+  const statusFilterOptions: Array<{
+    value: '' | HandlerStatus
+    setValue: (v: '' | HandlerStatus) => void
+    current: '' | HandlerStatus
+    label: string
+  }> = [
+    { value: katoFilter, current: katoFilter, setValue: setKatoFilter, label: '加藤' },
+    { value: taniguchiFilter, current: taniguchiFilter, setValue: setTaniguchiFilter, label: '谷口' },
+    { value: watanabeFilter, current: watanabeFilter, setValue: setWatanabeFilter, label: '渡辺' },
+  ]
 
   return (
     <div>
@@ -332,20 +351,27 @@ export function PartnerJobSeekersPage() {
                 />
               </div>
             </div>
+          </div>
 
-            {/* ステータス */}
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">ステータス</label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as '' | PartnerStatus)}
-                className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-              >
-                <option value="">すべて</option>
-                <option value="pending">{PARTNER_STATUS_LABELS.pending}</option>
-                <option value="no_issue">{PARTNER_STATUS_LABELS.no_issue}</option>
-                <option value="no_contact">{PARTNER_STATUS_LABELS.no_contact}</option>
-              </select>
+          {/* 担当ステータスフィルター */}
+          <div className="mt-3 pt-3 border-t border-slate-200">
+            <label className="block text-xs font-medium text-slate-600 mb-2">担当ステータス</label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {statusFilterOptions.map((opt) => (
+                <div key={opt.label} className="flex items-center gap-2">
+                  <span className="text-sm text-slate-700 w-10 flex-shrink-0">{opt.label}:</span>
+                  <select
+                    value={opt.current}
+                    onChange={(e) => opt.setValue(e.target.value as '' | HandlerStatus)}
+                    className="flex-1 px-2 py-1.5 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                  >
+                    <option value="">すべて</option>
+                    {(Object.keys(HANDLER_STATUS_LABELS) as HandlerStatus[]).map((s) => (
+                      <option key={s} value={s}>{HANDLER_STATUS_LABELS[s]}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
             </div>
           </div>
         </Card>
@@ -365,57 +391,8 @@ export function PartnerJobSeekersPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {pagedSeekers.map((js) => (
                 <Card key={js.id}>
-                  {/* 面談状況・ステータス */}
-                  <div className="mb-3 pb-3 border-b border-slate-200 flex flex-wrap items-center gap-3">
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={js.lion_interview_done}
-                        onChange={(e) =>
-                          updatePartnerField(js.id, { lion_interview_done: e.target.checked })
-                        }
-                        className="w-4 h-4 accent-primary"
-                      />
-                      <span className="text-sm font-medium text-slate-700">リオン面談実施済み</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={js.ttt_interview_done}
-                        onChange={(e) =>
-                          updatePartnerField(js.id, { ttt_interview_done: e.target.checked })
-                        }
-                        className="w-4 h-4 accent-primary"
-                      />
-                      <span className="text-sm font-medium text-slate-700">TTT面談実施済み</span>
-                    </label>
-                    <div className="ml-auto flex items-center gap-2">
-                      {savingIds.has(js.id) && (
-                        <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
-                      )}
-                      <select
-                        value={js.partner_status}
-                        onChange={(e) =>
-                          updatePartnerField(js.id, {
-                            partner_status: e.target.value as PartnerStatus,
-                          })
-                        }
-                        className={`text-xs font-semibold px-2 py-1 rounded-full border-0 focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer ${
-                          js.partner_status === 'pending'
-                            ? 'bg-amber-100 text-amber-800'
-                            : js.partner_status === 'no_issue'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-slate-200 text-slate-600'
-                        }`}
-                      >
-                        <option value="pending">{PARTNER_STATUS_LABELS.pending}</option>
-                        <option value="no_issue">{PARTNER_STATUS_LABELS.no_issue}</option>
-                        <option value="no_contact">{PARTNER_STATUS_LABELS.no_contact}</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between items-start gap-4">
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    {/* ── 左カラム: 求職者情報 ── */}
                     <div className="flex-1 min-w-0 space-y-3">
                       {/* 基本情報 */}
                       <div>
@@ -510,16 +487,83 @@ export function PartnerJobSeekersPage() {
                       </div>
                     </div>
 
-                    <div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditingSeeker(js)}
-                      >
-                        <Pencil className="w-4 h-4 mr-1" />
-                        編集
-                      </Button>
+                    {/* ── 右カラム: 操作パネル ── */}
+                    <div className="w-full sm:w-56 lg:w-64 flex-shrink-0 sm:border-l sm:border-slate-200 sm:pl-4">
+                      {/* ヘッダー (保存中インジケータ) */}
+                      <div className="flex justify-between items-center mb-2 h-5">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">面談状況</span>
+                        {savingIds.has(js.id) && (
+                          <Loader2 className="w-3.5 h-3.5 text-slate-400 animate-spin" />
+                        )}
+                      </div>
+
+                      {/* 面談チェック */}
+                      <div className="space-y-1.5">
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={js.lion_interview_done}
+                            onChange={(e) =>
+                              updatePartnerField(js.id, { lion_interview_done: e.target.checked })
+                            }
+                            className="w-4 h-4 accent-primary"
+                          />
+                          <span className="text-sm text-slate-700">リオン面談</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={js.ttt_interview_done}
+                            onChange={(e) =>
+                              updatePartnerField(js.id, { ttt_interview_done: e.target.checked })
+                            }
+                            className="w-4 h-4 accent-primary"
+                          />
+                          <span className="text-sm text-slate-700">TTT面談</span>
+                        </label>
+                      </div>
+
+                      {/* 区切り */}
+                      <div className="my-3 border-t border-slate-200" />
+
+                      {/* 担当ステータス */}
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">担当</p>
+                      <div className="space-y-1.5">
+                        {HANDLERS.map((h) => {
+                          const value = js[h.key] as HandlerStatus
+                          return (
+                            <div key={h.key} className="flex items-center gap-2">
+                              <span className="text-sm text-slate-700 w-12 flex-shrink-0">{h.label}:</span>
+                              <select
+                                value={value}
+                                onChange={(e) =>
+                                  updatePartnerField(js.id, {
+                                    [h.key]: e.target.value as HandlerStatus,
+                                  } as Partial<JobSeeker>)
+                                }
+                                className={`flex-1 text-xs font-semibold px-2 py-1 rounded border-0 focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer ${HANDLER_STATUS_BADGE_CLASS[value]}`}
+                              >
+                                {(Object.keys(HANDLER_STATUS_LABELS) as HandlerStatus[]).map((s) => (
+                                  <option key={s} value={s}>{HANDLER_STATUS_LABELS[s]}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      {/* 編集ボタン */}
+                      <div className="mt-3 flex justify-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditingSeeker(js)}
+                        >
+                          <Pencil className="w-4 h-4 mr-1" />
+                          編集
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </Card>
